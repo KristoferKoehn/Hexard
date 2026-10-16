@@ -1,0 +1,19 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# Pinned engine toolchain, downloads and local logs (track the .gdignore so a
+# freshly installed engine is never scanned as project assets).
+/tools/*
+!/tools/.gdignore
+
+# Builds / exports
+/build/
+/dist/
+export_presets.cfg
+
+# Reference-only research images (copyrighted game screenshots + our crops).
+# Only the markdown research notes are tracked.
+docs/research/*.png
+docs/research/*.jpg
+docs/research/*.jpeg

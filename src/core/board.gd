@@ -1,0 +1,134 @@
+class_name Board
+extends RefCounted
+
+## Cell storage for the 85-cell board plus the gravity compaction pass.
+## Values are packed piece ids (see Piece); Piece.EMPTY means no gem.
+
+const HexGridScript := preload("res://src/core/hex_grid.gd")
+const PieceScript := preload("res://src/core/piece.gd")
+
+var _cells: Dictionary = {}
+
+
+func _init() -> void:
+	clear()
+
+
+func clear() -> void:
+	for cell: Vector2i in HexGridScript.all_cells():
+		_cells[cell] = PieceScript.EMPTY
+
+
+func get_piece(cell: Vector2i) -> int:
+	return _cells.get(cell, PieceScript.EMPTY)
+
+
+func set_piece(cell: Vector2i, piece: int) -> void:
+	_cells[cell] = piece
+
+
+func remove_piece(cell: Vector2i) -> void:
+	_cells[cell] = PieceScript.EMPTY
+
+
+func is_empty(cell: Vector2i) -> bool:
+	return get_piece(cell) == PieceScript.EMPTY
+
+
+func filled_count() -> int:
+	var total := 0
+	for value: int in _cells.values():
+		if value != PieceScript.EMPTY:
+			total += 1
+	return total
+
+
+func empty_cells() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for cell: Vector2i in HexGridScript.all_cells():
+		if is_empty(cell):
+			out.append(cell)
+	return out
+
+
+## Comps every column downwards (no sideways sliding; docs/design.md §2.2).
+## Returns the number of pieces that changed cell.
+func apply_gravity() -> int:
+	var moved := 0
+	for column_index in HexGridScript.COLUMNS:
+		var chain: Array[Vector2i] = HexGridScript.column(column_index)
+		var write := chain.size() - 1
+		for read in range(chain.size() - 1, -1, -1):
+			var piece := get_piece(chain[read])
+			if piece == PieceScript.EMPTY:
+				continue
+			if write != read:
+				set_piece(chain[write], piece)
+				remove_piece(chain[read])
+				moved += 1
+			write -= 1
+	return moved
+
+
+## Highest empty cell in a column, or null when the column is full.
+func first_empty_from_top(column_index: int) -> Variant:
+	for cell: Vector2i in HexGridScript.column(column_index):
+		if is_empty(cell):
+			return cell
+	return null
+
+
+## Structural invariants that must hold after every rules step.
+## Returns a list of violations; empty means healthy.
+##
+## Scan runs bottom-to-top: an empty cell with a filled cell above it means
+## that piece is floating (it should have fallen). Empty cells *above* a
+## resting piece are normal after gravity.
+func invariant_violations() -> Array[String]:
+	var problems: Array[String] = []
+	for column_index in HexGridScript.COLUMNS:
+		var chain: Array[Vector2i] = HexGridScript.column(column_index)
+		var seen_empty := false
+		for index in range(chain.size() - 1, -1, -1):
+			var cell: Vector2i = chain[index]
+			if is_empty(cell):
+				seen_empty = true
+			elif seen_empty:
+				problems.append(
+					"floating piece at %s (empty cell below it in column %d)" % [cell, column_index]
+				)
+	return problems
+
+
+## Stable digest of the board, for golden tests and replay comparisons.
+func signature() -> String:
+	var parts := PackedStringArray()
+	for cell: Vector2i in HexGridScript.all_cells():
+		parts.append("%d:%d" % [cell.y * HexGridScript.COLUMNS + cell.x, get_piece(cell)])
+	return ",".join(parts)
+
+
+## Debug view: 17 staggered half-rows, ".." = empty, otherwise the piece kind.
+func to_ascii() -> String:
+	var lines := PackedStringArray()
+	for half in HexGridScript.EXPECTED_HALF_ROWS:
+		var line := ""
+		for column_index in HexGridScript.COLUMNS:
+			var parity := column_index % 2
+			if parity != half % 2:
+				line += "   "
+				continue
+			var row := (half - (1 if parity == 1 else 0)) / 2
+			var cell := Vector2i(column_index, row)
+			if not HexGridScript.has_cell(cell):
+				line += "   "
+			elif is_empty(cell):
+				line += ".. "
+			else:
+				var piece := get_piece(cell)
+				line += "%s%s " % [
+					str(PieceScript.kind_of(piece)).substr(0, 1),
+					str(PieceScript.color_of(piece)).substr(0, 1),
+				]
+		lines.append(line.rstrip(" "))
+	return "\n".join(lines)

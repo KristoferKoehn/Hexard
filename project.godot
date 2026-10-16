@@ -1,0 +1,25 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="Hexard"
+config/description="Hexagonal rotation match-3 puzzle game."
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[debug]
+
+file_logging/enable_file_logging.pc=false
+gdscript/warnings/untyped_declaration=1
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
