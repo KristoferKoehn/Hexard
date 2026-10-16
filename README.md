@@ -6,13 +6,14 @@ Rotate trios of gems around the points where three hexes meet. Match three or mo
 
 ## Status
 
-**M0 complete** — rules designed, geometry core built, test suite green. Next up is M1: the playable rotation/match/gravity loop.
+**M1 complete** — the rules core is playable in the editor: rotate trios, clear clusters, watch gravity
+cascades and score. Specials (stars, starflowers, pearls, bombs) are next.
 
 | Milestone | State |
 |---|---|
-| M0 · repo, design doc, pinned engine, geometry core | ✅ 37 tests / 0 failed |
-| M1 · playable core loop (rotate → match → gravity → cascade → score) | next |
-| M2 · specials (bonus stars, starflowers, black pearls, bombs) | planned |
+| M0 · repo, design doc, pinned engine, geometry core | ✅ 85 cells, 135 vertices, 17×5 half-rows verified |
+| M1 · playable core (rotate → match → gravity → cascade → score) + dev-art scene | ✅ 75 tests, view smoke test, 10,000-move soak |
+| M2 · specials (bonus stars, starflowers, black pearls, bombs) | next |
 | M3 · levels, modes (Marathon / Timed / Survival), difficulty | planned |
 | M4 · art, audio, HUD, tutorial, saves, meta | planned |
 | M5 · balance, accessibility, exports | planned |
@@ -25,34 +26,51 @@ Rotate trios of gems around the points where three hexes meet. Match three or mo
 ## Getting started
 
 ```bat
-install-godot.cmd   :: downloads the pinned engine (Godot 4.7.2) into tools/, git-ignored
-run_tests.cmd       :: runs the headless core suite; exits non-zero on failure
+install-godot.cmd       :: downloads the pinned engine (Godot 4.7.2) into tools/, git-ignored
+run_tests.cmd           :: unit suite + view smoke test; exits non-zero on failure
+run_tests.cmd -Soak     :: ... plus a 10,000-move randomised soak
 ```
+
+Then play it: `tools\godot\Godot_v4.7.2-stable_win64.exe --path .` (or open `project.godot` in the editor).
+
+| Action | Keys |
+|---|---|
+| Move cursor | Arrows / WASD, or hover with the mouse |
+| Rotate | `Z` CCW / `X` CW, or right/left click |
+| Hint | `H` |
+| New board | `R` |
+| Toggle FREE / STRICT rotation | `T` |
+| Quit | `Esc` |
 
 The `.cmd` wrappers invoke the PowerShell scripts with a per-process `-ExecutionPolicy Bypass`, because some
 machines block unsigned `.ps1` files; the scripts are Windows PowerShell 5.1 compatible (no `pwsh` needed).
 `run_tests.ps1` resolves the engine from `$env:HEXARD_GODOT`, then `tools/godot/`, then `PATH`.
 
-Open `project.godot` in Godot to work in the editor (`tools\godot\Godot_v4.7.2-stable_win64.exe --path .`).
-
 ## Layout
 
 ```
 src/core/     pure GDScript rules + geometry — no Node dependencies, fully unit-testable
-src/view/     Godot rendering, input, audio (M1+)
-tests/        headless test suite: run_tests.gd + test_*.gd (no plugin dependency)
+src/view/     Godot rendering, HUD (dev art; the art pass is M4)
+src/app/      scene + controller that wires core to view
+tests/        headless suites: unit (run_tests.gd), view smoke (smoke_scene.gd), soak (soak.gd)
 docs/         design document and research notes
 ```
 
-## Verified geometry (M0)
+## Verified behaviour
 
-The board model is validated by the test suite, not by assumption:
+Rules and geometry are validated by the test suite, not by assumption:
 
-- **85 cells** in 10 vertical columns, heights alternating **9 / 8** (the short, odd columns are the shifted ones).
-- **17 staggered half-rows of exactly 5 cells** — matching an independent fan reverse-engineering of the original.
-- **135 rotation vertices**, each a mutually adjacent triple of cells.
-- Flat-top hexes, 6 edge-neighbours, neighbour centres exactly one hex edge apart.
-- Gravity compacts per column only, preserving order, and never slides gems sideways.
+- **85 cells** in 10 columns of alternating height 9/8, **17 staggered half-rows of 5**, **135 rotation
+  vertices** — matching an independent fan reverse-engineering of the original.
+- Matches are **vertex triangles**: three mutually adjacent same-coloured gems. A straight line of three
+  never clears, which is the rule that makes flower-building the real game.
+- Gravity is per column, never sideways, and runs **before matches are judged** on every committed move.
+- Scoring is `base × level × difficulty × cascade`, driven by `data/scoring.json`.
+- A dead board is detected and shuffled back to life.
+- Seed + command log reproduces a run exactly (the base for replays and regression tests).
+
+Four real bugs were found by this suite during bring-up, including an empty cell decoding as a matchable
+colour and a rotation that could leave a piece floating on a gappy board.
 
 ## Key decisions so far
 

@@ -54,7 +54,12 @@ func empty_cells() -> Array[Vector2i]:
 ## Comps every column downwards (no sideways sliding; docs/design.md §2.2).
 ## Returns the number of pieces that changed cell.
 func apply_gravity() -> int:
-	var moved := 0
+	return apply_gravity_moves().size()
+
+
+## Same pass, but reports each piece's movement so the view can animate falls.
+func apply_gravity_moves() -> Array:
+	var moves: Array = []
 	for column_index in HexGridScript.COLUMNS:
 		var chain: Array[Vector2i] = HexGridScript.column(column_index)
 		var write := chain.size() - 1
@@ -65,9 +70,9 @@ func apply_gravity() -> int:
 			if write != read:
 				set_piece(chain[write], piece)
 				remove_piece(chain[read])
-				moved += 1
+				moves.append({"from": chain[read], "to": chain[write]})
 			write -= 1
-	return moved
+	return moves
 
 
 ## Highest empty cell in a column, or null when the column is full.

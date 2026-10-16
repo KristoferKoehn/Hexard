@@ -1,0 +1,11 @@
+{
+  "_comment": "Hexard score table (docs/design.md section 4). Values are multiplied by the current level. Edit this file to tune balance; src/core/scoring_rules.gd holds the same defaults and validates these keys.",
+  "cluster_3": 5,
+  "cluster_4": 10,
+  "cluster_5": 25,
+  "cluster_6_plus": 50,
+  "cascade_multiplier": 1.5,
+  "difficulty_easy": 0.5,
+  "difficulty_normal": 1.0,
+  "difficulty_hard": 2.0
+}

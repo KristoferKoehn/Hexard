@@ -13,11 +13,19 @@ config_version=5
 config/name="Hexard"
 config/description="Hexagonal rotation match-3 puzzle game."
 config/features=PackedStringArray("4.7", "GL Compatibility")
+run/main_scene="res://src/app/main.tscn"
 
 [debug]
 
 file_logging/enable_file_logging.pc=false
 gdscript/warnings/untyped_declaration=1
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 
 [rendering]
 

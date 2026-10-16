@@ -113,7 +113,11 @@ static func is_bomb(id: int) -> bool:
 
 
 ## Gems, bonus stars and bombs carry a colour that participates in matching.
+## The empty piece encodes as kind GEM / colour NONE, so it must be excluded
+## explicitly — otherwise empty cells look like a matching colour.
 static func has_color(id: int) -> bool:
+	if is_empty(id):
+		return false
 	var kind := kind_of(id)
 	return kind == Kind.GEM or kind == Kind.BONUS_STAR or kind == Kind.BOMB
 

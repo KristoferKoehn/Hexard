@@ -34,6 +34,7 @@ const _OFFSETS_ODD := [
 
 static var _cells_cache: Array[Vector2i] = []
 static var _vertices_cache: Array = []
+static var _vertex_neighbours_cache: Array = []
 
 
 # --- cells ------------------------------------------------------------------
@@ -147,6 +148,65 @@ static func cyclic_order(cells: Array) -> Array[Vector2i]:
 	for entry in scored:
 		out.append(entry["cell"])
 	return out
+
+
+## Vertices that share at least one cell with this vertex (including itself).
+## A rotation can only change matches at its own vertex and at the vertices
+## touching the three cells it moved, so testing these is enough to decide
+## whether a spin produced a match — no full-board scan needed.
+static func vertex_neighbours(vertex_index: int) -> Array[int]:
+	if _vertex_neighbours_cache.is_empty():
+		_build_vertex_neighbours()
+	if vertex_index < 0 or vertex_index >= _vertex_neighbours_cache.size():
+		return []
+	return _vertex_neighbours_cache[vertex_index]
+
+
+static func _build_vertex_neighbours() -> void:
+	var all_vertices := vertices()
+	_vertex_neighbours_cache.resize(all_vertices.size())
+
+	var owners := {}  # cell -> Array[int] of vertex indices touching it
+	for index in all_vertices.size():
+		for cell: Vector2i in all_vertices[index]:
+			if not owners.has(cell):
+				owners[cell] = []
+			owners[cell].append(index)
+
+	for index in all_vertices.size():
+		var related := {}
+		related[index] = true
+		for cell: Vector2i in all_vertices[index]:
+			for other: int in owners[cell]:
+				related[other] = true
+		var list: Array[int] = []
+		for key: int in related:
+			list.append(key)
+		list.sort()
+		_vertex_neighbours_cache[index] = list
+
+
+static func vertex_centroid(vertex_index: int, size: float = 32.0) -> Vector2:
+	var all_vertices := vertices()
+	if vertex_index < 0 or vertex_index >= all_vertices.size():
+		return Vector2.ZERO
+	var sum := Vector2.ZERO
+	for cell: Vector2i in all_vertices[vertex_index]:
+		sum += to_pixel(cell, size)
+	return sum / float(all_vertices[vertex_index].size())
+
+
+## Index of the rotation vertex closest to a pixel position.
+static func nearest_vertex(point: Vector2, size: float = 32.0) -> int:
+	var best := -1
+	var best_distance := INF
+	var all_vertices := vertices()
+	for index in all_vertices.size():
+		var distance := point.distance_squared_to(vertex_centroid(index, size))
+		if distance < best_distance:
+			best_distance = distance
+			best = index
+	return best
 
 
 # --- pixel space ------------------------------------------------------------

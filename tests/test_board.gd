@@ -126,6 +126,22 @@ func test_bomb_counter_encoding() -> void:
 	assert_eq(Pieces.describe(ticked), "bomb:blue(7)", "bombs describe their countdown")
 
 
+## Regression guard: the empty piece encodes as kind GEM / colour NONE, so it
+## must never be treated as a matchable colour (that bug made every empty
+## vertex on the board "match").
+func test_empty_piece_has_no_colour() -> void:
+	assert_false(Pieces.has_color(Pieces.EMPTY), "EMPTY has no colour")
+	assert_false(Pieces.has_color(Pieces.gem(Pieces.GemColor.NONE)), "colour NONE has no colour")
+	assert_true(Pieces.has_color(Pieces.gem(Pieces.GemColor.RED)), "a real gem does")
+	assert_eq(Pieces.describe(Pieces.EMPTY), "empty", "and it still describes as empty")
+
+
+## Three colourless cells must never behave like a cluster (M2 owns their rules).
+func test_colourless_pieces_are_not_matchable() -> void:
+	assert_false(Pieces.has_color(Pieces.starflower()), "starflowers are colourless")
+	assert_false(Pieces.has_color(Pieces.pearl()), "pearls are colourless")
+
+
 func test_special_piece_encodings_are_distinct() -> void:
 	var gem := Pieces.gem(Pieces.GemColor.RED)
 	var star := Pieces.bonus_star(Pieces.GemColor.RED)

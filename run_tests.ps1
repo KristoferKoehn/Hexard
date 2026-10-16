@@ -9,6 +9,13 @@
 #   3. godot / godot4      — whatever is on PATH
 #
 # Exits 0 when every test passes, non-zero otherwise.
+#
+#   ./run_tests.ps1          unit suite + view smoke test
+#   ./run_tests.ps1 -Soak    ... plus a 10,000-move randomised soak
+
+param(
+    [switch]$Soak
+)
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -29,5 +36,42 @@ if (-not $godot) {
 }
 
 Write-Host "engine : $godot"
+
+# Godot writes non-fatal diagnostics to stderr (under a restricted sandbox it
+# cannot read the Windows certificate store, for example). PowerShell 5.1 turns
+# native stderr into a *terminating* error while ErrorActionPreference is Stop,
+# so relax it around the engine calls and check exit codes explicitly instead.
+$ErrorActionPreference = 'Continue'
+
+# Always import first: global class_name types (Ruleset, ScoringRules, ...) only
+# resolve after the project has been scanned, and a stale cache produces
+# confusing "Identifier not found" parse errors. Godot's import is incremental.
+Write-Host "importing project ..."
+& $godot --headless --path $root --import *> (Join-Path $root 'tools/logs/import.log')
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "warning: project import exited with $LASTEXITCODE (continuing anyway)" -ForegroundColor Yellow
+}
+
 & $godot --headless --path $root --script res://tests/run_tests.gd
-exit $LASTEXITCODE
+$unitExit = $LASTEXITCODE
+
+Write-Host ""
+& $godot --headless --path $root --script res://tests/smoke_scene.gd
+$smokeExit = $LASTEXITCODE
+
+if ($unitExit -ne 0 -or $smokeExit -ne 0) {
+    Write-Host "SUITES FAILED (unit=$unitExit smoke=$smokeExit)" -ForegroundColor Red
+    exit 1
+}
+
+if ($Soak) {
+    Write-Host ""
+    & $godot --headless --path $root --script res://tests/soak.gd
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "SOAK FAILED" -ForegroundColor Red
+        exit 1
+    }
+}
+
+Write-Host "ALL SUITES PASSED" -ForegroundColor Green
+exit 0

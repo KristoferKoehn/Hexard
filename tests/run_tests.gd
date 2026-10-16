@@ -14,6 +14,9 @@ const TEST_SCRIPTS := [
 	"res://tests/test_hex_grid.gd",
 	"res://tests/test_rng.gd",
 	"res://tests/test_board.gd",
+	"res://tests/test_match.gd",
+	"res://tests/test_scoring.gd",
+	"res://tests/test_game.gd",
 ]
 
 

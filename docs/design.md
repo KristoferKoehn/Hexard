@@ -109,13 +109,20 @@ Flower formation (6 same-coloured gems ringing one centre) takes **precedence** 
 
 ### 3.3 Resolution pipeline
 
-Deterministic, in this order, looping until stable:
+**Deterministic, in this order, looping until stable.** The rule that gravity applies before
+matches are *judged* — not only after clears — is load-bearing: on a board with gaps a rotation
+can lift a piece into an empty cell, and something has to put it back.
 
 ```
 on_rotate(vertex, dir):
   apply_step(vertex, dir)
-  if not any_match_exists(): return          # FREE mode: position persists, no move consumed
+  matched := matches_near(vertex)             # only near vertices can change
+  if not matched:
+      if rotation_mode == STRICT: revert(); return      # not a move at all
+      # FREE: the trio stays where the player left it, but the move still resolves
+
   begin_move()
+  apply_gravity()                             # pieces always fall before matches are judged
 
   loop:
     if flowers_exist():        resolve_flowers()        # 6-ring → starflower / pearl
@@ -131,7 +138,9 @@ on_rotate(vertex, dir):
   end_move(): tick_bombs(), check_level_up(), check_dead_board(), check_game_over()
 ```
 
-`any_match_exists()` is also the dead-board test (see §5.3) and the hint source.
+`any_match_exists()` is also the dead-board test (see §5.3) and the hint source. `matches_near()` is an
+optimisation with the same meaning: a rotation can only change cells around its own vertex, so the other
+131 vertices cannot have changed.
 
 ### 3.4 Gems and specials
 
@@ -363,38 +372,65 @@ res://
 
 ### 10.3 Testing (headless, no plugin)
 
-`run_tests.cmd` (or `powershell -ExecutionPolicy Bypass -File run_tests.ps1`, or directly
-`godot --headless --path . --script res://tests/run_tests.gd`) runs every `tests/test_*.gd` suite and exits
-non-zero on failure, so it works as a CI gate. The `.cmd` wrappers pass a per-process execution-policy bypass
-because some machines block unsigned `.ps1` files; the scripts are written to run on Windows PowerShell 5.1
-(no `pwsh` dependency). The harness is
+`run_tests.cmd` (or `powershell -ExecutionPolicy Bypass -File run_tests.ps1`) runs two stages and exits
+non-zero if either fails:
+
+1. `tests/run_tests.gd` — the unit suite over `tests/test_*.gd`.
+2. `tests/smoke_scene.gd` — loads the real `main.tscn`, plays moves through the controller and checks the
+   wiring (view code compiles, nodes resolve, rules stay healthy through the view).
+
+`run_tests.ps1 -Soak` adds a third stage: `tests/soak.gd`, 10,000 randomised moves. The harness is
 `tests/test_case.gd` plus `tests/run_tests.gd` — deliberately dependency-free so the project never breaks
 because a test plugin changed.
 
-> Godot 4.7 quirk: `quit()` called from `_initialize()` does not stop the main loop, so the runner's
-> `_process()` returns `true` to terminate while `quit(code)` records the exit code. A parse error in any
-> suite is reported as a failure (never a silent pass) via `can_instantiate()`.
+> Godot 4.7 quirks worth remembering: `quit()` called from `_initialize()` does not stop the main loop, so the
+> runners terminate from `_process()` while `quit(code)` records the exit code. PowerShell 5.1 turns a native
+> program's stderr into a *terminating* error while `ErrorActionPreference` is `Stop`, so the Godot calls run
+> with it relaxed. A parse error in any suite is reported as a failure (never a silent pass) via
+> `can_instantiate()`.
 
-**M0 results (37 tests, 0 failed, ~14.7k assertions):**
+**Current results — 75 tests, 0 failed, ~21.7k assertions (5s), plus the smoke test and soak:**
+
+*Geometry (M0)*
 
 - exactly 85 cells; column heights alternate 9/8; adjacency symmetric and irreflexive.
 - **exactly 135 rotation vertices**, every one a mutually adjacent triple, all unique.
 - **17 staggered half-rows of exactly 5 cells** — matching the independent reverse engineering.
-- shifted columns hold the short height (the dangling-corner guard), no cell has fewer than 2 neighbours.
+- shifted columns hold the short height (the dangling-corner guard); no cell is left dangling.
 - neighbour centres sit exactly one hex edge apart (`sqrt(3) × size`) and columns stay vertically aligned.
 - gravity compacts per column, preserves relative order, is idempotent, never slides sideways.
 - the board invariant detects floating pieces (and only those).
-- the RNG reproduces identical 32-bit streams per seed, keeps streams independent per label, survives 100k
+- the RNG reproduces identical 32-bit streams per seed, keeps labelled streams independent, survives 100k
   draws without collapse, and yields correct ranges for `next_int` / `next_float` / `shuffle` / `pick`.
 - piece packing round-trips kind, colour and bomb counter; the palette ramps 5 → 6 → 7 colours.
 
-**Still to build (M1+):** the vertex match predicate truth table (including "a straight line of 3 does not
-clear"), cluster sizing 4/5/6, flower precedence, star ×2/×4/×8 stacking, star-cluster area clear, bomb tick
-and detonation, bomb + star colour wipe, starflower ring rotation, pearl orientations and the pearl finish,
-level thresholds, the Survival lock/refill cycle and the Timed starflower refill.
+*Rules (M1)*
 
-**Property tests:** 10,000 random legal playouts on all modes never panic, never leave a floating piece, and
-always terminate.
+- the vertex predicate: a triangle clears; a **straight line of three does not**; two gems never clear;
+  empties and colourless specials never clear.
+- clusters grow to 4 and 6 and merge overlapping matches into one group; the resolution order is deterministic.
+- scoring: base by cluster size × level × difficulty × cascade (1.5× per extra step), checked against the table.
+- rotation modes: FREE keeps a non-clearing spin, STRICT reverts it without consuming a move, and a spin
+  followed by its inverse restores the board exactly.
+- a legal rotation clears, scores, banks combos and refills; the board is never left unstable.
+- a hand-built board pins the fall geometry: a clear makes the same vertex match again one row down, giving
+  exactly two cascade steps worth 5 + 8 = 13 points.
+- progression follows the 50/60/…/100 combo thresholds; levels advance and cap at 7.
+- a dead board is shuffled back to life, stays full, match-free and gravity-settled.
+- replay determinism: seed + command log reproduces the board signature, score, combos, level and shuffles.
+- **1,200 random moves** in the default suite and **10,000 in the soak** (marathon-free, marathon-strict and a
+  Survival-style no-refill board) leave no floating piece, never leave the board unstable, and keep the
+  dead-board shuffle rare (0 shuffles in 6,666 fill-always moves).
+
+**Bugs this suite has already caught:** an inverted floating-piece invariant; `EMPTY` decoding as a matchable
+colour (every empty vertex "matched"); the dead-board shuffle scattering pieces into empty space; and — the
+subtle one — a rotation on a gappy board *lifting* a piece with nothing to re-settle it, which is why gravity
+now runs before matches are judged on every committed move. All four would have been near-impossible to find by
+eye.
+
+**Still to build (M2+):** flower precedence, star ×2/×4/×8 stacking, star-cluster area clear, bomb tick and
+detonation, bomb + star colour wipe, starflower ring rotation, pearl orientations and the pearl finish, the
+Survival lock/refill cycle and the Timed starflower refill.
 
 **Fixtures:** the tutorial board plus 3–5 transcribable reference boards (the fan project `hectic-hexagons`
 transcribes real frames — useful cross-checking) as golden tests for match sets.
@@ -446,7 +482,7 @@ Mitigations to evaluate in playtesting, in order of preference:
 | Milestone | Deliverable | Done when |
 |---|---|---|
 | **M0** ✅ | Repo + this doc + Godot 4.7.2 toolchain + `hex_grid.gd`, `board.gd`, `piece.gd`, `rng.gd` + headless suite | **Done:** 37 tests / 0 failed, including 85 cells, **135 vertices**, 17×5 half-rows, gravity invariants |
-| **M1** | Playable core: board, cursor, discrete rotation, match predicate, gravity, refill, cascades, scoring. No specials, dev art | A full Marathon-ish loop is playable in-editor and 10k random playouts pass the property tests |
+| **M1** ✅ | Playable core: board, cursor, discrete rotation, match predicate, gravity, refill, cascades, scoring, dev-art scene | **Done:** 75 tests / 0 failed, view smoke test, 10,000-move soak; playable in-editor (`main.tscn`) |
 | **M2** | Specials: bonus stars (×2 + 3-star area clear), starflowers (flower → piece → ring rotation), black pearls (creation, Y rotation, perfect finish), bombs (tick, defuse, colour wipe) | All specials rule-tested; a pearl ring can be built end-to-end in a scripted fixture |
 | **M3** | Progression + modes: 7 levels, combo thresholds, content gating, Marathon/Timed/Survival, difficulty, dead-board shuffle, win/lose flows | Each mode playable to its conclusion with correct game-over/win paths |
 | **M4** | Presentation + meta: art pass, animations, SFX/music, HUD, menus, options, tutorial, autosave/resume, stats, achievements, local leaderboard | A first-time player can learn the game from the tutorial alone |
