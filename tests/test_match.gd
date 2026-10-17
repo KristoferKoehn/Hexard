@@ -211,3 +211,26 @@ func test_a_compact_four_still_clears_four() -> void:
 	var groups := MatchFinder.clear_groups(board)
 	assert_eq(groups.size(), 1, "one cluster")
 	assert_eq(groups[0].cells.size(), 4, "a solid rhombus keeps all four")
+
+
+## Lines never score. Three collinear same-coloured cells are not mutually
+## adjacent, so they form no vertex triangle however long the line gets - which is
+## also why the two-neighbour rule cannot rescue them: no trigger, no group.
+func test_a_line_of_hexes_does_not_clear() -> void:
+	var board := BoardScript.new()
+	_background(board)
+	var column: Array = [Vector2i(4, 2), Vector2i(4, 3), Vector2i(4, 4), Vector2i(4, 5)]
+	_paint(board, column, Pieces.GemColor.ORANGE)   # ORANGE is absent from the background
+	assert_false(MatchFinder.has_any_match(board), "a column of four is not a match")
+	assert_eq(MatchFinder.clear_groups(board).size(), 0, "and it produces no clear group")
+	assert_eq(MatchFinder.matching_vertices(board).size(), 0, "no vertex is monochrome")
+
+
+func test_a_diagonal_line_of_hexes_does_not_clear() -> void:
+	var board := BoardScript.new()
+	_background(board)
+	# A staggered diagonal: each pair is 2 columns apart, so nothing touches.
+	var diagonal: Array = [Vector2i(2, 3), Vector2i(4, 3), Vector2i(6, 3)]
+	_paint(board, diagonal, Pieces.GemColor.BLUE)
+	assert_false(MatchFinder.has_any_match(board), "a diagonal line is not a match")
+	assert_eq(MatchFinder.clear_groups(board).size(), 0, "and produces no clear group")

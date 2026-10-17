@@ -614,3 +614,4 @@ func test_a_pearl_centre_is_not_a_flower() -> void:
 	for cell: Vector2i in Grid.neighbours(centre):
 		board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
 	assert_false(MatchFinder.is_flower(board, centre), "a pearl centre does not bloom again")
+

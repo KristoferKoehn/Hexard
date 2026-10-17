@@ -72,6 +72,8 @@ func play_move(result: MoveResult) -> void:
 		# well fired the explosion twice.
 		return
 	play_cue("rotate")
+	if distinct_colours(result) >= 2:
+		play_cue("multi")
 	if result.bombs_defused > 0:
 		play_cue("defuse")
 	elif result.bombs_ticked.size() > 0:
@@ -93,6 +95,17 @@ func on_step(kind: String, step: Dictionary) -> void:
 			play_cue(_cue_for(group), depth)
 	elif kind == "blast":
 		play_cue("explosion")
+
+
+## Distinct gem colours this move cleared. Two or more earns the chime, and the
+## count is static so it can be tested without an audio device.
+static func distinct_colours(result: MoveResult) -> int:
+	var seen := {}
+	for group in result.clear_groups:
+		var color := int(group.gem_color)
+		if color > 0:
+			seen[color] = true
+	return seen.size()
 
 
 func _cue_for(group) -> String:
