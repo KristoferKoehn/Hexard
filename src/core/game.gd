@@ -174,7 +174,7 @@ func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE) -> MoveResult:
 	elif Pieces.is_pearl(piece):
 		cells = _pearl_y_cells(cell)
 		if cells.size() != 3:
-			return _reject(result, "a pearl needs six neighbours to turn")
+			return _reject(result, "a pearl needs three neighbours in a Y to turn")
 	else:
 		return _reject(result, "that piece cannot be rotated on its own")
 	for neighbour: Vector2i in cells:
