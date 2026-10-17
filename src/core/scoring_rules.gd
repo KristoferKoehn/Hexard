@@ -1,38 +1,55 @@
 class_name ScoringRules
 extends RefCounted
 
-## Score table and formulas (docs/design.md §4). Values are data, not logic:
-## the built-in defaults below match the design document, and a JSON file can
-## override them for tuning without touching code.
+## Score table and formulas (docs/design.md §4).
+##
+## The names below are the single source of truth for the table's keys; the
+## values live in the built-in defaults and can be overridden by data/scoring.json
+## so balance can be tuned without touching code.
 
 const DEFAULT_PATH := "res://data/scoring.json"
 
+# --- keys -------------------------------------------------------------------
+const CLUSTER_3 := "cluster_3"
+const CLUSTER_4 := "cluster_4"
+const CLUSTER_5 := "cluster_5"
+const CLUSTER_6_PLUS := "cluster_6_plus"
+const FLOWER_BASE := "flower_base"
+const FLOWER_SWEEP_BASE := "flower_sweep_base"
+const STARFLOWER_MATCH_BASE := "starflower_match_base"
+const PEARL_BASE := "pearl_base"
+const STAR_CLUSTER_BASE := "star_cluster_base"
+const PEARL_CLUSTER_BASE := "pearl_cluster_base"
+const PEARL_RING_BASE := "pearl_ring_base"
+const BOMB_DEFUSE_BASE := "bomb_defuse_base"
+const BOMB_COLOUR_WIPE_BASE := "bomb_colour_wipe_base"
+const CASCADE_MULTIPLIER := "cascade_multiplier"
+const DIFFICULTY_EASY := "difficulty_easy"
+const DIFFICULTY_NORMAL := "difficulty_normal"
+const DIFFICULTY_HARD := "difficulty_hard"
+
 const DEFAULTS := {
-	# Colour clusters.
-	"cluster_3": 5,
-	"cluster_4": 10,
-	"cluster_5": 25,
-	"cluster_6_plus": 50,
-	"cascade_multiplier": 1.5,
-	"difficulty_easy": 0.5,
-	"difficulty_normal": 1.0,
-	"difficulty_hard": 2.0,
-	# Special formations (M2).
-	"flower_base": 1000,            # forming a starflower from a flower
-	"starflower_match_base": 2500,  # clearing three starflowers together
-	"pearl_base": 10000,            # forming a black pearl
-	"star_cluster_base": 1000,      # clearing three bonus stars (area clear)
-	"pearl_cluster_base": 50000,    # perfect finish: a cluster of three pearls
-	"pearl_ring_base": 250000,      # perfect finish: a ring of six pearls
-	"bomb_defuse_base": 200,
-	"bomb_colour_wipe_base": 500,
-	"flower_sweep_base": 500,       # Survival: flower sweeps a whole colour
+	CLUSTER_3: 5,
+	CLUSTER_4: 10,
+	CLUSTER_5: 25,
+	CLUSTER_6_PLUS: 50,
+	CASCADE_MULTIPLIER: 1.5,
+	DIFFICULTY_EASY: 0.5,
+	DIFFICULTY_NORMAL: 1.0,
+	DIFFICULTY_HARD: 2.0,
+	FLOWER_BASE: 1000,            # forming a starflower from a flower
+	STARFLOWER_MATCH_BASE: 2500,  # clearing three starflowers together
+	PEARL_BASE: 10000,            # forming a black pearl
+	STAR_CLUSTER_BASE: 1000,      # clearing three bonus stars (area clear)
+	PEARL_CLUSTER_BASE: 50000,    # perfect finish: a cluster of three pearls
+	PEARL_RING_BASE: 250000,      # perfect finish: a ring of six pearls
+	BOMB_DEFUSE_BASE: 200,
+	BOMB_COLOUR_WIPE_BASE: 500,
+	FLOWER_SWEEP_BASE: 500,       # Survival: a flower sweeps a whole colour
 }
 
 ## Keys that hold fractional values; everything else is a whole point value.
-const FLOAT_KEYS := [
-	"cascade_multiplier", "difficulty_easy", "difficulty_normal", "difficulty_hard",
-]
+const FLOAT_KEYS := [CASCADE_MULTIPLIER, DIFFICULTY_EASY, DIFFICULTY_NORMAL, DIFFICULTY_HARD]
 
 var values: Dictionary = {}
 
@@ -72,7 +89,7 @@ static func _sanitise(raw: Dictionary) -> Dictionary:
 	return clean
 
 
-# --- table access -----------------------------------------------------------
+# --- formulas ---------------------------------------------------------------
 
 func points(key: String) -> int:
 	if not values.has(key):
@@ -83,18 +100,18 @@ func points(key: String) -> int:
 
 func base_for_cluster(size: int) -> int:
 	if size <= 3:
-		return int(values["cluster_3"])
+		return points(CLUSTER_3)
 	if size == 4:
-		return int(values["cluster_4"])
+		return points(CLUSTER_4)
 	if size == 5:
-		return int(values["cluster_5"])
-	return int(values["cluster_6_plus"])
+		return points(CLUSTER_5)
+	return points(CLUSTER_6_PLUS)
 
 
 func cascade_multiplier(depth: int) -> float:
 	if depth <= 1:
 		return 1.0
-	return pow(float(values["cascade_multiplier"]), depth - 1)
+	return pow(float(values[CASCADE_MULTIPLIER]), depth - 1)
 
 
 func difficulty_multiplier(difficulty: String = "normal") -> float:

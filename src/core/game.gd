@@ -105,11 +105,7 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE):
 	var cells: Array = vertices[vertex_index]
 	for cell: Vector2i in cells:
 		if board.is_locked(cell):
-			# Not a move — but a board where everything is frozen has to be able
-			# to close the round, or the player is stuck forever.
-			var rejected = _reject(result, "a frozen piece cannot be turned")
-			settle(rejected)
-			return rejected
+			return _reject_settling(result, "a frozen piece cannot be turned")
 	result.rotation_vertex = vertex_index
 	result.rotation_cells.assign(cells)
 	result.direction = direction
@@ -153,9 +149,7 @@ func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE):
 
 	var piece: int = board.get_piece(cell)
 	if board.is_locked(cell):
-		var rejected = _reject(result, "that piece is frozen")
-		settle(rejected)
-		return rejected
+		return _reject_settling(result, "that piece is frozen")
 	var cells: Array[Vector2i] = []
 	if Pieces.is_starflower(piece):
 		# Cyclic (angular) order, so the ring visibly turns one step.
@@ -170,9 +164,7 @@ func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE):
 		return _reject(result, "that piece cannot be rotated on its own")
 	for neighbour: Vector2i in cells:
 		if board.is_locked(neighbour):
-			var rejected = _reject(result, "a frozen neighbour cannot be turned")
-			settle(rejected)
-			return rejected
+			return _reject_settling(result, "a frozen neighbour cannot be turned")
 
 	_cycle(cells, direction)
 	result.piece_cell = cell
@@ -312,6 +304,13 @@ func _reject(result, reason: String):
 	return result
 
 
+## A rejection that still lets the board close its round: a Survival board where
+## everything is frozen must not be able to soft-lock the player.
+func _reject_settling(result, reason: String):
+	settle(_reject(result, reason))
+	return result
+
+
 func _award(result) -> void:
 	score += result.score
 	total_combos += result.combos
@@ -391,18 +390,14 @@ func _tick_bombs(result) -> void:
 
 ## After every move: is the board still playable? (docs/design.md §5.3, §6.3)
 func settle(result) -> void:
-	if state == State.FINISHED or result.finished:
-		result.new_level = level
-		return
-	if ruleset.mode == RulesetScript.Mode.SURVIVAL:
-		_settle_survival(result)
-		result.new_level = level
-		return
-	if not MatchFinderScript.has_any_match(board) and not has_any_legal_rotation():
-		result.dead_board = true
-		_shuffle_board()
-		result.shuffled = true
-		shuffle_count += 1
+	if state != State.FINISHED and not result.finished:
+		if ruleset.mode == RulesetScript.Mode.SURVIVAL:
+			_settle_survival(result)
+		elif not MatchFinderScript.has_any_match(board) and not has_any_legal_rotation():
+			result.dead_board = true
+			_shuffle_board()
+			result.shuffled = true
+			shuffle_count += 1
 	result.new_level = level
 
 
@@ -410,14 +405,16 @@ func settle(result) -> void:
 ## the leftovers freeze, the gaps refill, and the next round begins.
 func _settle_survival(result) -> void:
 	if board.filled_count() == 0:
-		_finish("board_cleared", true)
-		result.finished = true
-		result.finish_kind = finish_reason
+		_end_survival("board_cleared", true, result)
 		return
 	if has_any_legal_rotation():
 		return
+	_close_round(result)
 
-	# Round complete: pay the round bonus, then freeze what is left.
+
+## Ends the current Survival round: pay the round bonus, freeze what is left,
+## refill, and check the two survival endings.
+func _close_round(result) -> void:
 	var bonus := _round_cleared * RulesetScript.SURVIVAL_ROUND_BONUS_PER_GEM
 	score += bonus
 	result.score += bonus
@@ -431,20 +428,23 @@ func _settle_survival(result) -> void:
 	board.lock_all_remaining()
 	if board.empty_cells().is_empty():
 		# Everything on the board froze: there is nowhere left to play.
-		_finish("all_locked", false)
-		result.finished = true
-		result.finish_kind = finish_reason
+		_end_survival("all_locked", false, result)
 		return
 
 	ResolverScript.refill_board(board, _rng_refill, result, level, ruleset)
 	# Fresh pieces can land straight into a match; settle them so the new round
-	# starts stable (this is the only refill that happens outside a resolve loop).
+	# starts stable (this is the only refill outside a resolve loop).
 	ResolverScript.resolve(board, ruleset, _rng_refill, result, level, ruleset.refills_board)
 
 	if rounds_cleared >= RulesetScript.SURVIVAL_ROUNDS_TO_WIN:
-		_finish("rounds_survived", true)
-		result.finished = true
-		result.finish_kind = finish_reason
+		_end_survival("rounds_survived", true, result)
+
+
+## Marks the run finished from inside a move's bookkeeping.
+func _end_survival(reason: String, did_win: bool, result) -> void:
+	_finish(reason, did_win)
+	result.finished = true
+	result.finish_kind = reason
 
 
 # --- run lifecycle ----------------------------------------------------------

@@ -3,9 +3,7 @@ extends "res://tests/test_case.gd"
 ## Game facade: rotation modes, cascades, scoring, progression, dead boards,
 ## replay determinism (docs/design.md §3, §5, §10.2).
 
-const Grid := preload("res://src/core/hex_grid.gd")
 const BoardScript := preload("res://src/core/board.gd")
-const Pieces := preload("res://src/core/piece.gd")
 const MatchFinder := preload("res://src/core/match_finder.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 const RngScript := preload("res://src/core/rng.gd")

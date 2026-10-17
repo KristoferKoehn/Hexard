@@ -3,7 +3,6 @@ extends "res://tests/test_case.gd"
 ## Geometry acceptance tests. These are the M0 gate: if the board model is
 ## wrong, every rule built on top of it is wrong.
 
-const Grid := preload("res://src/core/hex_grid.gd")
 
 
 func test_cell_count_is_85() -> void:

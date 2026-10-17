@@ -3,20 +3,19 @@ extends RefCounted
 
 ## Cascade state machine (docs/design.md §3.3).
 ##
-## Repeats until the board is stable:
-##   find the highest-priority formation -> score and remove it -> gravity -> refill
+## Repeats until the board is stable: find the highest-priority formation, score
+## and remove it, fall, refill. One category resolves per iteration, so
+## simultaneous events stay deterministic.
 ##
-## Priority order (one category per iteration, so simultaneous events stay
-## deterministic): flowers, pearl finish, bonus-star clusters, starflower
-## clusters, colour clusters.
-##
-## Everything is deterministic for a given board, ruleset and RNG state, which
-## is what makes replays and golden tests possible.
+## Every formation ends in `_clear()`, which owns the bookkeeping (group, combo,
+## clear count, cell removal) while the handler owns the scoring. Adding a new
+## formation means writing one handler and one line in `_resolve_step()`.
 
 const Grid := preload("res://src/core/hex_grid.gd")
 const Pieces := preload("res://src/core/piece.gd")
 const MatchFinderScript := preload("res://src/core/match_finder.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
+const ScoringScript := preload("res://src/core/scoring_rules.gd")
 const ClearGroupScript := preload("res://src/core/clear_group.gd")
 
 
@@ -24,8 +23,8 @@ const ClearGroupScript := preload("res://src/core/clear_group.gd")
 ## `refill` is false in Survival mode, where cleared cells stay empty for the
 ## rest of the round.
 static func resolve(board, ruleset, rng, result, level: int, refill: bool = true) -> void:
-	# Pieces fall before formations are judged. On a board with gaps (Survival)
-	# a rotation can lift a piece into an empty cell, so this pass is what keeps
+	# Pieces fall before formations are judged. On a board with gaps (Survival) a
+	# rotation can lift a piece into an empty cell, so this pass is what keeps
 	# "nothing is ever left floating" true after *every* move.
 	apply_gravity(board, result)
 
@@ -42,45 +41,20 @@ static func resolve(board, ruleset, rng, result, level: int, refill: bool = true
 	result.cascades = depth
 
 
-## One resolution step. Returns true when something happened.
+## One resolution step, highest priority first. Short-circuits on the first
+## category that actually did something.
 static func _resolve_step(board, ruleset, result, level: int, depth: int) -> bool:
-	if _resolve_flowers(board, ruleset, result, level, depth):
-		return true
-	if _resolve_pearl_rings(board, ruleset, result, level, depth):
-		return true
-	if _resolve_pearl_finish(board, ruleset, result, level, depth):
-		return true
-	if _resolve_star_clusters(board, ruleset, result, level, depth):
-		return true
-	if _resolve_starflower_clusters(board, ruleset, result, level, depth):
-		return true
-	return _resolve_colour_clusters(board, ruleset, result, level, depth)
+	return (
+		_resolve_flowers(board, ruleset, result, level, depth)
+		or _resolve_pearl_rings(board, ruleset, result, level, depth)
+		or _resolve_pearl_finish(board, ruleset, result, level, depth)
+		or _resolve_star_clusters(board, ruleset, result, level, depth)
+		or _resolve_starflower_clusters(board, ruleset, result, level, depth)
+		or _resolve_colour_clusters(board, ruleset, result, level, depth)
+	)
 
 
-## Six starflowers ringing a centre: the starflowers are consumed and the centre
-## becomes a black pearl (docs/design.md §3.4).
-static func _resolve_pearl_rings(board, ruleset, result, level: int, depth: int) -> bool:
-	var centres := MatchFinderScript.pearl_ring_centres(board)
-	if centres.is_empty():
-		return false
-
-	for centre: Vector2i in centres:
-		if not MatchFinderScript.is_pearl_creation_ring(board, centre):
-			continue  # an earlier ring in this batch may have consumed it
-		var ring := Grid.neighbours(centre)
-		var group = ClearGroupScript.new()
-		group.cells = _sorted(ring)
-		group.cascade_depth = depth
-		group.base_score = ruleset.scoring.points("pearl_base")
-		group.score = ruleset.scoring.clear_score(group.base_score, level, depth, ruleset.difficulty)
-		group.set_formations(["pearl_built"])
-		_record(result, group)
-		for cell: Vector2i in ring:
-			board.remove_piece(cell)
-		board.set_piece(centre, Pieces.pearl())
-		result.promotions.append({"cell": centre, "piece": Pieces.pearl(), "kind": "pearl"})
-	return true
-
+# --- formations -------------------------------------------------------------
 
 ## Ring of six same-coloured gems: the ring clears and the centre blooms into a
 ## starflower — or into a black pearl when it was already a starflower.
@@ -98,52 +72,39 @@ static func _resolve_flowers(board, ruleset, result, level: int, depth: int) -> 
 			continue  # an earlier flower in this batch may have consumed it
 		var ring := Grid.neighbours(centre)
 		var ring_color := int(Pieces.color_of(board.get_piece(ring[0])))
-		var group = ClearGroupScript.new()
-		group.cells = _sorted(ring)
-		group.cascade_depth = depth
-		group.base_score = ruleset.scoring.points("flower_base")
-		group.score = ruleset.scoring.clear_score(group.base_score, level, depth, ruleset.difficulty)
-		group.set_formations(["flower"])
-		_record(result, group)
-		for cell: Vector2i in ring:
-			board.remove_piece(cell)
-
+		_clear(
+			board, result, ring, depth,
+			ruleset.scoring.points(ScoringScript.FLOWER_BASE),
+			ruleset.scoring.score_for(ScoringScript.FLOWER_BASE, level, depth, ruleset.difficulty),
+			["flower"]
+		)
 		if survival:
 			_survival_flourish(board, ruleset, result, level, depth, centre, ring_color)
-			continue
-
-		var centre_piece: int = board.get_piece(centre)
-		if Pieces.is_starflower(centre_piece):
-			# A flower around a starflower is the pearl recipe.
-			board.set_piece(centre, Pieces.pearl())
-			result.promotions.append({"cell": centre, "piece": Pieces.pearl(), "kind": "pearl"})
+		elif Pieces.is_starflower(board.get_piece(centre)):
+			_promote(board, result, centre, Pieces.Kind.PEARL)
 		else:
-			board.set_piece(centre, Pieces.starflower())
-			result.promotions.append({"cell": centre, "piece": Pieces.starflower(), "kind": "starflower"})
+			_promote(board, result, centre, Pieces.Kind.STARFLOWER)
 	return true
 
 
-## Survival's replacement for blooming: thaw the board, then sweep the colour.
-static func _survival_flourish(
-	board, ruleset, result, level: int, depth: int, centre: Vector2i, ring_color: int
-) -> void:
-	var thawed: int = board.unlock_all()
-	var sweep := MatchFinderScript.cells_with_color(board, ring_color)
-	if not sweep.is_empty():
-		var sweep_group = ClearGroupScript.new()
-		sweep_group.cells = _sorted(sweep)
-		sweep_group.cascade_depth = depth
-		sweep_group.base_score = ruleset.scoring.points("flower_sweep_base") * sweep.size()
-		sweep_group.score = ruleset.scoring.clear_score(
-			sweep_group.base_score, level, depth, ruleset.difficulty
+## Six starflowers ringing a centre: the starflowers are consumed and the centre
+## becomes a black pearl (docs/design.md §3.4).
+static func _resolve_pearl_rings(board, ruleset, result, level: int, depth: int) -> bool:
+	var centres := MatchFinderScript.pearl_ring_centres(board)
+	if centres.is_empty():
+		return false
+
+	for centre: Vector2i in centres:
+		if not MatchFinderScript.is_pearl_creation_ring(board, centre):
+			continue  # an earlier ring in this batch may have consumed it
+		_clear(
+			board, result, Grid.neighbours(centre), depth,
+			ruleset.scoring.points(ScoringScript.PEARL_BASE),
+			ruleset.scoring.score_for(ScoringScript.PEARL_BASE, level, depth, ruleset.difficulty),
+			["pearl_built"]
 		)
-		sweep_group.set_formations(["flower_sweep"])
-		_record(result, sweep_group)
-		for cell: Vector2i in sweep_group.cells:
-			board.remove_piece(cell)
-	result.promotions.append(
-		{"cell": centre, "piece": Pieces.EMPTY, "kind": "unlock_all", "thawed": thawed}
-	)
+		_promote(board, result, centre, Pieces.Kind.PEARL)
+	return true
 
 
 ## The perfect finish: a pearl cluster or a pearl ring ends the run.
@@ -153,17 +114,13 @@ static func _resolve_pearl_finish(board, ruleset, result, level: int, depth: int
 		return false
 
 	var kind: String = finish["kind"]
-	var key := "pearl_ring_base" if kind == "pearl_ring" else "pearl_cluster_base"
-	var group = ClearGroupScript.new()
-	group.cells = _sorted(finish["cells"])
-	group.cascade_depth = depth
-	group.base_score = ruleset.scoring.points(key)
-	group.score = ruleset.scoring.clear_score(group.base_score, level, depth, ruleset.difficulty)
-	group.set_formations([kind])
-	_record(result, group)
-	for cell: Vector2i in group.cells:
-		board.remove_piece(cell)
-
+	var key := ScoringScript.PEARL_RING_BASE if kind == "pearl_ring" else ScoringScript.PEARL_CLUSTER_BASE
+	_clear(
+		board, result, finish["cells"], depth,
+		ruleset.scoring.points(key),
+		ruleset.scoring.score_for(key, level, depth, ruleset.difficulty),
+		[kind]
+	)
 	result.finished = true
 	result.finish_kind = kind
 	return true
@@ -175,29 +132,16 @@ static func _resolve_star_clusters(board, ruleset, result, level: int, depth: in
 	if cells.is_empty():
 		return false
 
-	var group = ClearGroupScript.new()
-	group.cells = _sorted(cells)
-	group.cascade_depth = depth
-	group.base_score = ruleset.scoring.points("star_cluster_base")
-	group.score = ruleset.scoring.clear_score(group.base_score, level, depth, ruleset.difficulty)
-	group.set_formations(["bonus_star_cluster"])
-	if _thaw_around(board, group.cells) > 0:
-		group.formations.append("thawed")
-	_record(result, group)
-	for cell: Vector2i in group.cells:
-		board.remove_piece(cell)
+	var formations := ["bonus_star_cluster"]
+	if _thaw_around(board, cells) > 0:
+		formations.append("thawed")
+	_clear(
+		board, result, cells, depth,
+		ruleset.scoring.points(ScoringScript.STAR_CLUSTER_BASE),
+		ruleset.scoring.score_for(ScoringScript.STAR_CLUSTER_BASE, level, depth, ruleset.difficulty),
+		formations
+	)
 	return true
-
-
-## A blast thaws the frozen tiles around everything it touched.
-static func _thaw_around(board, cells: Array) -> int:
-	var thawed := 0
-	for cell: Vector2i in cells:
-		for neighbour: Vector2i in Grid.neighbours(cell):
-			if board.is_locked(neighbour):
-				board.unlock(neighbour)
-				thawed += 1
-	return thawed
 
 
 ## Three starflowers together are worth a windfall.
@@ -206,19 +150,17 @@ static func _resolve_starflower_clusters(board, ruleset, result, level: int, dep
 	if cells.is_empty():
 		return false
 
-	var group = ClearGroupScript.new()
-	group.cells = _sorted(cells)
-	group.cascade_depth = depth
-	group.base_score = ruleset.scoring.points("starflower_match_base")
-	group.score = ruleset.scoring.clear_score(group.base_score, level, depth, ruleset.difficulty)
-	group.set_formations(["starflower_cluster"])
-	_record(result, group)
-	for cell: Vector2i in group.cells:
-		board.remove_piece(cell)
+	_clear(
+		board, result, cells, depth,
+		ruleset.scoring.points(ScoringScript.STARFLOWER_MATCH_BASE),
+		ruleset.scoring.score_for(ScoringScript.STARFLOWER_MATCH_BASE, level, depth, ruleset.difficulty),
+		["starflower_cluster"]
+	)
 	return true
 
 
-## Ordinary colour clusters, plus the two bomb rules.
+## Ordinary colour clusters, plus the two bomb rules: a defuse bonus, and a
+## colour wipe when a bonus star of the bomb's colour is in the same clear.
 static func _resolve_colour_clusters(board, ruleset, result, level: int, depth: int) -> bool:
 	var groups: Array = MatchFinderScript.clear_groups(board)
 	if groups.is_empty():
@@ -234,52 +176,104 @@ static func _resolve_colour_clusters(board, ruleset, result, level: int, depth: 
 			elif Pieces.is_bomb(piece):
 				bombs.append(cell)
 
-		group.cascade_depth = depth
-		group.bonus_stars = stars
-		group.multiplier = int(pow(2.0, stars))
-		group.base_score = ruleset.scoring.base_for_cluster(group.cells.size())
-		group.score = (
-			ruleset.scoring.clear_score(group.base_score, level, depth, ruleset.difficulty)
-			* group.multiplier
+		var multiplier := int(pow(2.0, stars))
+		var base: int = ruleset.scoring.base_for_cluster(group.cells.size())
+		var score: int = (
+			ruleset.scoring.clear_score(base, level, depth, ruleset.difficulty) * multiplier
 		)
-		group.set_formations(["cluster"])
-
 		var clear_cells: Array[Vector2i] = group.cells.duplicate()
+		var formations := ["cluster"]
+		var bonus_base := 0
+
+		for bomb_cell: Vector2i in bombs:
+			bonus_base += ruleset.scoring.points(ScoringScript.BOMB_DEFUSE_BASE)
+			var bomb_color := int(Pieces.color_of(board.get_piece(bomb_cell)))
+			if not _has_star_of_color(board, group.cells, bomb_color):
+				continue
+			var wiped := 0
+			for cell: Vector2i in MatchFinderScript.cells_with_color(board, bomb_color):
+				if clear_cells.has(cell):
+					continue
+				clear_cells.append(cell)
+				wiped += 1
+			if wiped > 0:
+				bonus_base += ruleset.scoring.points(ScoringScript.BOMB_COLOUR_WIPE_BASE) * wiped
+				if not formations.has("bomb_colour_wipe"):
+					formations.append("bomb_colour_wipe")
+
 		if not bombs.is_empty():
 			result.bombs_defused += bombs.size()
-			group.score += ruleset.scoring.clear_score(
-				ruleset.scoring.points("bomb_defuse_base") * bombs.size(), level, depth, ruleset.difficulty
-			)
-			group.formations.append("bomb_defused")
-			# Defusing with a bonus star of the bomb's colour wipes that colour
-			# off the whole board.
-			for bomb_cell: Vector2i in bombs:
-				var bomb_color := int(Pieces.color_of(board.get_piece(bomb_cell)))
-				if not _has_star_of_color(board, group.cells, bomb_color):
-					continue
-				var extras := MatchFinderScript.cells_with_color(board, bomb_color)
-				var added := 0
-				for cell: Vector2i in extras:
-					if clear_cells.has(cell):
-						continue
-					clear_cells.append(cell)
-					added += 1
-				if added > 0:
-					group.score += ruleset.scoring.clear_score(
-						ruleset.scoring.points("bomb_colour_wipe_base") * added,
-						level, depth, ruleset.difficulty
-					)
-					if not group.formations.has("bomb_colour_wipe"):
-						group.formations.append("bomb_colour_wipe")
+			formations.append("bomb_defused")
+			score += ruleset.scoring.clear_score(bonus_base, level, depth, ruleset.difficulty)
+			if stars > 0 and _thaw_around(board, clear_cells) > 0:
+				formations.append("thawed")
 
-		group.cells = _sorted(clear_cells)
-		if stars > 0 and _thaw_around(board, clear_cells) > 0:
-			# A bonus star thaws the frozen tiles it went off next to.
-			group.formations.append("thawed")
-		_record(result, group)
-		for cell: Vector2i in clear_cells:
-			board.remove_piece(cell)
+		var emitted = _clear(board, result, clear_cells, depth, base, score, formations)
+		emitted.bonus_stars = stars
+		emitted.multiplier = multiplier
 	return true
+
+
+# --- helpers ----------------------------------------------------------------
+
+## Books one clear event: the group, the score, the combo, and the removal.
+## Scoring stays with the caller, so every formation can price itself however
+## the design document says.
+static func _clear(
+	board, result, cells: Array, depth: int, base_score: int, score: int, formations: Array
+) -> RefCounted:
+	var group = ClearGroupScript.new()
+	group.cells = _sorted(cells)
+	group.cascade_depth = depth
+	group.base_score = base_score
+	group.score = score
+	group.set_formations(formations)
+	result.clear_groups.append(group)
+	result.score += score
+	result.cleared_count += group.cells.size()
+	result.combos += 1
+	for cell: Vector2i in group.cells:
+		board.remove_piece(cell)
+	return group
+
+
+## The centre of a bloom becomes a new special piece.
+static func _promote(board, result, centre: Vector2i, kind: int) -> void:
+	var piece := Pieces.make(kind, Pieces.GemColor.NONE)
+	board.set_piece(centre, piece)
+	result.promotions.append({"cell": centre, "piece": piece, "kind": Pieces.KIND_NAMES[kind]})
+
+
+## Survival's replacement for blooming: thaw the board, then sweep the colour.
+static func _survival_flourish(
+	board, ruleset, result, level: int, depth: int, centre: Vector2i, ring_color: int
+) -> void:
+	var thawed: int = board.unlock_all()
+	var sweep := MatchFinderScript.cells_with_color(board, ring_color)
+	if not sweep.is_empty():
+		_clear(
+			board, result, sweep, depth,
+			ruleset.scoring.points(ScoringScript.FLOWER_SWEEP_BASE) * sweep.size(),
+			ruleset.scoring.clear_score(
+				ruleset.scoring.points(ScoringScript.FLOWER_SWEEP_BASE) * sweep.size(),
+				level, depth, ruleset.difficulty
+			),
+			["flower_sweep"]
+		)
+	result.promotions.append(
+		{"cell": centre, "piece": Pieces.EMPTY, "kind": "unlock_all", "thawed": thawed}
+	)
+
+
+## A blast thaws the frozen tiles around everything it touched.
+static func _thaw_around(board, cells: Array) -> int:
+	var thawed := 0
+	for cell: Vector2i in cells:
+		for neighbour: Vector2i in Grid.neighbours(cell):
+			if board.is_locked(neighbour):
+				board.unlock(neighbour)
+				thawed += 1
+	return thawed
 
 
 static func _has_star_of_color(board, cells: Array, gem_color: int) -> bool:
@@ -288,14 +282,6 @@ static func _has_star_of_color(board, cells: Array, gem_color: int) -> bool:
 		if Pieces.is_bonus_star(piece) and int(Pieces.color_of(piece)) == gem_color:
 			return true
 	return false
-
-
-static func _record(result, group) -> void:
-	result.clear_groups.append(group)
-	result.score += group.score
-	result.cleared_count += group.cells.size()
-	# One clear event counts as one combo, cascade steps included.
-	result.combos += 1
 
 
 static func _sorted(cells: Array) -> Array[Vector2i]:
@@ -308,6 +294,8 @@ static func _sorted(cells: Array) -> Array[Vector2i]:
 		return a.y < b.y)
 	return out
 
+
+# --- board upkeep -----------------------------------------------------------
 
 ## Gravity pass; records moves into `result` when one is supplied.
 static func apply_gravity(board, result = null) -> void:

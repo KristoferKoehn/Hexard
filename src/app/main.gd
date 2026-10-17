@@ -11,8 +11,6 @@ const GameScript := preload("res://src/core/game.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 const TutorialScript := preload("res://src/core/tutorial.gd")
 
-const DEFAULT_SEED := 20261016
-
 enum Screen { MENU, PLAYING, RESULT }
 
 @onready var board_view: BoardView = $BoardView
@@ -186,17 +184,19 @@ func play_move(direction: int) -> void:
 func use_special(direction: int = GameScript.CLOCKWISE) -> void:
 	if game == null or screen != Screen.PLAYING:
 		return
-	var cells: Array = HexGrid.vertices()[cursor_vertex]
-	var target := Vector2i(-1, -1)
-	for cell: Vector2i in cells:
-		var piece: int = game.board.get_piece(cell)
-		if Pieces.is_starflower(piece) or Pieces.is_pearl(piece):
-			target = cell
-			break
-	if target == Vector2i(-1, -1):
-		hud.set_message("no starflower or pearl under the cursor")
-		return
-	play_piece_move(target, direction)
+	for cell: Vector2i in HexGrid.vertices()[cursor_vertex]:
+		if _special_at(cell) != Vector2i(-1, -1):
+			play_piece_move(cell, direction)
+			return
+	hud.set_message("no starflower or pearl under the cursor")
+
+
+## The cell itself if it holds a piece that can be turned on its own.
+func _special_at(cell: Vector2i) -> Vector2i:
+	var piece: int = game.board.get_piece(cell)
+	if Pieces.is_starflower(piece) or Pieces.is_pearl(piece):
+		return cell
+	return Vector2i(-1, -1)
 
 
 func play_piece_move(cell: Vector2i, direction: int) -> void:
@@ -399,24 +399,22 @@ func _play_key(code: int) -> void:
 
 
 func _mouse_moved(viewport_point: Vector2) -> void:
-	var local := board_view.to_local(viewport_point)
-	var cell := board_view.cell_at(local)
+	var cell := board_view.cell_at(board_view.to_local(viewport_point))
 	# Hovering a special piece is more useful than hovering its vertex.
-	if Pieces.is_starflower(game.board.get_piece(cell)) or Pieces.is_pearl(game.board.get_piece(cell)):
-		board_view.hover_cell = cell
+	var special := _special_at(cell)
+	board_view.hover_cell = special
+	if special == Vector2i(-1, -1):
+		snap_cursor_to(viewport_point)
+	else:
 		board_view.queue_redraw()
-		return
-	board_view.hover_cell = Vector2i(-1, -1)
-	snap_cursor_to(viewport_point)
 
 
 func _mouse_clicked(viewport_point: Vector2, button_index: int) -> void:
 	if button_index != MOUSE_BUTTON_LEFT and button_index != MOUSE_BUTTON_RIGHT:
 		return
 	var direction := GameScript.CLOCKWISE if button_index == MOUSE_BUTTON_LEFT else GameScript.COUNTER_CLOCKWISE
-	var local := board_view.to_local(viewport_point)
-	var cell := board_view.cell_at(local)
-	if Pieces.is_starflower(game.board.get_piece(cell)) or Pieces.is_pearl(game.board.get_piece(cell)):
+	var cell := board_view.cell_at(board_view.to_local(viewport_point))
+	if _special_at(cell) != Vector2i(-1, -1):
 		play_piece_move(cell, direction)
 		return
 	snap_cursor_to(viewport_point)

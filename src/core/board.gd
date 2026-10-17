@@ -62,13 +62,6 @@ func is_playable(cell: Vector2i) -> bool:
 	return not is_empty(cell) and not is_locked(cell)
 
 
-func locked_cells() -> Array[Vector2i]:
-	var out: Array[Vector2i] = []
-	for cell: Vector2i in Grid_ordered_cells():
-		if is_locked(cell):
-			out.append(cell)
-	return out
-
 
 func locked_count() -> int:
 	return _locked.size()
@@ -92,10 +85,6 @@ func lock_all_remaining() -> int:
 			_locked[cell] = true
 			count += 1
 	return count
-
-
-func Grid_ordered_cells() -> Array[Vector2i]:
-	return HexGridScript.all_cells()
 
 
 func filled_count() -> int:

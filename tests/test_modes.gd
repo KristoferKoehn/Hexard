@@ -3,9 +3,7 @@ extends "res://tests/test_case.gd"
 ## Game modes and run lifecycle (docs/design.md §5, §6): Timed's clock, Survival's
 ## rounds and locked pieces, difficulty scaling, and the end-of-run summary.
 
-const Grid := preload("res://src/core/hex_grid.gd")
 const BoardScript := preload("res://src/core/board.gd")
-const Pieces := preload("res://src/core/piece.gd")
 const MatchFinder := preload("res://src/core/match_finder.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 const ResolverScript := preload("res://src/core/resolver.gd")
@@ -269,17 +267,5 @@ func test_summary_describes_the_finished_run() -> void:
 	assert_gt(summary["elapsed"], 0.0, "with elapsed time")
 
 
-func _has_formation(result, name: String) -> bool:
-	for group in result.clear_groups:
-		if group.has_formation(name):
-			return true
-	return false
 
 
-func _count_kind(board, kind: int) -> int:
-	var total := 0
-	for cell: Vector2i in Grid.all_cells():
-		var piece: int = board.get_piece(cell)
-		if not Pieces.is_empty(piece) and Pieces.kind_of(piece) == kind:
-			total += 1
-	return total

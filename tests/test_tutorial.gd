@@ -3,8 +3,6 @@ extends "res://tests/test_case.gd"
 ## The scripted tutorial (docs/design.md §7.4): each step must rig a legal board,
 ## wait for the player to do the thing, and only then move on.
 
-const Grid := preload("res://src/core/hex_grid.gd")
-const Pieces := preload("res://src/core/piece.gd")
 const MatchFinder := preload("res://src/core/match_finder.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 const TutorialScript := preload("res://src/core/tutorial.gd")

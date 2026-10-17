@@ -2,9 +2,7 @@ extends "res://tests/test_case.gd"
 
 ## Board storage, gravity and invariants (docs/design.md §2.2, §3.3).
 
-const Grid := preload("res://src/core/hex_grid.gd")
 const BoardScript := preload("res://src/core/board.gd")
-const Pieces := preload("res://src/core/piece.gd")
 
 
 func test_starts_empty() -> void:

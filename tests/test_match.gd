@@ -5,15 +5,9 @@ extends "res://tests/test_case.gd"
 ## The board starts empty here, so every scenario is exactly the pieces painted
 ## — no filler colours to accidentally complete a triple.
 
-const Grid := preload("res://src/core/hex_grid.gd")
 const BoardScript := preload("res://src/core/board.gd")
-const Pieces := preload("res://src/core/piece.gd")
 const MatchFinder := preload("res://src/core/match_finder.gd")
 
-
-func _paint(board, cells: Array, color: int) -> void:
-	for cell: Vector2i in cells:
-		board.set_piece(cell, Pieces.gem(color))
 
 
 func _vertex_of(cells: Array) -> int:

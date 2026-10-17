@@ -7,9 +7,7 @@ extends "res://tests/test_case.gd"
 ## gravity runs before formations are judged — a half-empty board would drop its
 ## pieces and destroy the very formation under test.
 
-const Grid := preload("res://src/core/hex_grid.gd")
 const BoardScript := preload("res://src/core/board.gd")
-const Pieces := preload("res://src/core/piece.gd")
 const MatchFinder := preload("res://src/core/match_finder.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 const ResolverScript := preload("res://src/core/resolver.gd")
@@ -22,13 +20,6 @@ const CENTRE := Vector2i(4, 4)
 
 
 # --- helpers ----------------------------------------------------------------
-
-## Fills the whole board with a pattern that cannot match: the colour index is
-## (2q + r) mod 5, and no vertex's three cells share that value.
-func _background(board) -> void:
-	var palette: Array = Pieces.BASE_COLORS
-	for cell: Vector2i in Grid.all_cells():
-		board.set_piece(cell, Pieces.gem(palette[(2 * cell.x + cell.y) % palette.size()]))
 
 
 func _full_board() -> RefCounted:
@@ -44,10 +35,6 @@ func _resolve(board, ruleset = null, level: int = 1, refill: bool = false) -> Re
 	return result
 
 
-func _paint(board, cells: Array, color: int) -> void:
-	for cell: Vector2i in cells:
-		board.set_piece(cell, Pieces.gem(color))
-
 
 func _ring(centre: Vector2i) -> Array[Vector2i]:
 	var cells := Grid.neighbours(centre)
@@ -59,18 +46,6 @@ func _ring_in_order(centre: Vector2i) -> Array[Vector2i]:
 	return Grid.cyclic_order(Grid.neighbours(centre))
 
 
-func _count_kind(board, kind: int) -> int:
-	var total := 0
-	for cell: Vector2i in Grid.all_cells():
-		var piece: int = board.get_piece(cell)
-		if not Pieces.is_empty(piece) and Pieces.kind_of(piece) == kind:
-			total += 1
-	return total
-
-
-func _first_group(result):
-	assert_ge(result.clear_groups.size(), 1, "expected at least one clear group")
-	return result.clear_groups[0]
 
 
 # --- spawn gating -----------------------------------------------------------
@@ -431,13 +406,4 @@ func test_piece_rotations_are_logged_for_replay() -> void:
 
 # --- helpers ----------------------------------------------------------------
 
-func _non_matching_rotation(game) -> Dictionary:
-	var legal := {}
-	for move: Dictionary in game.find_legal_rotations():
-		legal["%d:%d" % [move["vertex"], move["direction"]]] = true
-	var vertices := Grid.vertices()
-	for vertex_index in vertices.size():
-		for direction in [1, -1]:
-			if not legal.has("%d:%d" % [vertex_index, direction]):
-				return {"vertex": vertex_index, "direction": direction}
-	return {}
+
