@@ -29,6 +29,9 @@ const FALL_TIME := 0.17
 const DROP_TIME := 0.15
 const STEP_GAP := 0.045
 const BLOOM_TIME := 0.28
+## A refused spin turns out and straight back; the snap-back is quicker than the
+## turn so it reads as a rejection rather than a move.
+const BOUNCE_TIME := 0.22
 
 # --- neon container ---------------------------------------------------------
 const PLATE_PAD := 26.0
@@ -124,6 +127,17 @@ func show_result(result: RefCounted) -> void:
 	_steps.clear()
 	_step_index = 0
 	_step_time = 0.0
+
+	# A spin the rules refused: show the turn it asked for, then undo it.
+	if not result.committed:
+		if result.rotation_cells.size() > 0:
+			_steps.append({
+				"kind": "bounce", "cells": result.rotation_cells.duplicate(),
+				"dir": result.direction, "duration": BOUNCE_TIME,
+			})
+			_playing = true
+			queue_redraw()
+		return
 
 	if result.rotation_cells.size() > 0:
 		_steps.append({
@@ -286,7 +300,7 @@ func _skipped_cells(step: Dictionary) -> Dictionary:
 	if step.is_empty():
 		return skip
 	match str(step["kind"]):
-		"spin", "clear":
+		"spin", "clear", "bounce":
 			for cell: Vector2i in step["cells"]:
 				skip[cell] = true
 		"fall":
@@ -374,6 +388,8 @@ func _draw_step(step: Dictionary) -> void:
 	match str(step["kind"]):
 		"spin":
 			_draw_spin(step, t)
+		"bounce":
+			_draw_bounce(step, t)
 		"clear":
 			_draw_clear(step, t)
 		"fall":
@@ -403,6 +419,35 @@ func _draw_spin(step: Dictionary, t: float) -> void:
 		# Bulge around the vertex so the trio reads as turning, not sliding.
 		position += (position - centre).rotated(PI * 0.5) * sin(t * PI) * 0.25
 		_draw_piece(position, piece, cell_size * 0.90, 1.0)
+
+
+## A refused spin: turn to the position that was asked for, then straight back.
+## The snap-back is faster than the turn, which reads as refusal rather than a
+## move, and an amber outline marks the trio that could not go anywhere.
+func _draw_bounce(step: Dictionary, t: float) -> void:
+	var cells: Array = step["cells"]
+	var n := cells.size()
+	var dir: int = int(step["dir"])
+	var sweep := t / 0.42 if t <= 0.42 else (1.0 - t) / 0.58
+	var centre := Vector2.ZERO
+	for cell: Vector2i in cells:
+		centre += cell_center(cell)
+	centre /= float(n)
+
+	var amber := Color(1.0, 0.72, 0.32, 0.6 * (1.0 - t))
+	for i in n:
+		var source: Vector2i = cells[posmod(i - dir, n)]
+		var piece: int = int(_display.get(source, Pieces.EMPTY))
+		if Pieces.is_empty(piece):
+			continue
+		var from := cell_center(source)
+		var to := cell_center(cells[i])
+		var position := from.lerp(to, sweep)
+		position += (position - centre).rotated(PI * 0.5) * sin(sweep * PI) * 0.25
+		_draw_piece(position, piece, cell_size * 0.90, 1.0)
+
+	for cell: Vector2i in cells:
+		draw_polyline(_closed(_corners(cell_center(cell), cell_size * 0.97)), amber, 2.0)
 
 
 func _draw_clear(step: Dictionary, t: float) -> void:

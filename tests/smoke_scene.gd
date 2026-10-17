@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 
 ## View-layer smoke test: loads the real scene, drives it with synthetic input,
 ## and fails loudly if anything errors or the wiring breaks.
@@ -194,7 +194,7 @@ func _check_mouse_mapped_to_the_right_place() -> void:
 	var used_event := _vertex_touches_cell(injected_cursor, Vector2i(4, 4))
 	if not used_event:
 		_main.call("snap_cursor_to", viewport_point)
-	print("        · mouse path: %s" % ("synthetic event" if used_event else "direct snap_cursor_to"))
+	print("        Â· mouse path: %s" % ("synthetic event" if used_event else "direct snap_cursor_to"))
 
 	var cursor: int = _main.get("cursor_vertex")
 	var vertices := HexGrid.vertices()
@@ -271,6 +271,7 @@ func _prepare_illegal_cursor() -> void:
 
 func _check_illegal_spin_rejected() -> void:
 	var game = _main.get("game")
+	var view = _main.get_node("BoardView")
 	_check(
 		game.turns == _turns_before,
 		"a spin that clears nothing is not a move in STRICT (turns stayed %d)" % game.turns
