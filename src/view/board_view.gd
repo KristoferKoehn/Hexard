@@ -676,6 +676,26 @@ func _flashes_allowed() -> bool:
 	return settings == null or settings.flashes_enabled()
 
 
+## Draws only the edges of `cells` that are not shared with another member, so
+## the result is the silhouette of the group. The neighbour across an edge is found
+## by probing outward along that edge's normal, which avoids duplicating the grid's
+## neighbour arithmetic.
+func _draw_cluster_outline(cells: Array, color: Color, width: float) -> void:
+	var members := {}
+	for cell: Vector2i in cells:
+		members[cell] = true
+	for cell: Vector2i in cells:
+		var centre := cell_center(cell)
+		var corners := _corners(centre, cell_size * 0.96)
+		for index in 6:
+			var normal := deg_to_rad(30.0 + 60.0 * float(index))
+			var probe := centre + Vector2(cos(normal), sin(normal)) * cell_size * 1.1
+			var across := cell_at(probe)
+			if across != cell and members.has(across):
+				continue
+			draw_line(corners[index], corners[(index + 1) % 6], color, width)
+
+
 func _draw_cursor() -> void:
 	var vertices := HexGrid.vertices()
 
@@ -685,11 +705,11 @@ func _draw_cursor() -> void:
 
 	if cursor_vertex < 0 or cursor_vertex >= vertices.size():
 		return
-	# A white outline around the three tiles that would swap, instead of a wash over
-	# them: the gem colours stay true, which matters when reading a board.
+	# A white outline around the outside of the trio, instead of a wash over the
+	# tiles: the gem colours stay true, and shared edges are not drawn so it reads
+	# as one cluster rather than three separate cells.
 	var outline := Color(1.0, 1.0, 1.0, 0.95) if cursor_legal else Color(1.0, 1.0, 1.0, 0.40)
-	for cell: Vector2i in vertices[cursor_vertex]:
-		draw_polyline(_closed(_corners(cell_center(cell), cell_size * 0.96)), outline, 2.5)
+	_draw_cluster_outline(vertices[cursor_vertex], outline, 2.5)
 
 	var centre := HexGrid.vertex_centroid(cursor_vertex, cell_size) + _origin
 	# Green means "spinning here will clear"; dim grey means it would just revert.

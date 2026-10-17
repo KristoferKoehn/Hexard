@@ -72,7 +72,9 @@ func play_move(result: MoveResult) -> void:
 		# well fired the explosion twice.
 		return
 	play_cue("rotate")
-	if distinct_colours(result) >= 2:
+	# Only the spin's own clear counts. A cascade clearing a second colour is a
+	# cascade, not a multi-colour play, so it must not earn the chime.
+	if distinct_colours(result, true) >= 2:
 		play_cue("multi")
 	if result.bombs_defused > 0:
 		play_cue("defuse")
@@ -97,11 +99,17 @@ func on_step(kind: String, step: Dictionary) -> void:
 		play_cue("explosion")
 
 
-## Distinct gem colours this move cleared. Two or more earns the chime, and the
-## count is static so it can be tested without an audio device.
-static func distinct_colours(result: MoveResult) -> int:
+## Distinct gem colours this move cleared. Two or more earns the chime.
+##
+## `first_clear_only` restricts the count to the clear the spin itself made
+## (cascade depth 0 or 1), which is what the chime is for: a chain that later
+## touches a second colour is a cascade, not a multi-colour play. Static so it can
+## be tested without an audio device.
+static func distinct_colours(result: MoveResult, first_clear_only: bool = false) -> int:
 	var seen := {}
 	for group in result.clear_groups:
+		if first_clear_only and int(group.cascade_depth) > 1:
+			continue
 		var color := int(group.gem_color)
 		if color > 0:
 			seen[color] = true

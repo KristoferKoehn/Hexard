@@ -641,3 +641,20 @@ func test_two_colours_in_one_move_are_counted() -> void:
 	for group in groups:
 		result.clear_groups.append(group)
 	assert_eq(AudioService.distinct_colours(result), 2, "in two different colours")
+
+
+func test_the_chime_ignores_cascades() -> void:
+	var board := BoardScript.new()
+	_background(board)
+	_paint(board, [Vector2i(2, 3), Vector2i(2, 4), Vector2i(3, 3)], Pieces.GemColor.ORANGE)
+	_paint(board, [Vector2i(7, 3), Vector2i(7, 4), Vector2i(8, 4)], Pieces.GemColor.BLUE)
+	var groups := MatchFinder.clear_groups(board)
+	assert_eq(groups.size(), 2, "two clusters")
+	var result := MoveResultScript.new()
+	groups[0].cascade_depth = 1   # the spin's own clear
+	groups[1].cascade_depth = 2   # something that fell into place afterwards
+	for group in groups:
+		result.clear_groups.append(group)
+	assert_eq(AudioService.distinct_colours(result), 2, "two colours cleared overall")
+	assert_eq(AudioService.distinct_colours(result, true), 1,
+		"but only one was in the spin's own clear, so no chime")
