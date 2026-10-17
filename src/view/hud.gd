@@ -44,6 +44,9 @@ const MODE_BLURBS := {
 const DIFFICULTIES := ["easy", "normal", "hard"]
 
 var _info: RichTextLabel
+# The status row is a bbcode string that is re-parsed and re-laid-out on every
+# assignment, so identical frames are skipped rather than rebuilt.
+var _last_status := ""
 var _message: Label
 var _controls: Label
 var _banner: Label
@@ -177,7 +180,11 @@ func update_from_game(game: RefCounted, displayed_score: int = -1) -> void:
 	if int(game.state) != 0:
 		tail += "  [color=#%s]RUN OVER[/color]" % NEON_AMBER.to_html(false)
 	parts.append(tail)
-	_info.text = "     ".join(parts)
+	var text := "     ".join(parts)
+	if text == _last_status:
+		return
+	_last_status = text
+	_info.text = text
 
 
 func set_message(text: String) -> void:

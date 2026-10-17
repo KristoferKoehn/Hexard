@@ -84,10 +84,13 @@ static func matching_vertices(board: Board) -> Array[int]:
 static func clear_groups(board: Board) -> Array:
 	var seen := {}
 	var groups: Array = []
+	# Which cells belong to a monochrome triangle is a property of the whole board,
+	# so it is computed once per pass instead of once per candidate group.
+	var solid := _solid_cells(board)
 	for vertex: Array in Grid.vertices():
 		if not _cells_are_monochrome(board, vertex):
 			continue
-		var cells := _expand(board, vertex)
+		var cells := _expand(board, vertex, solid)
 		var key := group_key(cells)
 		if seen.has(key):
 			continue
@@ -100,8 +103,19 @@ static func clear_groups(board: Board) -> Array:
 	return groups
 
 
+## Cells belonging to at least one monochrome vertex triangle: the solid body of any
+## cluster. Computed once per clear-group pass.
+static func _solid_cells(board: Board) -> Dictionary:
+	var solid := {}
+	for vertex: Array in Grid.vertices():
+		if _cells_are_monochrome(board, vertex):
+			for cell: Vector2i in vertex:
+				solid[cell] = true
+	return solid
+
+
 ## Grow a matching vertex into the maximal connected same-coloured group.
-static func _expand(board: Board, seed_cells: Array) -> Array[Vector2i]:
+static func _expand(board: Board, seed_cells: Array, solid: Dictionary) -> Array[Vector2i]:
 	var color := Pieces.color_of(board.get_piece(seed_cells[0]))
 	var visited := {}
 	var queue: Array[Vector2i] = []
@@ -131,15 +145,9 @@ static func _expand(board: Board, seed_cells: Array) -> Array[Vector2i]:
 	# run every tile has exactly two like neighbours, so a triangle on one side of a
 	# loop would sweep the entire loop. Triangle membership keeps the solid body and
 	# drops thin limbs, chains and the far side of a ring.
-	var in_triangle := {}
-	for vertex: Array in Grid.vertices():
-		if _cells_are_monochrome(board, vertex):
-			for cell: Vector2i in vertex:
-				in_triangle[cell] = true
-
 	var kept: Array[Vector2i] = []
 	for cell: Vector2i in result:
-		if in_triangle.has(cell):
+		if solid.has(cell):
 			kept.append(cell)
 	result = kept
 

@@ -362,6 +362,18 @@ the step and the controller moves the cursor to the vertex that matters.
 > The pattern background used for rigging has **no legal rotation at all**, which is why step 1 needs its own
 > setup rather than "any board" — found the hard way when the first version was unwinnable.
 
+### 7.4a Cursor and special turns
+
+The cursor is a vertex selector: it highlights the three tiles a spin would swap, drawn as a **white outline
+around the outside of the trio only** (shared edges are skipped, so it reads as one cluster), plus a dot that is
+green when the spin would clear and grey when it would revert.
+
+A starflower or pearl centre is **also a snap position**. Each special is owned by exactly one vertex — the one
+nearest its centre — and landing there switches the cursor into piece mode: the vertex dot disappears, the
+outline shows the cells that will actually cycle (six for a starflower ring, three for a pearl's Y), and the rotate
+keys turn the piece instead of the trio. `Game.swapped_cells()` is the single source of truth for that set, so the
+outline cannot disagree with the rotation. Every other vertex on the board rotates its trio as normal.
+
 ### 7.5 Animation
 
 The rules core reaches its final state instantly, so `BoardView` replays the move as **transient overlays** that
@@ -376,7 +388,17 @@ it so the smoke test can prove a committed move actually animates.
 - **Art:** flat-top hexagonal gems, 2D, high-contrast bevels and specular highlights; each hue has a distinct value/saturation so it reads at small sizes. Optional pattern overlays on top.
 - **Motion:** 120 ms rotation tween per step; gravity with slight per-cell delay and squash on landing; clear = flash + shatter particles; starflower bloom = expanding ring; pearl finish = full-board sequence with board-wide pulse.
 - **Juice toggles:** screen shake, flash reduction, reduced-motion mode (all motion ≤ 100 ms, no shake, no pulsing).
-- **Audio:** a distinct SFX per event class (rotary tick, cluster clear by size, bonus-star chime, starflower bloom, pearl thud, bomb tick, bomb defuse, explosion); cascade chains raise pitch per depth step. Music: original ambient loop with 2–3 intensity layers that respond to combo streaks. Custom soundtrack support is out of scope for v1.
+- **Audio (as built, asset-free):** a procedural synth, not samples. `src/core/synth.gd` is engine-free
+  floats — ten cue recipes and per-sample voice math — so it can be unit-tested headless; `AudioService`
+  drives it into an `AudioStreamGenerator` at 22 kHz, mixes up to 12 voices and soft-clips. Cues: rotate tick,
+  refuse, clear, bonus-star chime, bloom, pearl, bomb tick, defuse, explosion, ui, plus a **multi** chime when
+  the spin's own clear takes two or more colours (cascades do not count).
+  - the clear is a short **pitched pluck** (triangle, 540 Hz, slight downward bend). Noise was tried first and
+    removed: white noise has no fundamental, so a rising filter cutoff reads as *louder*, never *higher*
+  - cascades climb `DEPTH_STEP` (1.1225, ~a semitone) per depth step, and every move restarts at depth 1, so
+    the ladder rises through a chain and returns to normal when the board settles
+  - levels and mute live in Settings and are applied as one gain (`sfx_gain()`)
+  Music and custom soundtracks are out of scope for v1.
 
 ---
 

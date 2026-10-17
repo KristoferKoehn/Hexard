@@ -65,6 +65,11 @@ var game: RefCounted
 var cursor_vertex := -1
 ## Set when the cursor has snapped onto a starflower or pearl centre.
 var cursor_special := Vector2i(-1, -1)
+# Outline segments for the current cursor cells. The shape depends only on which
+# cells are outlined, so it is rebuilt when the selection changes and merely
+# redrawn every frame while animating.
+var _outline_key := ""
+var _outline_segments: Array = []
 var cursor_legal := true
 var hint_vertex := -1
 var hover_cell := Vector2i(-1, -1)
@@ -683,25 +688,43 @@ func _flashes_allowed() -> bool:
 ## by probing outward along that edge's normal, which avoids duplicating the grid's
 ## neighbour arithmetic.
 func _draw_cluster_outline(cells: Array, color: Color, width: float) -> void:
+	var key := ""
+	for cell: Vector2i in cells:
+		key += "%d,%d;" % [cell.x, cell.y]
+	if key != _outline_key:
+		_outline_key = key
+		_outline_segments = _build_outline_segments(cells)
+	for segment: Array in _outline_segments:
+		var a: Vector2 = segment[0]
+		var b: Vector2 = segment[1]
+		draw_line(a, b, color, width)
+		# Round the meets: independent segments leave a visible notch at inner
+		# corners, so each endpoint gets a dot of half the line width.
+		draw_circle(a, width * 0.5, color)
+		draw_circle(b, width * 0.5, color)
+
+
+## Boundary edges of `cells`, as [start, end] pairs. This was previously computed
+## inside _draw, where it cost one cell_at() search (85 distance tests) per edge per
+## frame; the shape only depends on the selection, so it is built once and cached.
+func _build_outline_segments(cells: Array) -> Array:
 	var members := {}
 	for cell: Vector2i in cells:
 		members[cell] = true
+	var segments: Array = []
 	for cell: Vector2i in cells:
 		var centre := cell_center(cell)
 		var corners := _corners(centre, cell_size * 0.96)
 		for index in 6:
+			# The neighbour across an edge is found by probing along that edge's
+			# normal, so the grid's adjacency stays the single source of truth.
 			var normal := deg_to_rad(30.0 + 60.0 * float(index))
 			var probe := centre + Vector2(cos(normal), sin(normal)) * cell_size * 1.1
 			var across := cell_at(probe)
 			if across != cell and members.has(across):
 				continue
-			var a := corners[index]
-			var b := corners[(index + 1) % 6]
-			draw_line(a, b, color, width)
-			# Round the meets: independent segments leave a visible notch at inner
-			# corners, so each endpoint gets a dot of half the line width.
-			draw_circle(a, width * 0.5, color)
-			draw_circle(b, width * 0.5, color)
+			segments.append([corners[index], corners[(index + 1) % 6]])
+	return segments
 
 
 func _draw_cursor() -> void:
