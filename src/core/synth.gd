@@ -21,9 +21,12 @@ const DECAY_CURVE := 4.0
 const CUES := {
 	"rotate":     {"wave": Wave.TRIANGLE, "freq": 660.0, "dur": 0.06, "amp": 0.22, "slide": 0.0},
 	"refuse":     {"wave": Wave.SQUARE, "freq": 240.0, "dur": 0.10, "amp": 0.16, "slide": -90.0},
-	# Clears are a brief descending hiss rather than a tone: a filtered noise
-	# sweep reads as "shhk" and layering several in a cascade stays legible.
-	"clear":      {"wave": Wave.NOISE, "freq": 1700.0, "dur": 0.13, "amp": 0.30, "slide": -1350.0},
+	# Clears are a short plucked tone, not noise. Noise has no fundamental, so
+	# raising its filter cutoff only made successive clears brighter and louder
+	# instead of higher - the cascade ladder needs real pitch. A triangle pluck with
+	# a small downward bend has a clear fundamental that the depth multiplier can
+	# climb, while the fast decay keeps it percussive.
+	"clear":      {"wave": Wave.TRIANGLE, "freq": 540.0, "dur": 0.16, "amp": 0.26, "slide": -110.0},
 	"star":       {"wave": Wave.SINE, "freq": 1180.0, "dur": 0.34, "amp": 0.26, "slide": 0.0},
 	"bloom":      {"wave": Wave.TRIANGLE, "freq": 440.0, "dur": 0.30, "amp": 0.26, "slide": 520.0},
 	"pearl":      {"wave": Wave.SINE, "freq": 240.0, "dur": 0.55, "amp": 0.32, "slide": -60.0},

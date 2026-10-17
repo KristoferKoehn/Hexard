@@ -87,3 +87,20 @@ func test_voices_are_independent() -> void:
 		SynthScript.sample(a, RATE)
 	assert_gt(float(a["t"]), 0.0, "one voice advanced")
 	assert_almost_eq(float(b["t"]), 0.0, 0.0001, "the other did not")
+
+
+## The cascade ladder must raise the note, not the volume. Noise could not do this
+## (no fundamental), which is why clear is a pluck: peak amplitude stays put as
+## depth climbs while the fundamental rises.
+func test_cascade_depth_does_not_make_the_clear_louder() -> void:
+	var peaks := {}
+	for depth: int in [1, 3, 5]:
+		var samples := SynthScript.render_offline("clear", depth, RATE, 4096)
+		var peak := 0.0
+		for value: float in samples:
+			peak = maxf(peak, absf(value))
+		peaks[depth] = peak
+		assert_gt(peak, 0.01, "depth %d is audible" % depth)
+	var first: float = peaks[1]
+	var last: float = peaks[5]
+	assert_almost_eq(last, first, first * 0.2, "depth 5 is as loud as depth 1, not louder")
