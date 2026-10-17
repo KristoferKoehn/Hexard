@@ -63,6 +63,8 @@ const SOCKET_LINE := Color("1d3b4d")
 
 var game: RefCounted
 var cursor_vertex := -1
+## Set when the cursor has snapped onto a starflower or pearl centre.
+var cursor_special := Vector2i(-1, -1)
 var cursor_legal := true
 var hint_vertex := -1
 var hover_cell := Vector2i(-1, -1)
@@ -718,13 +720,16 @@ func _draw_cursor() -> void:
 	# A special turn swaps a different set than the trio: a starflower turns its six
 	# neighbours and a pearl turns three in a Y. Ask the rules, never guess.
 	var swapped: Array[Vector2i] = []
-	for cell: Vector2i in vertices[cursor_vertex]:
-		var special: Array[Vector2i] = game.swapped_cells(cell)
-		if special.size() > 0:
-			swapped = special
-			break
-		swapped.append(cell)
+	if cursor_special != Vector2i(-1, -1):
+		swapped = game.swapped_cells(cursor_special)
+	else:
+		for cell: Vector2i in vertices[cursor_vertex]:
+			swapped.append(cell)
 	_draw_cluster_outline(swapped, outline, 2.5)
+
+	# A snapped special has no vertex position, so the vertex dot goes away.
+	if cursor_special != Vector2i(-1, -1):
+		return
 
 	var centre := HexGrid.vertex_centroid(cursor_vertex, cell_size) + _origin
 	# Green means "spinning here will clear"; dim grey means it would just revert.

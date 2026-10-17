@@ -18,6 +18,8 @@ enum Screen { MENU, PLAYING, RESULT, SETTINGS }
 
 var game: Game
 var cursor_vertex := 0
+## When the cursor has snapped onto a starflower or pearl, this is its cell.
+var cursor_special := Vector2i(-1, -1)
 var screen: Screen = Screen.MENU
 var selected_mode: int = RulesetScript.Mode.MARATHON
 var selected_difficulty := "normal"
@@ -219,6 +221,10 @@ func _on_clear_scored(amount: int) -> void:
 func play_move(direction: int) -> void:
 	if game == null or screen != Screen.PLAYING:
 		return
+	# Snapped onto a special: the rotate keys turn that piece instead of the trio.
+	if cursor_special != Vector2i(-1, -1):
+		play_piece_move(cursor_special, direction)
+		return
 	board_view.hint_vertex = -1
 	var result := game.rotate(cursor_vertex, direction)
 	var turn := "CW" if direction == GameScript.CLOCKWISE else "CCW"
@@ -335,8 +341,39 @@ func snap_cursor_to(viewport_point: Vector2) -> void:
 ## Keeps the view in sync, including whether a spin at the cursor can clear.
 func _refresh_cursor() -> void:
 	board_view.cursor_vertex = cursor_vertex
-	board_view.cursor_legal = game != null and game.has_legal_spin(cursor_vertex)
+	cursor_special = _special_owned_by_cursor()
+	board_view.cursor_special = cursor_special
+	if cursor_special != Vector2i(-1, -1):
+		# Snapped onto a special: a rotate turns the piece, not the trio.
+		board_view.cursor_legal = _special_turn_is_legal(cursor_special)
+	else:
+		board_view.cursor_legal = game != null and game.has_legal_spin(cursor_vertex)
 	board_view.queue_redraw()
+
+
+## The starflower or pearl that owns this cursor position. Each special is snapped
+## to by exactly one vertex - the one nearest its centre - so every other vertex on
+## the board keeps rotating its trio as normal.
+func _special_owned_by_cursor() -> Vector2i:
+	if game == null or board_view == null:
+		return Vector2i(-1, -1)
+	for cell: Vector2i in HexGrid.all_cells():
+		var piece: int = game.board.get_piece(cell)
+		if not (Pieces.is_starflower(piece) or Pieces.is_pearl(piece)):
+			continue
+		var owner: int = HexGrid.nearest_vertex(board_view.cell_center(cell), board_view.cell_size)
+		if owner == cursor_vertex:
+			return cell
+	return Vector2i(-1, -1)
+
+
+func _special_turn_is_legal(cell: Vector2i) -> bool:
+	if game == null:
+		return false
+	for neighbour: Vector2i in game.swapped_cells(cell):
+		if game.board.is_locked(neighbour):
+			return false
+	return true
 
 
 func show_hint() -> void:
