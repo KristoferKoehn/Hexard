@@ -28,8 +28,8 @@ func new_game(seed_value: int) -> void:
 	game = GameScript.new(seed_value)
 	cursor_vertex = 0
 	board_view.set_game(game)
-	board_view.cursor_vertex = cursor_vertex
 	board_view.hint_vertex = -1
+	_refresh_cursor()
 	hud.update_from_game(game)
 	hud.set_message("new board, seed %d — build toward a pearl ring" % seed_value)
 
@@ -44,7 +44,11 @@ func play_move(direction: int) -> void:
 	var turn := "CW" if direction == GameScript.CLOCKWISE else "CCW"
 
 	if not result.committed:
-		hud.set_message("%s: %s" % [turn, result.rejected_reason])
+		var guidance := ""
+		if result.rejected_reason.begins_with("no match"):
+			guidance = "  — the cursor is grey here; press H to find a spin that clears"
+		hud.set_message("%s: %s%s" % [turn, result.rejected_reason, guidance])
+		_refresh_cursor()
 		return
 
 	_apply(result, turn)
@@ -81,6 +85,7 @@ func play_piece_move(cell: Vector2i, direction: int) -> void:
 ## Shared presentation tail for any committed move.
 func _apply(result, label: String) -> void:
 	board_view.show_result(result)
+	_refresh_cursor()
 	hud.update_from_game(game)
 
 	if result.bomb_exploded:
@@ -133,15 +138,27 @@ func move_cursor(direction: Vector2) -> void:
 			best_score = score
 			best = index
 	cursor_vertex = best
-	board_view.cursor_vertex = cursor_vertex
-	board_view.queue_redraw()
+	_refresh_cursor()
 
 
-func snap_cursor_to(point: Vector2) -> void:
+## Jumps the cursor to a specific rotation vertex (hint and tests use this).
+func select_vertex(index: int) -> void:
+	cursor_vertex = clampi(index, 0, HexGrid.vertices().size() - 1)
+	_refresh_cursor()
+
+
+## `viewport_point` is screen space; picking must happen in board space.
+func snap_cursor_to(viewport_point: Vector2) -> void:
 	if game == null or board_view == null:
 		return
-	cursor_vertex = board_view.vertex_at(point)
+	cursor_vertex = board_view.vertex_at(board_view.to_local(viewport_point))
+	_refresh_cursor()
+
+
+## Keeps the view in sync, including whether a spin at the cursor can clear.
+func _refresh_cursor() -> void:
 	board_view.cursor_vertex = cursor_vertex
+	board_view.cursor_legal = game != null and game.has_legal_spin(cursor_vertex)
 	board_view.queue_redraw()
 
 
@@ -153,8 +170,7 @@ func show_hint() -> void:
 		hud.set_message("no legal rotation exists — the next move will shuffle the board")
 		return
 	var move: Dictionary = legal[0]
-	cursor_vertex = int(move["vertex"])
-	board_view.cursor_vertex = cursor_vertex
+	select_vertex(int(move["vertex"]))
 	board_view.hint_vertex = cursor_vertex
 	board_view.queue_redraw()
 	hud.set_message(
@@ -181,13 +197,21 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		var key := event as InputEventKey
 		if key.pressed and not key.echo:
-			_handle_key(key.keycode)
+			_handle_key(_key_code(key))
 	elif event is InputEventMouseMotion:
 		_mouse_moved((event as InputEventMouseMotion).position)
 	elif event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
 		if button.pressed:
 			_mouse_clicked(button.position, button.button_index)
+
+
+## Physical (layout-independent) code first, so WASD and Z/X work on every
+## keyboard layout; logical code as the fallback.
+func _key_code(key: InputEventKey) -> int:
+	if key.physical_keycode != 0:
+		return int(key.physical_keycode)
+	return int(key.keycode)
 
 
 func _mouse_moved(viewport_point: Vector2) -> void:

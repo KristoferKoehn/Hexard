@@ -26,6 +26,9 @@ const FLASH_DURATION := 0.32
 
 var game: RefCounted
 var cursor_vertex := -1
+## False when no spin at the cursor can clear anything (the usual case in STRICT
+## mode) — the cursor dims so the player can see that before spinning.
+var cursor_legal := true
 var hint_vertex := -1
 var hover_cell := Vector2i(-1, -1)
 
@@ -160,11 +163,16 @@ func _draw_cursor() -> void:
 	if cursor_vertex < 0 or cursor_vertex >= vertices.size():
 		return
 	for cell: Vector2i in vertices[cursor_vertex]:
-		draw_colored_polygon(_corners(cell_center(cell), cell_size * 0.97), Color(1, 1, 1, 0.14))
+		var tint := 0.20 if cursor_legal else 0.08
+		draw_colored_polygon(_corners(cell_center(cell), cell_size * 0.97), Color(1, 1, 1, tint))
 
 	var centre := HexGrid.vertex_centroid(cursor_vertex, cell_size) + _origin
-	draw_circle(centre, cell_size * 0.16, Color(1, 1, 1, 0.92))
+	# Green means "spinning here will clear"; dim grey means it would just revert.
+	var dot := Color(0.45, 0.95, 0.55, 0.95) if cursor_legal else Color(0.62, 0.66, 0.74, 0.80)
+	draw_circle(centre, cell_size * 0.16, dot)
 	draw_circle(centre, cell_size * 0.10, Color(0.10, 0.12, 0.16, 0.92))
+	if cursor_legal:
+		draw_arc(centre, cell_size * 0.28, 0, TAU, 24, Color(0.45, 0.95, 0.55, 0.55), 1.5)
 
 
 # --- small geometry helpers -------------------------------------------------

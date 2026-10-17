@@ -178,6 +178,23 @@ static func replay(run_seed: int, command_log: Array, rules: Variant) -> Game:
 	return game
 
 
+## Would spinning this vertex one step in this direction clear anything?
+## Cheap (two rotations and a local match test), so the view can ask per frame.
+func is_legal_rotation(vertex_index: int, direction: int) -> bool:
+	var vertices := Grid.vertices()
+	if vertex_index < 0 or vertex_index >= vertices.size():
+		return false
+	if direction != CLOCKWISE and direction != COUNTER_CLOCKWISE:
+		return false
+	return _rotation_matches(vertex_index, direction, vertices[vertex_index])
+
+
+## True when either direction clears here — what the cursor highlight shows.
+func has_legal_spin(vertex_index: int) -> bool:
+	return is_legal_rotation(vertex_index, CLOCKWISE) \
+		or is_legal_rotation(vertex_index, COUNTER_CLOCKWISE)
+
+
 ## Every rotation that would clear something right now. Doubles as the hint
 ## source and the dead-board test.
 func find_legal_rotations() -> Array:

@@ -43,6 +43,9 @@ Then play it: `tools\godot\Godot_v4.7.2-stable_win64.exe --path .` (or open `pro
 | Toggle STRICT / FREE rotation | `T` |
 | Quit | `Esc` |
 
+The cursor dot is **green** when a spin there will clear and **grey** when it would just revert —
+which in STRICT mode is most vertices. `H` jumps to a spin that clears.
+
 The `.cmd` wrappers invoke the PowerShell scripts with a per-process `-ExecutionPolicy Bypass`, because some
 machines block unsigned `.ps1` files; the scripts are Windows PowerShell 5.1 compatible (no `pwsh` needed).
 `run_tests.ps1` resolves the engine from `$env:HEXARD_GODOT`, then `tools/godot/`, then `PATH`.

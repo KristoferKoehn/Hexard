@@ -28,6 +28,9 @@ func _ready() -> void:
 func _make_label(position: Vector2, font_size: int, color: Color) -> Label:
 	var label := Label.new()
 	label.position = position
+	# Labels must never eat input: a wide status line would otherwise swallow
+	# mouse clicks over the bottom of the board.
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
