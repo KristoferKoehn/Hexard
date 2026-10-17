@@ -1,4 +1,4 @@
-﻿extends "res://tests/test_case.gd"
+extends "res://tests/test_case.gd"
 
 ## Game facade: rotation modes, cascades, scoring, progression, dead boards,
 ## replay determinism (docs/design.md §3, §5, §10.2).

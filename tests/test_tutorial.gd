@@ -1,4 +1,4 @@
-﻿extends "res://tests/test_case.gd"
+extends "res://tests/test_case.gd"
 
 ## The scripted tutorial (docs/design.md §7.4): each step must rig a legal board,
 ## wait for the player to do the thing, and only then move on.

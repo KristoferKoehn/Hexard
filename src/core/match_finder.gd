@@ -1,4 +1,4 @@
-﻿class_name MatchFinder
+class_name MatchFinder
 extends RefCounted
 
 ## Match detection (docs/design.md §3.2).

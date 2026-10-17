@@ -1,4 +1,4 @@
-﻿class_name Resolver
+class_name Resolver
 extends RefCounted
 
 ## Cascade state machine (docs/design.md §3.3).

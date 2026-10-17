@@ -1,4 +1,4 @@
-﻿extends SceneTree
+extends SceneTree
 
 ## Headless test runner (no plugin dependency).
 ##

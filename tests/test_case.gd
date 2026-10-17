@@ -1,4 +1,4 @@
-﻿extends RefCounted
+extends RefCounted
 
 ## Minimal assertion harness — no plugin dependency, runs headless.
 ## Suites extend this with "res://tests/test_case.gd" and define test_* methods.

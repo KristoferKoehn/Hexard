@@ -1,4 +1,4 @@
-﻿class_name Game
+class_name Game
 extends RefCounted
 
 ## Facade over the rules core (docs/design.md §3, §5).

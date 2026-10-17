@@ -1,4 +1,4 @@
-﻿extends "res://tests/test_case.gd"
+extends "res://tests/test_case.gd"
 
 ## Game modes and run lifecycle (docs/design.md §5, §6): Timed's clock, Survival's
 ## rounds and locked pieces, difficulty scaling, and the end-of-run summary.

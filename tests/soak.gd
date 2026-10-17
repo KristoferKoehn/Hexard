@@ -1,4 +1,4 @@
-﻿extends SceneTree
+extends SceneTree
 
 ## Long soak run: thousands of random moves across rotation modes, asserting the
 ## board invariants the whole way (docs/design.md §10.3).

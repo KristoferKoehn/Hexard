@@ -1,4 +1,4 @@
-﻿class_name Tutorial
+class_name Tutorial
 extends RefCounted
 
 ## A short, scripted, hands-on tutorial (docs/design.md §7.4).

@@ -1,4 +1,4 @@
-﻿extends "res://tests/test_case.gd"
+extends "res://tests/test_case.gd"
 
 ## Special pieces (docs/design.md §3.4): bonus stars, starflowers, black pearls
 ## and bombs.
