@@ -32,6 +32,10 @@ const BLOOM_TIME := 0.28
 ## A bomb going off: the flash, then the crater's debris flying outward.
 const BLAST_TIME := 0.42
 const SHATTER_TIME := 0.34
+## Screen shake on a bomb: amplitude in pixels at full strength, and how long it
+## takes to decay. Deliberately small — the board should kick, not jitter.
+const SHAKE_AMPLITUDE := 7.0
+const SHAKE_TIME := 0.55
 ## A refused spin turns out and straight back; the snap-back is quicker than the
 ## turn so it reads as a rejection rather than a move.
 const BOUNCE_TIME := 0.22
@@ -60,6 +64,8 @@ var _step_time := 0.0
 var _playing := false
 var _plate: StyleBoxFlat = null
 var _backdrop: ImageTexture = null
+var _shake_strength := 0.0
+var _shake_clock := 0.0
 ## True while steps that actually change the board are playing. A refused-spin
 ## bounce does not count: nothing is in flight, so further spins are safe.
 var _settling := false
@@ -201,6 +207,8 @@ func show_result(result: RefCounted) -> void:
 			"kind": "shatter", "cells": result.exploded_cells.duplicate(),
 			"centre": origin, "duration": SHATTER_TIME,
 		})
+		_shake_strength = 1.0
+		_shake_clock = 0.0
 
 	_playing = not _steps.is_empty()
 	_settling = _playing
@@ -240,6 +248,11 @@ func _entries_at_depth(entries: Array, depth: int) -> Array:
 
 
 func _process(delta: float) -> void:
+	# The shake decays even after the timeline ends, so it can never freeze.
+	if _shake_strength > 0.0:
+		_shake_clock += delta
+		_shake_strength = maxf(_shake_strength - delta / SHAKE_TIME, 0.0)
+		queue_redraw()
 	if not _playing:
 		return
 	var step: Dictionary = _steps[_step_index]
@@ -308,6 +321,10 @@ func _commit(step: Dictionary) -> void:
 func _draw() -> void:
 	if game == null:
 		return
+	# Two offset frequencies so the kick reads as impact rather than a slide.
+	if _shake_strength > 0.0:
+		var amount := _shake_strength * _shake_strength * SHAKE_AMPLITUDE
+		draw_set_transform(Vector2(sin(_shake_clock * 78.0), cos(_shake_clock * 61.0)) * amount)
 	var active := _active_step()
 	var skip := _skipped_cells(active)
 

@@ -89,27 +89,6 @@ static func are_neighbours(a: Vector2i, b: Vector2i) -> bool:
 	return neighbours(a).has(b)
 
 
-## Every existing cell within `radius` steps of `cell`, itself first, then rings
-## outward in a stable order (used for blast radii).
-static func cells_within(cell: Vector2i, radius: int) -> Array[Vector2i]:
-	if not has_cell(cell) or radius < 0:
-		return []
-	var seen := {cell: true}
-	var ordered: Array[Vector2i] = [cell]
-	var frontier: Array[Vector2i] = [cell]
-	for _step in radius:
-		var next: Array[Vector2i] = []
-		for current: Vector2i in frontier:
-			for neighbour: Vector2i in neighbours(current):
-				if seen.has(neighbour):
-					continue
-				seen[neighbour] = true
-				ordered.append(neighbour)
-				next.append(neighbour)
-		frontier = next
-	return ordered
-
-
 # --- rotation vertices ------------------------------------------------------
 
 ## All 135 rotation vertices, each a 3-cell array in stable cyclic order.

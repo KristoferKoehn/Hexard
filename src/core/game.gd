@@ -111,11 +111,11 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE):
 	result.direction = direction
 
 	_cycle(cells, direction)
-	if not MatchFinderScript.matches_near_vertex(board, vertex_index):
+	if not _rotation_makes_something(vertex_index, direction, cells, true):
 		if ruleset.rotation_mode == RulesetScript.RotationMode.STRICT:
 			# Reference behaviour: a spin that clears nothing is not a move.
 			_cycle(cells, -direction)
-			var rejected = _reject(result, "no match (strict mode reverts)")
+			var rejected = _reject(result, "the spin clears nothing (strict mode reverts)")
 			# Still check the dead-board rule: if no spin at all can clear, the
 			# player is stuck and the board must be reshuffled.
 			settle(rejected)
@@ -212,7 +212,7 @@ func is_legal_rotation(vertex_index: int, direction: int) -> bool:
 		return false
 	if direction != CLOCKWISE and direction != COUNTER_CLOCKWISE:
 		return false
-	return _rotation_matches(vertex_index, direction, vertices[vertex_index])
+	return _rotation_makes_something(vertex_index, direction, vertices[vertex_index])
 
 
 ## True when either direction clears here — what the cursor highlight shows.
@@ -221,14 +221,15 @@ func has_legal_spin(vertex_index: int) -> bool:
 		or is_legal_rotation(vertex_index, COUNTER_CLOCKWISE)
 
 
-## Every rotation that would clear something right now. Doubles as the hint
-## source and the dead-board test.
+## Every rotation that would do something right now. Doubles as the hint source
+## and the dead-board test, and follows the same rule as a real spin: clears or
+## forms count, so a board with only a flower-completing spin is not dead.
 func find_legal_rotations() -> Array:
 	var out: Array = []
 	var vertices := Grid.vertices()
 	for vertex_index in vertices.size():
 		for direction in [CLOCKWISE, COUNTER_CLOCKWISE]:
-			if _rotation_matches(vertex_index, direction, vertices[vertex_index]):
+			if _rotation_makes_something(vertex_index, direction, vertices[vertex_index]):
 				out.append({"vertex": vertex_index, "direction": direction})
 	return out
 
@@ -237,7 +238,7 @@ func has_any_legal_rotation() -> bool:
 	var vertices := Grid.vertices()
 	for vertex_index in vertices.size():
 		for direction in [CLOCKWISE, COUNTER_CLOCKWISE]:
-			if _rotation_matches(vertex_index, direction, vertices[vertex_index]):
+			if _rotation_makes_something(vertex_index, direction, vertices[vertex_index]):
 				return true
 	return false
 
@@ -281,11 +282,42 @@ func _cycle(cells: Array, direction: int) -> void:
 		board.set_piece(cells[index], pieces[posmod(index - direction, count)])
 
 
-func _rotation_matches(vertex_index: int, direction: int, cells: Array) -> bool:
-	_cycle(cells, direction)
+## A spin is worth accepting when it makes anything at all: a colour match, or a
+## formation — a flower blooming, or a pearl ring closing. That second clause is
+## what lets the last spin into a flower land even in STRICT mode, where a spin
+## that clears nothing is otherwise not a move.
+##
+## `already_cycled` means the caller has already applied the rotation (the real
+## move path), so this must not cycle again.
+func _rotation_makes_something(
+	vertex_index: int, direction: int, cells: Array, already_cycled: bool = false
+) -> bool:
+	if not already_cycled:
+		_cycle(cells, direction)
 	var matched := MatchFinderScript.matches_near_vertex(board, vertex_index)
-	_cycle(cells, -direction)
+	if not matched:
+		matched = _formation_near(cells)
+	if not already_cycled:
+		_cycle(cells, -direction)
 	return matched
+
+
+## Is any flower or pearl ring sitting on or beside these cells right now?
+## Only the trio and its neighbours can have just finished one, so this stays
+## cheap enough to run from the cursor highlight every frame.
+func _formation_near(cells: Array) -> bool:
+	for cell: Vector2i in cells:
+		if _is_formation_centre(cell):
+			return true
+		for neighbour: Vector2i in Grid.neighbours(cell):
+			if _is_formation_centre(neighbour):
+				return true
+	return false
+
+
+func _is_formation_centre(cell: Vector2i) -> bool:
+	return MatchFinderScript.is_flower(board, cell) \
+		or MatchFinderScript.is_pearl_creation_ring(board, cell)
 
 
 func _record(vertex_index: int, direction: int) -> void:
@@ -364,11 +396,7 @@ func _reward_clock(result) -> void:
 
 
 ## Every bomb loses one move. Reaching zero detonates it and ends the run.
-## How far a bomb's shockwave reaches, in hex rings. Everything inside is
-## destroyed; none of it scores (it is the game-over event, not a clear).
-const BOMB_BLAST_RADIUS := 2
-
-
+## A bomb going off ends the run and levels the board (nothing scores).
 func _tick_bombs(result) -> void:
 	var exploders: Array[Vector2i] = []
 	for cell: Vector2i in Grid.all_cells():
@@ -386,17 +414,14 @@ func _tick_bombs(result) -> void:
 	if exploders.is_empty():
 		return
 
-	# The shockwave. `exploded_cells` starts with the bomb itself, so the view can
-	# use element 0 as the blast origin.
+	# A dying bomb takes the whole board with it. `exploded_cells` starts with the
+	# bomb itself, so the view can use element 0 as the blast origin.
 	var shattered: Array[Vector2i] = exploders.duplicate()
-	for bomb_cell: Vector2i in exploders:
-		for cell: Vector2i in Grid.cells_within(bomb_cell, BOMB_BLAST_RADIUS):
-			if not shattered.has(cell):
-				shattered.append(cell)
+	for cell: Vector2i in Grid.all_cells():
+		if not shattered.has(cell):
+			shattered.append(cell)
 	for cell: Vector2i in shattered:
 		board.remove_piece(cell)
-	# The crater settles so the board stays legal; it is not scored or refilled.
-	board.apply_gravity()
 
 	result.bomb_exploded = true
 	result.game_over = true

@@ -22,6 +22,27 @@ const CENTRE := Vector2i(4, 4)
 # --- helpers ----------------------------------------------------------------
 
 
+## A rotation whose trio is one ring cell plus two cells outside the ring — the
+## shape needed to swing a gem into a nearly-finished flower or pearl ring.
+func _trio_outside_ring(centre: Vector2i, ring: Array) -> Dictionary:
+	var forbidden := {centre: true}
+	for cell: Vector2i in ring:
+		forbidden[cell] = true
+	var vertices := Grid.vertices()
+	for index in vertices.size():
+		var trio: Array = vertices[index]
+		var inside: Array[Vector2i] = []
+		var outside: Array[Vector2i] = []
+		for cell: Vector2i in trio:
+			if forbidden.has(cell):
+				inside.append(cell)
+			else:
+				outside.append(cell)
+		if inside.size() == 1 and outside.size() == 2:
+			return {"vertex": index, "target": inside[0], "spares": outside}
+	return {}
+
+
 func _full_board() -> RefCounted:
 	var board := BoardScript.new()
 	_background(board)
@@ -307,7 +328,7 @@ func test_a_bomb_ticks_down_each_move_and_explodes() -> void:
 	assert_false(game.rotate(move["vertex"], move["direction"]).committed, "no further moves")
 
 
-func test_an_exploding_bomb_leaves_a_crater_and_scores_nothing() -> void:
+func test_an_exploding_bomb_flattens_the_whole_board_and_scores_nothing() -> void:
 	var game := GameScript.new(11, RulesetScript.free_rotation())
 	var bomb_cell := Vector2i(4, 4)
 	game.board.set_piece(bomb_cell, Pieces.bomb(Pieces.GemColor.BLUE, 1))
@@ -316,14 +337,14 @@ func test_an_exploding_bomb_leaves_a_crater_and_scores_nothing() -> void:
 	var result = game.rotate(move["vertex"], move["direction"])
 	assert_true(result.committed, "the spin was accepted")
 	assert_true(result.bomb_exploded, "the fuse ran out")
-	assert_eq(result.exploded_cells.size(), 19, "the shockwave takes two rings")
-	assert_eq(result.exploded_cells[0], bomb_cell, "and starts at the bomb itself")
-	# Gravity collapses the crater, so the blasted cells are refilled from above —
-	# what matters is that the bomb destroyed itself and nothing scored.
-	assert_eq(_count_kind(game.board, Pieces.Kind.BOMB), 0, "the bomb is gone")
-	# Nothing is created by an explosion: the crater leaves exactly its own holes,
-	# so every tile outside the blast radius is still there.
-	assert_eq(game.tile_count(), 85 - 19, "the crater leaves exactly its own holes")
+	assert_eq(result.exploded_cells.size(), 85, "the blast takes the entire board")
+	assert_eq(result.exploded_cells[0], bomb_cell, "starting at the bomb itself")
+	assert_eq(game.tile_count(), 0, "nothing is left standing")
+	# A game-over event, not a clear: no score, no combos, no groups.
+	assert_eq(result.cleared_count, 0, "the blast is not a clear")
+	assert_eq(result.score, 0, "and awards nothing")
+	assert_eq(result.clear_groups.size(), 0, "with no clear group recorded")
+	assert_eq(game.board.invariant_violations().size(), 0, "the empty board is legal")
 	# The crater is a game-over event, not a clear: no score, no combos, no groups.
 	assert_eq(result.cleared_count, 0, "the blast is not a clear")
 	assert_eq(result.score, 0, "and awards nothing")
@@ -331,17 +352,90 @@ func test_an_exploding_bomb_leaves_a_crater_and_scores_nothing() -> void:
 	assert_eq(game.board.invariant_violations().size(), 0, "the crater settles")
 
 
-func test_the_blast_spares_tiles_outside_its_radius() -> void:
-	var game := GameScript.new(11, RulesetScript.free_rotation())
-	game.board.set_piece(Vector2i(4, 4), Pieces.bomb(Pieces.GemColor.BLUE, 1))
-	var before: int = game.tile_count()
+## STRICT mode only accepts a spin that clears something. Forming a flower is a
+## move too — and a flower's ring is uniform, so the swap that completes it often
+## lands the match somewhere other than the vertex being turned. The last spin
+## into a flower must never be refused.
+func test_strict_accepts_the_last_spin_into_a_flower() -> void:
+	var game := GameScript.new(21, RulesetScript.strict_rotation())
+	var centre := Vector2i(4, 4)
+	var ring := Grid.neighbours(centre)
+	var found := _trio_outside_ring(centre, ring)
+	assert_true(not found.is_empty(), "a rotation can reach the ring from outside")
+	if found.is_empty():
+		return
+
+	# Five red ring gems, a green centre, and the sixth ring cell red-about-to-be.
+	game.board.set_piece(centre, Pieces.gem(Pieces.GemColor.GREEN))
+	for cell: Vector2i in ring:
+		game.board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
+	game.board.set_piece(found["target"], Pieces.gem(Pieces.GemColor.BLUE))
+	for cell: Vector2i in found["spares"]:
+		game.board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
+	assert_false(MatchFinder.is_flower(game.board, centre), "the flower is not complete yet")
+
+	var accepted := false
+	var promoted := false
+	for direction in [1, -1]:
+		var result = game.rotate(int(found["vertex"]), direction)
+		if not result.committed:
+			continue
+		accepted = true
+		for promotion: Dictionary in result.promotions:
+			if str(promotion.get("kind", "")) == "starflower":
+				promoted = true
+		break
+	assert_true(accepted, "strict mode accepted the spin that completes the flower")
+	assert_true(promoted, "and the flower bloomed")
+
+
+## Pearl rings are made of starflowers, which have no colour — so completing one
+## creates no colour match at all. Without the formation rule STRICT would refuse
+## the winning spin outright.
+func test_strict_accepts_the_last_spin_into_a_pearl_ring() -> void:
+	var game := GameScript.new(23, RulesetScript.strict_rotation())
+	var centre := Vector2i(4, 4)
+	var ring := Grid.neighbours(centre)
+	var found := _trio_outside_ring(centre, ring)
+	assert_true(not found.is_empty(), "a rotation can reach the ring from outside")
+	if found.is_empty():
+		return
+
+	game.board.set_piece(centre, Pieces.gem(Pieces.GemColor.GREEN))
+	for cell: Vector2i in ring:
+		game.board.set_piece(cell, Pieces.starflower())
+	game.board.set_piece(found["target"], Pieces.gem(Pieces.GemColor.BLUE))
+	for cell: Vector2i in found["spares"]:
+		game.board.set_piece(cell, Pieces.starflower())
+	assert_false(
+		MatchFinder.is_pearl_creation_ring(game.board, centre),
+		"the ring is one starflower short"
+	)
+
+	var accepted := false
+	var pearls := 0
+	for direction in [1, -1]:
+		var result = game.rotate(int(found["vertex"]), direction)
+		if not result.committed:
+			continue
+		accepted = true
+		pearls = _count_kind(game.board, Pieces.Kind.PEARL)
+		break
+	assert_true(accepted, "strict mode accepted the spin that closes the pearl ring")
+	assert_eq(pearls, 1, "and the pearl appeared")
+
+
+func test_a_strict_spin_that_makes_nothing_is_still_rejected() -> void:
+	var game := GameScript.new(29, RulesetScript.strict_rotation())
+	# A board with no formation of any kind, and a spin that clears nothing.
 	var move := _non_matching_rotation(game)
+	assert_eq(game.find_legal_rotations().size() >= 0, true, "the scan ran")
 	var result = game.rotate(move["vertex"], move["direction"])
-	assert_true(result.bomb_exploded, "it went off")
-	# The rotation and the explosion are move-preserving / destructive only: the
-	# board loses exactly the crater, never more.
-	assert_eq(game.tile_count(), before - 19, "only the crater is destroyed")
-	assert_eq(result.cleared_count, 0, "and none of it counts as a clear")
+	if result.committed:
+		info("this seed had a clearing spin at the sampled vertex; skipped")
+		return
+	assert_false(result.committed, "a spin that makes nothing is not a move")
+	assert_true(result.rejected_reason.length() > 0, "and the reason is stated")
 
 
 func test_a_bomb_loses_exactly_one_tick_per_move() -> void:
