@@ -15,9 +15,7 @@ menu, and every move animates (spin, shrink, fall, bloom).
 | M1 · playable core (rotate → match → gravity → cascade → score) + dev-art scene | ✅ 75 tests, smoke test, 10,000-move soak |
 | M2 · specials (bonus stars, starflowers, black pearls, bombs) | ✅ 101 tests, soak plays specials |
 | M3 · modes (Marathon / Timed / Survival), difficulty, menu, result screen | ✅ 124 tests, soak plays all three modes |
-| M4 · tutorial, animations, SFX, saves, stats, achievements | 🔶 tutorial + animation done (133 tests); meta next |
-| M5 · balance, accessibility, exports | planned |
-| M4 · art, audio, tutorial, saves, stats, achievements | 🔶 tutorial + animations done; SFX, saves, stats, achievements next |
+| M4 · art, audio, tutorial, animations, meta (saves/stats/achievements) | 🔶 tutorial, animations, neon UI, explosion + shake all done; audio, saves, stats, achievements, leaderboard next |
 | M5 · balance, accessibility, exports | planned |
 
 ## Documentation
