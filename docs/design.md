@@ -598,7 +598,7 @@ Mitigations to evaluate in playtesting, in order of preference:
 | **M1** ✅ | Playable core: board, cursor, discrete rotation, match predicate, gravity, refill, cascades, scoring, dev-art scene | **Done:** 75 tests / 0 failed, view smoke test, 10,000-move soak; playable in-editor (`main.tscn`) |
 | **M2** ✅ | Specials: bonus stars (×2 + 3-star area clear), starflowers (flower → piece → ring rotation), black pearls (creation, Y rotation, perfect finish), bombs (tick, defuse, colour wipe) | **Done:** 101 tests / 0 failed incl. every formation; the soak plays 10,000 moves with specials |
 | **M3** ✅ | Progression + modes: 7 levels, combo thresholds, content gating, Marathon/Timed/Survival, difficulty, dead-board shuffle, win/lose flows | **Done:** 124 tests / 0 failed; menu, per-mode HUD, clock, Survival rounds and locking, result screen |
-| **M4** 🔶 | Presentation + meta: art pass, animations, SFX, tutorial, autosave/resume, stats, achievements, local leaderboard | **Done:** scripted 5-step tutorial + move animations. **Remaining:** SFX, autosave/resume, stats, achievements, leaderboard |
+| **M4** 🔶 | Presentation + meta: art pass, animations, audio, tutorial, settings, saves, stats, achievements, leaderboard | **Done:** tutorial, move animation, neon container + HUD, procedural audio with settings, settings screen with full rebinds and juice toggles, profile stats + local leaderboard storage. **Remaining:** leaderboard/stats panel on the result screen, achievements, autosave/resume, vector art pass |
 | **M5** | Polish + balance: playtest-driven tuning of scoring/RNG/bombs, accessibility pass, replays, exports (Windows + web) | Balance targets met (§13), export builds run at 60 FPS |
 
 ---
