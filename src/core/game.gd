@@ -1,7 +1,7 @@
 ﻿class_name Game
 extends RefCounted
 
-## Facade over the rules core (docs/design.md Â§3, Â§5).
+## Facade over the rules core (docs/design.md §3, §5).
 ##
 ##   var game := Game.new(1234)
 ##   var result := game.rotate(vertex_index, Game.CLOCKWISE)
@@ -36,12 +36,12 @@ var seed_value := 0
 var turns := 0
 var shuffle_count := 0
 
-## Timed mode (docs/design.md Â§6.2).
+## Timed mode (docs/design.md §6.2).
 var clock := 0.0
 var max_clock := 0.0
 var elapsed := 0.0
 
-## Survival mode (docs/design.md Â§6.3).
+## Survival mode (docs/design.md §6.3).
 var round := 1
 var rounds_cleared := 0
 var bombs_defused := 0
@@ -134,7 +134,7 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE) -> MoveResult:
 	return result
 
 
-## Rotates a special piece in place (docs/design.md Â§3.4):
+## Rotates a special piece in place (docs/design.md §3.4):
 ##   starflower -> cycles all six neighbours one step
 ##   black pearl -> cycles three of six neighbours in a Y / inverted-Y
 ## These rotations always persist, match or not, in both rotation modes.
@@ -215,7 +215,7 @@ func is_legal_rotation(vertex_index: int, direction: int) -> bool:
 	return _rotation_makes_something(vertex_index, direction, vertices[vertex_index])
 
 
-## True when either direction clears here â€” what the cursor highlight shows.
+## True when either direction clears here — what the cursor highlight shows.
 func has_legal_spin(vertex_index: int) -> bool:
 	return is_legal_rotation(vertex_index, CLOCKWISE) \
 		or is_legal_rotation(vertex_index, COUNTER_CLOCKWISE)
@@ -283,7 +283,7 @@ func _cycle(cells: Array, direction: int) -> void:
 
 
 ## A spin is worth accepting when it makes anything at all: a colour match, or a
-## formation â€” a flower blooming, or a pearl ring closing. That second clause is
+## formation — a flower blooming, or a pearl ring closing. That second clause is
 ## what lets the last spin into a flower land even in STRICT mode, where a spin
 ## that clears nothing is otherwise not a move.
 ##
@@ -375,7 +375,7 @@ func _finish_move(result: MoveResult) -> void:
 
 
 ## Timed mode: clears buy seconds back; a starflower refills and raises the cap
-## (docs/design.md Â§6.2).
+## (docs/design.md §6.2).
 func _reward_clock(result: MoveResult) -> void:
 	if ruleset.mode != RulesetScript.Mode.TIMED:
 		return
@@ -431,7 +431,7 @@ func _tick_bombs(result: MoveResult) -> void:
 	_finish("bomb_exploded", false)
 
 
-## After every move: is the board still playable? (docs/design.md Â§5.3, Â§6.3)
+## After every move: is the board still playable? (docs/design.md §5.3, §6.3)
 func settle(result: MoveResult) -> void:
 	if state != State.FINISHED and not result.finished:
 		if ruleset.mode == RulesetScript.Mode.SURVIVAL:
@@ -444,7 +444,7 @@ func settle(result: MoveResult) -> void:
 	result.new_level = level
 
 
-## Survival never reshuffles: when nothing can be cleared the round is over â€”
+## Survival never reshuffles: when nothing can be cleared the round is over —
 ## the leftovers freeze, the gaps refill, and the next round begins.
 func _settle_survival(result: MoveResult) -> void:
 	if board.filled_count() == 0:

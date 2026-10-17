@@ -1,10 +1,10 @@
 ﻿extends "res://tests/test_case.gd"
 
-## Special pieces (docs/design.md Â§3.4): bonus stars, starflowers, black pearls
+## Special pieces (docs/design.md §3.4): bonus stars, starflowers, black pearls
 ## and bombs.
 ##
 ## Scenarios are painted onto a full, provably match-free background, because
-## gravity runs before formations are judged â€” a half-empty board would drop its
+## gravity runs before formations are judged — a half-empty board would drop its
 ## pieces and destroy the very formation under test.
 
 const BoardScript := preload("res://src/core/board.gd")
@@ -22,7 +22,7 @@ const CENTRE := Vector2i(4, 4)
 # --- helpers ----------------------------------------------------------------
 
 
-## A rotation whose trio is one ring cell plus two cells outside the ring â€” the
+## A rotation whose trio is one ring cell plus two cells outside the ring — the
 ## shape needed to swing a gem into a nearly-finished flower or pearl ring.
 func _trio_outside_ring(centre: Vector2i, ring: Array) -> Dictionary:
 	var forbidden := {centre: true}
@@ -353,7 +353,7 @@ func test_an_exploding_bomb_flattens_the_whole_board_and_scores_nothing() -> voi
 
 
 ## STRICT mode only accepts a spin that clears something. Forming a flower is a
-## move too â€” and a flower's ring is uniform, so the swap that completes it often
+## move too — and a flower's ring is uniform, so the swap that completes it often
 ## lands the match somewhere other than the vertex being turned. The last spin
 ## into a flower must never be refused.
 func test_strict_accepts_the_last_spin_into_a_flower() -> void:
@@ -389,7 +389,7 @@ func test_strict_accepts_the_last_spin_into_a_flower() -> void:
 	assert_true(promoted, "and the flower bloomed")
 
 
-## Pearl rings are made of starflowers, which have no colour â€” so completing one
+## Pearl rings are made of starflowers, which have no colour — so completing one
 ## creates no colour match at all. Without the formation rule STRICT would refuse
 ## the winning spin outright.
 func test_strict_accepts_the_last_spin_into_a_pearl_ring() -> void:

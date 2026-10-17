@@ -1,7 +1,7 @@
 ﻿extends SceneTree
 
 ## Long soak run: thousands of random moves across rotation modes, asserting the
-## board invariants the whole way (docs/design.md Â§10.3).
+## board invariants the whole way (docs/design.md §10.3).
 ##
 ##   godot --headless --path . --script res://tests/soak.gd
 ##   godot --headless --path . --script res://tests/soak.gd -- 20000

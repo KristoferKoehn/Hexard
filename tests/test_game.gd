@@ -1,7 +1,7 @@
 ﻿extends "res://tests/test_case.gd"
 
 ## Game facade: rotation modes, cascades, scoring, progression, dead boards,
-## replay determinism (docs/design.md Â§3, Â§5, Â§10.2).
+## replay determinism (docs/design.md §3, §5, §10.2).
 
 const BoardScript := preload("res://src/core/board.gd")
 const MatchFinder := preload("res://src/core/match_finder.gd")
@@ -157,7 +157,7 @@ func test_clear_score_matches_the_table() -> void:
 
 
 func test_cascade_chains_and_multiplies() -> void:
-	# Hand-built, rules-legal board pinning the fall geometry (docs/design.md Â§2.2).
+	# Hand-built, rules-legal board pinning the fall geometry (docs/design.md §2.2).
 	# Both columns are gravity-settled bottom-anchored prefixes, and the vertex
 	# {(2,7),(3,6),(3,7)} already matches:
 	#   clear it  ->  (2,6) drops 1 row to (2,7)

@@ -261,7 +261,7 @@ func _check_mouse_mapped_to_the_right_place() -> void:
 	var used_event := _vertex_touches_cell(injected_cursor, Vector2i(4, 4))
 	if not used_event:
 		_main.call("snap_cursor_to", viewport_point)
-	print("        ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· mouse path: %s" % ("synthetic event" if used_event else "direct snap_cursor_to"))
+	print("        · mouse path: %s" % ("synthetic event" if used_event else "direct snap_cursor_to"))
 
 	var cursor: int = _main.get("cursor_vertex")
 	var vertices := HexGrid.vertices()

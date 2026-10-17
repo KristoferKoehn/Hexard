@@ -1,7 +1,7 @@
 ﻿class_name Resolver
 extends RefCounted
 
-## Cascade state machine (docs/design.md Â§3.3).
+## Cascade state machine (docs/design.md §3.3).
 ##
 ## Repeats until the board is stable: find the highest-priority formation, score
 ## and remove it, fall, refill. One category resolves per iteration, so
@@ -57,10 +57,10 @@ static func _resolve_step(board: Board, ruleset: Ruleset, result: MoveResult, le
 # --- formations -------------------------------------------------------------
 
 ## Ring of six same-coloured gems: the ring clears and the centre blooms into a
-## starflower â€” or into a black pearl when it was already a starflower.
+## starflower — or into a black pearl when it was already a starflower.
 ##
 ## Survival has no starflowers: there a flower unlocks the whole board and sweeps
-## every gem of the ring colour instead (docs/design.md Â§6.3).
+## every gem of the ring colour instead (docs/design.md §6.3).
 static func _resolve_flowers(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
 	var centres := MatchFinderScript.flower_centres(board)
 	if centres.is_empty():
@@ -88,7 +88,7 @@ static func _resolve_flowers(board: Board, ruleset: Ruleset, result: MoveResult,
 
 
 ## Six starflowers ringing a centre: the starflowers are consumed and the centre
-## becomes a black pearl (docs/design.md Â§3.4).
+## becomes a black pearl (docs/design.md §3.4).
 static func _resolve_pearl_rings(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
 	var centres := MatchFinderScript.pearl_ring_centres(board)
 	if centres.is_empty():

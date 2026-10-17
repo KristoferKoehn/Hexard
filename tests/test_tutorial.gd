@@ -1,6 +1,6 @@
 ﻿extends "res://tests/test_case.gd"
 
-## The scripted tutorial (docs/design.md Â§7.4): each step must rig a legal board,
+## The scripted tutorial (docs/design.md §7.4): each step must rig a legal board,
 ## wait for the player to do the thing, and only then move on.
 
 const MatchFinder := preload("res://src/core/match_finder.gd")

@@ -1,6 +1,6 @@
 ﻿extends RefCounted
 
-## Minimal assertion harness â€” no plugin dependency, runs headless.
+## Minimal assertion harness — no plugin dependency, runs headless.
 ## Suites extend this with "res://tests/test_case.gd" and define test_* methods.
 ##
 ## Shared fixtures live here too, so each suite keeps its own scenarios while
@@ -81,7 +81,7 @@ func run_all() -> Array[Dictionary]:
 		# A test that dies before asserting anything (a runtime error inside the
 		# code under test aborts the method) must not be reported as a pass.
 		if assertions == before:
-			_record("test made no assertions â€” it probably failed before running")
+			_record("test made no assertions — it probably failed before running")
 		results.append({"name": test_name, "failures": failures.duplicate()})
 	return results
 
@@ -103,43 +103,43 @@ func assert_false(condition: bool, message: String) -> void:
 func assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	assertions += 1
 	if actual != expected:
-		_record("%s â€” expected %s, got %s" % [message, str(expected), str(actual)])
+		_record("%s — expected %s, got %s" % [message, str(expected), str(actual)])
 
 
 func assert_ne(actual: Variant, unexpected: Variant, message: String) -> void:
 	assertions += 1
 	if actual == unexpected:
-		_record("%s â€” value should not equal %s" % [message, str(unexpected)])
+		_record("%s — value should not equal %s" % [message, str(unexpected)])
 
 
 func assert_ge(actual: Variant, minimum: Variant, message: String) -> void:
 	assertions += 1
 	if actual < minimum:
-		_record("%s â€” expected >= %s, got %s" % [message, str(minimum), str(actual)])
+		_record("%s — expected >= %s, got %s" % [message, str(minimum), str(actual)])
 
 
 func assert_gt(actual: Variant, minimum: Variant, message: String) -> void:
 	assertions += 1
 	if actual <= minimum:
-		_record("%s â€” expected > %s, got %s" % [message, str(minimum), str(actual)])
+		_record("%s — expected > %s, got %s" % [message, str(minimum), str(actual)])
 
 
 func assert_le(actual: Variant, maximum: Variant, message: String) -> void:
 	assertions += 1
 	if actual > maximum:
-		_record("%s â€” expected <= %s, got %s" % [message, str(maximum), str(actual)])
+		_record("%s — expected <= %s, got %s" % [message, str(maximum), str(actual)])
 
 
 func assert_lt(actual: Variant, maximum: Variant, message: String) -> void:
 	assertions += 1
 	if actual >= maximum:
-		_record("%s â€” expected < %s, got %s" % [message, str(maximum), str(actual)])
+		_record("%s — expected < %s, got %s" % [message, str(maximum), str(actual)])
 
 
 func assert_almost_eq(actual: float, expected: float, tolerance: float, message: String) -> void:
 	assertions += 1
 	if absf(actual - expected) > tolerance:
-		_record("%s â€” expected %.6f Â± %.6f, got %.6f" % [message, expected, tolerance, actual])
+		_record("%s — expected %.6f ± %.6f, got %.6f" % [message, expected, tolerance, actual])
 
 
 func fail(message: String) -> void:
@@ -148,7 +148,7 @@ func fail(message: String) -> void:
 
 
 func info(message: String) -> void:
-	print("       Â· ", message)
+	print("       · ", message)
 
 
 func _record(message: String) -> void:

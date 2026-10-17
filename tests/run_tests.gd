@@ -24,7 +24,7 @@ const TEST_SCRIPTS := [
 
 
 func _initialize() -> void:
-	print("Hexard core tests â€” ", Time.get_datetime_string_from_system())
+	print("Hexard core tests — ", Time.get_datetime_string_from_system())
 	var total := 0
 	var failed := 0
 	var assertions := 0
@@ -58,7 +58,7 @@ func _initialize() -> void:
 			print("  %s  %s" % ["PASS" if passed else "FAIL", result["name"]])
 			for message: String in messages:
 				print("        - %s" % message)
-				all_failures.append("%s::%s â€” %s" % [path.get_file(), result["name"], message])
+				all_failures.append("%s::%s — %s" % [path.get_file(), result["name"], message])
 
 	print("\n%d tests, %d failed, %d assertions" % [total, failed, assertions])
 	if failed == 0:

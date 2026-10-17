@@ -1,11 +1,11 @@
 ﻿class_name Tutorial
 extends RefCounted
 
-## A short, scripted, hands-on tutorial (docs/design.md Â§7.4).
+## A short, scripted, hands-on tutorial (docs/design.md §7.4).
 ##
 ## Each step rigs the board so the mechanic under discussion is one move away,
 ## then watches the resulting MoveResult for the goal. Rigging is legitimate
-## here â€” the point is to *show* the mechanic, and every setup is a legal board
+## here — the point is to *show* the mechanic, and every setup is a legal board
 ## (a match-free background plus the formation under test).
 
 const Grid := preload("res://src/core/hex_grid.gd")

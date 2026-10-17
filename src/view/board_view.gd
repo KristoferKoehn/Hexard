@@ -1,11 +1,11 @@
 class_name BoardView
 extends Node2D
 
-## The board, its container, and the move animation (docs/design.md Ã‚Â§7.5, Ã‚Â§8).
+## The board, its container, and the move animation (docs/design.md §7.5, §8).
 ##
 ## The rules core resolves a move instantly, so this view keeps its own
 ## presentation board (`_display`) that lags behind. A move is replayed as a
-## queue of steps Ã¢â‚¬â€ spin, then per cascade depth: clear Ã¢â€ â€™ fall Ã¢â€ â€™ drop Ã¢â‚¬â€ and the
+## queue of steps — spin, then per cascade depth: clear → fall → drop — and the
 ## display is committed step by step. When the queue drains, the display is
 ## snapped to the core so the two can never drift.
 
@@ -38,7 +38,7 @@ const BLOOM_TIME := 0.28
 const BLAST_TIME := 0.42
 const SHATTER_TIME := 0.34
 ## Screen shake on a bomb: amplitude in pixels at full strength, and how long it
-## takes to decay. Deliberately small â€” the board should kick, not jitter.
+## takes to decay. Deliberately small — the board should kick, not jitter.
 const SHAKE_AMPLITUDE := 7.0
 const SHAKE_TIME := 0.55
 ## A refused spin turns out and straight back; the snap-back is quicker than the
@@ -158,7 +158,7 @@ func finish_now() -> void:
 			_stop(false)
 
 
-## Replays a move: spin, then per cascade depth clear Ã¢â€ â€™ fall Ã¢â€ â€™ drop.
+## Replays a move: spin, then per cascade depth clear â†’ fall â†’ drop.
 func show_result(result: RefCounted) -> void:
 	# A new result while the previous one is still playing: finish it first so
 	# nothing is dropped mid-flight, then play this one from that state.
@@ -223,7 +223,7 @@ func show_result(result: RefCounted) -> void:
 	queue_redraw()
 
 
-## Cascade depths present in this move, in order (1, 2, Ã¢â‚¬Â¦).
+## Cascade depths present in this move, in order (1, 2, …).
 func _depths(result: MoveResult) -> Array[int]:
 	var seen := {}
 	for group in result.clear_groups:

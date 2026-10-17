@@ -1,7 +1,7 @@
 ﻿class_name MatchFinder
 extends RefCounted
 
-## Match detection (docs/design.md Â§3.2).
+## Match detection (docs/design.md §3.2).
 ##
 ## The one and only match trigger: a rotation vertex whose three cells all hold
 ## the same gem colour. Three same-coloured pieces in a straight line do NOT
@@ -143,7 +143,7 @@ static func _group_before(a, b) -> bool:
 	return group_key(a.cells) < group_key(b.cells)
 
 
-# --- special formations (docs/design.md Â§3.4) -------------------------------
+# --- special formations (docs/design.md §3.4) -------------------------------
 
 ## A flower is six plain gems of one colour ringing a centre piece that is a
 ## different colour or a different type. The ring clears; the centre blooms.
@@ -189,7 +189,7 @@ static func is_pearl_creation_ring(board: Board, centre: Vector2i) -> bool:
 
 
 ## Six pearls ringing a centre: the pearl finish, the biggest payout in the game.
-## A pearl at the centre is allowed â€” that is a ring of seven, and the ring rule
+## A pearl at the centre is allowed — that is a ring of seven, and the ring rule
 ## should claim it before the three-pearl cluster rule does.
 static func is_pearl_finish_ring(board: Board, centre: Vector2i) -> bool:
 	return _six_neighbours_all(board, centre, Pieces.Kind.PEARL)
@@ -226,7 +226,7 @@ static func pearl_finish(board: Board) -> Dictionary:
 
 
 ## Cells removed by a bonus-star cluster: the three stars plus every tile each
-## star touches (docs/design.md Â§3.4). Locked tiles stay put.
+## star touches (docs/design.md §3.4). Locked tiles stay put.
 static func star_cluster_cells(board: Board) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	var seen := {}
