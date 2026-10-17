@@ -128,3 +128,141 @@ static func _group_before(a, b) -> bool:
 	if a.cells.size() != b.cells.size():
 		return a.cells.size() > b.cells.size()
 	return group_key(a.cells) < group_key(b.cells)
+
+
+# --- special formations (docs/design.md §3.4) -------------------------------
+
+## A flower is six plain gems of one colour ringing a centre piece that is a
+## different colour or a different type. The ring clears; the centre blooms.
+static func is_flower(board, centre: Vector2i) -> bool:
+	var centre_piece: int = board.get_piece(centre)
+	if Pieces.is_empty(centre_piece) or Pieces.is_pearl(centre_piece):
+		return false
+	var ring := Grid.neighbours(centre)
+	if ring.size() != 6:
+		return false
+
+	var ring_color := -1
+	for cell: Vector2i in ring:
+		var piece: int = board.get_piece(cell)
+		if Pieces.is_empty(piece) or Pieces.kind_of(piece) != Pieces.Kind.GEM:
+			return false
+		var color := int(Pieces.color_of(piece))
+		if ring_color == -1:
+			ring_color = color
+		elif color != ring_color:
+			return false
+
+	if Pieces.has_color(centre_piece) and int(Pieces.color_of(centre_piece)) == ring_color:
+		return false
+	return true
+
+
+static func flower_centres(board) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for cell: Vector2i in Grid.all_cells():
+		if is_flower(board, cell):
+			out.append(cell)
+	return out
+
+
+## Six starflowers ringing a centre: the centre becomes a black pearl.
+static func is_pearl_creation_ring(board, centre: Vector2i) -> bool:
+	if Pieces.is_pearl(board.get_piece(centre)):
+		return false
+	return _six_neighbours_all(board, centre, Pieces.Kind.STARFLOWER)
+
+
+## Six pearls ringing a centre: the pearl finish, the biggest payout in the game.
+## A pearl at the centre is allowed — that is a ring of seven, and the ring rule
+## should claim it before the three-pearl cluster rule does.
+static func is_pearl_finish_ring(board, centre: Vector2i) -> bool:
+	return _six_neighbours_all(board, centre, Pieces.Kind.PEARL)
+
+
+static func _six_neighbours_all(board, centre: Vector2i, kind: int) -> bool:
+	var ring := Grid.neighbours(centre)
+	if ring.size() != 6:
+		return false
+	return _cells_all_kind(board, ring, kind)
+
+
+static func pearl_ring_centres(board) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for cell: Vector2i in Grid.all_cells():
+		if is_pearl_creation_ring(board, cell):
+			out.append(cell)
+	return out
+
+
+## The perfect finish: a ring of six pearls (the biggest payout) or a cluster of
+## three. Returns {} when neither exists.
+static func pearl_finish(board) -> Dictionary:
+	for cell: Vector2i in Grid.all_cells():
+		if is_pearl_finish_ring(board, cell):
+			return {"kind": "pearl_ring", "cells": Grid.neighbours(cell), "anchor": cell}
+	for vertex: Array in Grid.vertices():
+		if _cells_all_kind(board, vertex, Pieces.Kind.PEARL):
+			var cells: Array[Vector2i] = []
+			for cell: Vector2i in vertex:
+				cells.append(cell)
+			return {"kind": "pearl_cluster", "cells": cells, "anchor": Vector2i(-1, -1)}
+	return {}
+
+
+## Cells removed by a bonus-star cluster: the three stars plus every tile each
+## star touches (docs/design.md §3.4).
+static func star_cluster_cells(board) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	var seen := {}
+	for vertex: Array in Grid.vertices():
+		if not _cells_all_kind(board, vertex, Pieces.Kind.BONUS_STAR):
+			continue
+		for star: Vector2i in vertex:
+			_add_cell_and_neighbours(board, star, seen, out)
+	return out
+
+
+## Three starflowers together pay a windfall and clear.
+static func starflower_cluster_cells(board) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	var seen := {}
+	for vertex: Array in Grid.vertices():
+		if not _cells_all_kind(board, vertex, Pieces.Kind.STARFLOWER):
+			continue
+		for cell: Vector2i in vertex:
+			if not seen.has(cell):
+				seen[cell] = true
+				out.append(cell)
+	return out
+
+
+## Every cell holding a piece of this gem colour (for the bomb colour wipe).
+static func cells_with_color(board, gem_color: int) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for cell: Vector2i in Grid.all_cells():
+		var piece: int = board.get_piece(cell)
+		if Pieces.has_color(piece) and int(Pieces.color_of(piece)) == gem_color:
+			out.append(cell)
+	return out
+
+
+static func _cells_all_kind(board, cells: Array, kind: int) -> bool:
+	for cell: Vector2i in cells:
+		var piece: int = board.get_piece(cell)
+		if Pieces.is_empty(piece) or int(Pieces.kind_of(piece)) != kind:
+			return false
+	return true
+
+
+static func _add_cell_and_neighbours(board, cell: Vector2i, seen: Dictionary, out: Array[Vector2i]) -> void:
+	if not seen.has(cell):
+		seen[cell] = true
+		out.append(cell)
+	for neighbour: Vector2i in Grid.neighbours(cell):
+		if seen.has(neighbour):
+			continue
+		if Pieces.is_empty(board.get_piece(neighbour)):
+			continue
+		seen[neighbour] = true
+		out.append(neighbour)

@@ -104,14 +104,62 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE):
 		# creates is cleared (this is what makes Survival-style gaps safe).
 		_record(vertex_index, direction)
 		ResolverScript.resolve(board, ruleset, _rng_refill, result, level, ruleset.refills_board)
-		settle(result)
+		_finish_move(result)
 		return result
 
 	_record(vertex_index, direction)
 	ResolverScript.resolve(board, ruleset, _rng_refill, result, level, ruleset.refills_board)
-	_award(result)
-	settle(result)
+	_finish_move(result)
 	return result
+
+
+## Rotates a special piece in place (docs/design.md §3.4):
+##   starflower -> cycles all six neighbours one step
+##   black pearl -> cycles three of six neighbours in a Y / inverted-Y
+## These rotations always persist, match or not, in both rotation modes.
+func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE):
+	var result = MoveResultScript.new()
+	if state != State.PLAYING:
+		return _reject(result, "game is over")
+	if direction != CLOCKWISE and direction != COUNTER_CLOCKWISE:
+		return _reject(result, "direction must be +1 or -1")
+	if not Grid.has_cell(cell):
+		return _reject(result, "cell out of range")
+
+	var piece: int = board.get_piece(cell)
+	var cells: Array[Vector2i] = []
+	if Pieces.is_starflower(piece):
+		# Cyclic (angular) order, so the ring visibly turns one step.
+		cells = Grid.cyclic_order(Grid.neighbours(cell))
+		if cells.size() != 6:
+			return _reject(result, "a starflower needs six neighbours to turn")
+	elif Pieces.is_pearl(piece):
+		cells = _pearl_y_cells(cell)
+		if cells.size() != 3:
+			return _reject(result, "a pearl needs six neighbours to turn")
+	else:
+		return _reject(result, "that piece cannot be rotated on its own")
+
+	_cycle(cells, direction)
+	result.piece_cell = cell
+	result.rotation_cells.assign(cells)
+	result.direction = direction
+	_record_piece(cell, direction)
+	ResolverScript.resolve(board, ruleset, _rng_refill, result, level, ruleset.refills_board)
+	_finish_move(result)
+	return result
+
+
+## Three of a pearl's six neighbours, alternating around it. Which three depends
+## on the column parity, which gives the reference's Y and inverted-Y shapes.
+func _pearl_y_cells(cell: Vector2i) -> Array[Vector2i]:
+	var ordered := Grid.cyclic_order(Grid.neighbours(cell))
+	var cells: Array[Vector2i] = []
+	var parity := cell.x % 2
+	for index in ordered.size():
+		if index % 2 == parity:
+			cells.append(ordered[index])
+	return cells
 
 
 ## Replays a logged command list on a fresh game with the same seed.
@@ -122,7 +170,11 @@ static func replay(run_seed: int, command_log: Array, rules: Variant) -> Game:
 	assert(rules != null, "Game.replay needs the ruleset the run was played with")
 	var game := Game.new(run_seed, rules)
 	for command: Array in command_log:
-		game.rotate(int(command[0]), int(command[1]))
+		match String(command[0]):
+			"piece":
+				game.rotate_piece(Vector2i(int(command[1]), int(command[2])), int(command[3]))
+			_:
+				game.rotate(int(command[1]), int(command[2]))
 	return game
 
 
@@ -193,7 +245,12 @@ func _rotation_matches(vertex_index: int, direction: int, cells: Array) -> bool:
 
 
 func _record(vertex_index: int, direction: int) -> void:
-	_commands.append([vertex_index, direction])
+	_commands.append(["rotate", vertex_index, direction])
+	turns += 1
+
+
+func _record_piece(cell: Vector2i, direction: int) -> void:
+	_commands.append(["piece", cell.x, cell.y, direction])
 	turns += 1
 
 
@@ -214,8 +271,49 @@ func _award(result) -> void:
 	result.new_level = level
 
 
+## Shared tail of every committed move: bank the score, age the bombs, and check
+## whether the board is still playable.
+func _finish_move(result) -> void:
+	_award(result)
+	if result.finished:
+		state = State.FINISHED
+		result.game_over = false
+		settle(result)
+		return
+	_tick_bombs(result)
+	settle(result)
+
+
+## Every bomb loses one move. Reaching zero detonates it and ends the run.
+func _tick_bombs(result) -> void:
+	var exploders: Array[Vector2i] = []
+	for cell: Vector2i in Grid.all_cells():
+		var piece: int = board.get_piece(cell)
+		if not Pieces.is_bomb(piece):
+			continue
+		var remaining := Pieces.counter_of(piece) - 1
+		if remaining <= 0:
+			exploders.append(cell)
+			board.set_piece(cell, Pieces.with_counter(piece, 0))
+			continue
+		board.set_piece(cell, Pieces.with_counter(piece, remaining))
+		result.bombs_ticked.append({"cell": cell, "counter": remaining})
+
+	if exploders.is_empty():
+		return
+	result.bomb_exploded = true
+	result.game_over = true
+	result.finished = true
+	result.finish_kind = "bomb_exploded"
+	result.exploded_cells.assign(exploders)
+	state = State.FINISHED
+
+
 ## After every move: is the board still playable? (docs/design.md §5.3)
 func settle(result) -> void:
+	if state == State.FINISHED or result.finished:
+		result.new_level = level
+		return
 	if not MatchFinderScript.has_any_match(board) and not has_any_legal_rotation():
 		result.dead_board = true
 		_shuffle_board()

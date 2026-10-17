@@ -7,5 +7,13 @@
   "cascade_multiplier": 1.5,
   "difficulty_easy": 0.5,
   "difficulty_normal": 1.0,
-  "difficulty_hard": 2.0
+  "difficulty_hard": 2.0,
+  "flower_base": 1000,
+  "starflower_match_base": 2500,
+  "pearl_base": 10000,
+  "star_cluster_base": 1000,
+  "pearl_cluster_base": 50000,
+  "pearl_ring_base": 250000,
+  "bomb_defuse_base": 200,
+  "bomb_colour_wipe_base": 500
 }

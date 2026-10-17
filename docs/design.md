@@ -148,11 +148,20 @@ optimisation with the same meaning: a rotation can only change cells around its 
 |---|---|---|---|
 | **Gem** | Hexagonal crystal, one of N colours | Refill / start | Matches by colour |
 | **Bonus star** | A *coloured* gem with a star embossed | Random spawn from level 2 (rate in config) | ×2 per star in a clear (stacking); 3 adjacent bonus stars of **any** colours form a cluster that clears the stars **plus every gem each star touches**; defends a bomb (§3.4 bombs) |
-| **Starflower** | A *bare* silver 6-point star | 6 same-coloured gems ringing one centre gem → ring clears, centre blooms into a starflower | Selectable: rotate all 6 neighbours by 60°, always persists. Matching 3+ starflowers pays a large bonus. Only tool for building pearls |
-| **Black pearl** | Dark iridescent sphere in a hex | 6 starflowers ringing one centre | Selectable: rotate 3 of its 6 neighbours in Y / inverted-Y (two orientations by column parity), always persists |
-| **Bomb** | A *coloured* gem with a number | Random spawn from level 3 | Ticks down 1 per move; at 0 → game over. Defused by clearing it in a colour cluster. If that cluster also contains ≥1 bonus star of the bomb's colour → **every gem of that colour on the board clears** |
+| **Starflower** | A *bare* silver 6-point star | 6 same-coloured **plain gems** ringing one centre piece of a different colour or type → ring clears, centre blooms into a starflower | Selectable: rotate all 6 neighbours by 60°, always persists. Three together pay a windfall. The only tool for building pearls |
+| **Black pearl** | Dark iridescent sphere in a hex | **Two recipes:** a flower whose centre is already a starflower, or 6 starflowers ringing a centre | Selectable: rotate 3 of its 6 neighbours in Y / inverted-Y (choice by column parity), always persists |
+| **Bomb** | A *coloured* gem with a number | Random spawn from level 3 | Ticks down 1 per committed move; at 0 → run over. Defused by clearing it in a colour cluster. If that cluster also contains ≥1 bonus star of the bomb's colour → **every gem of that colour on the board clears** |
 
 **The two stars are different objects.** The bonus star is a coloured multiplier that falls in as new gems; the starflower is the bare, uncoloured product of a flower. Both appeared in our reference screenshots. Do not merge them.
+
+**Rule decisions made during M2** (all covered by tests, all tunable):
+
+- A flower ring must be **plain gems** — a bonus star or bomb in the ring breaks it. Predictable, and it stops a lucky star from silently eating a ring.
+- The centre must be a **different colour or type**: a same-coloured centre is a plain cluster, not a flower.
+- A flower also consumes **no** centre: the centre survives and blooms. Pearls therefore come from starflowers, never from spending a pearl.
+- Priority order inside one resolution step: **flowers → pearl rings → pearl finish → bonus-star clusters → starflower clusters → colour clusters.**
+- Bonus-star clusters are colour-agnostic (the reference is explicit about this); the "three same-coloured stars wipe that colour" rule from one wiki is **not** implemented (unsupported by every other source).
+- A bomb ticks only on committed moves — a reverted STRICT spin is not a move.
 
 **Pearl finish (win condition).** Either a **cluster of 3 black pearls** or a **ring of 6 black pearls around a centre** ends the run immediately as a *perfect finish*, with a large bonus. In Marathon this is the goal; the HUD celebrates it with a dedicated sequence.
 
@@ -174,7 +183,9 @@ Every hue also has a **pattern overlay** (7 distinct shapes: ring, cross, chevro
 
 ## 4. Scoring
 
-All values live in `res://src/core/data/scoring.tres` (or JSON) — never hard-coded in logic. Every clear scores `base × level × difficulty_multiplier × star_multiplier`, plus cascade bonus.
+All values live in `data/scoring.json` (`src/core/scoring_rules.gd` holds the same defaults and validates the
+keys) — never hard-coded in logic. Every clear scores `base × level × difficulty_multiplier × star_multiplier`,
+and cascades past the first step add `1.5×` each.
 
 | Event | Base value | Source of number |
 |---|---|---|
@@ -182,10 +193,14 @@ All values live in `res://src/core/data/scoring.tres` (or JSON) — never hard-c
 | Cluster of 4 | 10 | Reference (community) |
 | Cluster of 5 | 25 | Ours (extrapolated) |
 | Cluster of 6+ | 50 | Ours (extrapolated) |
-| Starflower cleared | 1,000 | Reference (community) |
-| Black pearl cleared | 10,000 | Reference (community) |
-| Pearl cluster (3) | 100,000 | Ours |
+| Flower formed (starflower) | 1,000 | Reference (community) |
+| Three starflowers cleared | 2,500 | Ours |
+| Black pearl formed | 10,000 | Reference (community) |
+| Bonus-star cluster (area clear) | 1,000 | Ours |
+| Pearl cluster (3) — perfect finish | 50,000 | Ours |
 | Pearl ring (6) — perfect finish | 250,000 | Reference (community) |
+| Bomb defused | 200 each | Ours |
+| Bomb colour wipe | 500 per gem swept | Ours |
 | Bonus star in a clear | ×2 each, stacking (×2, ×4, ×8…) | Reference |
 | Cascade step after the first | ×1.5 per extra depth step | Ours |
 | Difficulty | Easy ×0.5, Normal ×1, Hard ×2 | Reference (direction only) |
@@ -389,7 +404,7 @@ because a test plugin changed.
 > with it relaxed. A parse error in any suite is reported as a failure (never a silent pass) via
 > `can_instantiate()`.
 
-**Current results — 75 tests, 0 failed, ~21.7k assertions (5s), plus the smoke test and soak:**
+**Current results — 101 tests, 0 failed, ~21.9k assertions (5s), plus the smoke test and soak:**
 
 *Geometry (M0)*
 
@@ -422,15 +437,31 @@ because a test plugin changed.
   Survival-style no-refill board) leave no floating piece, never leave the board unstable, and keep the
   dead-board shuffle rare (0 shuffles in 6,666 fill-always moves).
 
-**Bugs this suite has already caught:** an inverted floating-piece invariant; `EMPTY` decoding as a matchable
-colour (every empty vertex "matched"); the dead-board shuffle scattering pieces into empty space; and — the
-subtle one — a rotation on a gappy board *lifting* a piece with nothing to re-settle it, which is why gravity
-now runs before matches are judged on every committed move. All four would have been near-impossible to find by
-eye.
+*Specials (M2)* — scenarios are painted onto a full, provably match-free background (colour index
+`(2q + r) mod 5` never repeats on a vertex's three cells), because gravity runs first and would otherwise drop a
+half-empty scenario's pieces and destroy the very formation under test:
 
-**Still to build (M2+):** flower precedence, star ×2/×4/×8 stacking, star-cluster area clear, bomb tick and
-detonation, bomb + star colour wipe, starflower ring rotation, pearl orientations and the pearl finish, the
-Survival lock/refill cycle and the Timed starflower refill.
+- spawn gating: no stars at level 1, stars from 2, no bombs before 3, fuses shorten with level; a gems-only
+  ruleset spawns nothing; 850 refills at level 3 mix in both specials while staying mostly gems.
+- bonus stars: ×2 for one, ×4 for two; a colour-agnostic three-star cluster clears the stars plus every tile they
+  touch (and not the tile two cells away); two stars and a gem clear nothing.
+- flowers: a 6-gem ring promotes its centre to a starflower and pays the flower tier; a same-coloured centre is
+  a plain cluster instead; a flower around an existing starflower yields a pearl; six starflowers in a ring also
+  yield a pearl; three starflowers pay the windfall tier.
+- pearl finish: three pearls end the run as `pearl_cluster`, six in a ring as `pearl_ring` (250,000 × level).
+- bombs: defused by a colour cluster (with its bonus), a same-coloured bonus star wipes that colour board-wide,
+  one tick per committed move, detonation ends the run and locks further input.
+- special-piece rotation: a starflower cycles its six neighbours one step and persists **even in STRICT**; a pearl
+  turns exactly three (the other three stay put); a plain gem cannot be turned on its own; piece turns are logged.
+
+**Bugs this suite has already caught:** an inverted floating-piece invariant; `EMPTY` decoding as a matchable
+colour (every empty vertex "matched"); the dead-board shuffle scattering pieces into empty space; a rotation on
+a gappy board *lifting* a piece with nothing to re-settle it; a typed-array assignment that made the whole
+resolver silently no-op; and `is_pearl_ring` being reused for two different rings (starflowers *make* a pearl,
+pearls *finish* the run). All six would have been near-impossible to find by eye.
+
+**Still to build (M3+):** Marathon/Timed/Survival as first-class modes (rounds, locking, the timer), difficulty
+settings, and the full win/lose flows (summary screen, restart, stats).
 
 **Fixtures:** the tutorial board plus 3–5 transcribable reference boards (the fan project `hectic-hexagons`
 transcribes real frames — useful cross-checking) as golden tests for match sets.
@@ -483,7 +514,7 @@ Mitigations to evaluate in playtesting, in order of preference:
 |---|---|---|
 | **M0** ✅ | Repo + this doc + Godot 4.7.2 toolchain + `hex_grid.gd`, `board.gd`, `piece.gd`, `rng.gd` + headless suite | **Done:** 37 tests / 0 failed, including 85 cells, **135 vertices**, 17×5 half-rows, gravity invariants |
 | **M1** ✅ | Playable core: board, cursor, discrete rotation, match predicate, gravity, refill, cascades, scoring, dev-art scene | **Done:** 75 tests / 0 failed, view smoke test, 10,000-move soak; playable in-editor (`main.tscn`) |
-| **M2** | Specials: bonus stars (×2 + 3-star area clear), starflowers (flower → piece → ring rotation), black pearls (creation, Y rotation, perfect finish), bombs (tick, defuse, colour wipe) | All specials rule-tested; a pearl ring can be built end-to-end in a scripted fixture |
+| **M2** ✅ | Specials: bonus stars (×2 + 3-star area clear), starflowers (flower → piece → ring rotation), black pearls (creation, Y rotation, perfect finish), bombs (tick, defuse, colour wipe) | **Done:** 101 tests / 0 failed incl. every formation; the soak plays 10,000 moves with specials |
 | **M3** | Progression + modes: 7 levels, combo thresholds, content gating, Marathon/Timed/Survival, difficulty, dead-board shuffle, win/lose flows | Each mode playable to its conclusion with correct game-over/win paths |
 | **M4** | Presentation + meta: art pass, animations, SFX/music, HUD, menus, options, tutorial, autosave/resume, stats, achievements, local leaderboard | A first-time player can learn the game from the tutorial alone |
 | **M5** | Polish + balance: playtest-driven tuning of scoring/RNG/bombs, accessibility pass, replays, exports (Windows + web) | Balance targets met (§13), export builds run at 60 FPS |

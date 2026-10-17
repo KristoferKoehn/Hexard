@@ -5,11 +5,10 @@ extends RefCounted
 ## the built-in defaults below match the design document, and a JSON file can
 ## override them for tuning without touching code.
 
-const Grid := preload("res://src/core/hex_grid.gd")
-
 const DEFAULT_PATH := "res://data/scoring.json"
 
 const DEFAULTS := {
+	# Colour clusters.
 	"cluster_3": 5,
 	"cluster_4": 10,
 	"cluster_5": 25,
@@ -18,7 +17,21 @@ const DEFAULTS := {
 	"difficulty_easy": 0.5,
 	"difficulty_normal": 1.0,
 	"difficulty_hard": 2.0,
+	# Special formations (M2).
+	"flower_base": 1000,            # forming a starflower from a flower
+	"starflower_match_base": 2500,  # clearing three starflowers together
+	"pearl_base": 10000,            # forming a black pearl
+	"star_cluster_base": 1000,      # clearing three bonus stars (area clear)
+	"pearl_cluster_base": 50000,    # perfect finish: a cluster of three pearls
+	"pearl_ring_base": 250000,      # perfect finish: a ring of six pearls
+	"bomb_defuse_base": 200,
+	"bomb_colour_wipe_base": 500,
 }
+
+## Keys that hold fractional values; everything else is a whole point value.
+const FLOAT_KEYS := [
+	"cascade_multiplier", "difficulty_easy", "difficulty_normal", "difficulty_hard",
+]
 
 var values: Dictionary = {}
 
@@ -44,7 +57,7 @@ static func load_default(path: String = DEFAULT_PATH) -> ScoringRules:
 	return ScoringRules.new(_sanitise(parsed))
 
 
-## JSON numbers arrive as floats; the table is integer counts and factors.
+## JSON numbers arrive as floats; whole-point keys are cast back to int.
 static func _sanitise(raw: Dictionary) -> Dictionary:
 	var clean := {}
 	for key: String in raw:
@@ -52,16 +65,20 @@ static func _sanitise(raw: Dictionary) -> Dictionary:
 			continue
 		var value: Variant = raw[key]
 		if typeof(value) == TYPE_FLOAT:
-			if key.begins_with("difficulty") or key == "cascade_multiplier":
-				clean[key] = float(value)
-			else:
-				clean[key] = int(value)
+			clean[key] = float(value) if FLOAT_KEYS.has(key) else int(value)
 		else:
 			clean[key] = value
 	return clean
 
 
 # --- table access -----------------------------------------------------------
+
+func points(key: String) -> int:
+	if not values.has(key):
+		push_warning("ScoringRules: unknown score key '%s'" % key)
+		return 0
+	return int(values[key])
+
 
 func base_for_cluster(size: int) -> int:
 	if size <= 3:
@@ -92,3 +109,8 @@ func clear_score(base: int, level: int, cascade_depth: int = 1, difficulty: Stri
 	raw *= difficulty_multiplier(difficulty)
 	raw *= cascade_multiplier(cascade_depth)
 	return roundi(raw)
+
+
+## Same, taking the base value from the table by name.
+func score_for(key: String, level: int, cascade_depth: int = 1, difficulty: String = "normal") -> int:
+	return clear_score(points(key), level, cascade_depth, difficulty)

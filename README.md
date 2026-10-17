@@ -6,15 +6,15 @@ Rotate trios of gems around the points where three hexes meet. Match three or mo
 
 ## Status
 
-**M1 complete** — the rules core is playable in the editor: rotate trios, clear clusters, watch gravity
-cascades and score. Specials (stars, starflowers, pearls, bombs) are next.
+**M2 complete** — the whole special-piece economy is in and playable: bonus stars, starflowers, black pearls,
+the pearl finish, and bombs.
 
 | Milestone | State |
 |---|---|
 | M0 · repo, design doc, pinned engine, geometry core | ✅ 85 cells, 135 vertices, 17×5 half-rows verified |
-| M1 · playable core (rotate → match → gravity → cascade → score) + dev-art scene | ✅ 75 tests, view smoke test, 10,000-move soak |
-| M2 · specials (bonus stars, starflowers, black pearls, bombs) | next |
-| M3 · levels, modes (Marathon / Timed / Survival), difficulty | planned |
+| M1 · playable core (rotate → match → gravity → cascade → score) + dev-art scene | ✅ 75 tests, smoke test, 10,000-move soak |
+| M2 · specials (bonus stars, starflowers, black pearls, bombs) | ✅ 101 tests, soak plays specials |
+| M3 · modes (Marathon / Timed / Survival), rounds, difficulty, win/lose flows | next |
 | M4 · art, audio, HUD, tutorial, saves, meta | planned |
 | M5 · balance, accessibility, exports | planned |
 
@@ -36,10 +36,11 @@ Then play it: `tools\godot\Godot_v4.7.2-stable_win64.exe --path .` (or open `pro
 | Action | Keys |
 |---|---|
 | Move cursor | Arrows / WASD, or hover with the mouse |
-| Rotate | `Z` CCW / `X` CW, or right/left click |
+| Rotate trio | `Z` CCW / `X` CW, or right/left click |
+| Turn a starflower or pearl under the cursor | `F` (or click the piece) |
 | Hint | `H` |
 | New board | `R` |
-| Toggle FREE / STRICT rotation | `T` |
+| Toggle STRICT / FREE rotation | `T` |
 | Quit | `Esc` |
 
 The `.cmd` wrappers invoke the PowerShell scripts with a per-process `-ExecutionPolicy Bypass`, because some
@@ -66,6 +67,10 @@ Rules and geometry are validated by the test suite, not by assumption:
   never clears, which is the rule that makes flower-building the real game.
 - Gravity is per column, never sideways, and runs **before matches are judged** on every committed move.
 - Scoring is `base × level × difficulty × cascade`, driven by `data/scoring.json`.
+- **Specials** (M2): bonus stars multiply a clear ×2 each and three of them clear everything they touch;
+  6 same-coloured gems ringing a centre bloom into a starflower; a starflower then turns its whole ring;
+  6 starflowers ring into a black pearl; **3 pearls, or 6 in a ring, end the run**; bombs tick once per move,
+  are defused by a colour cluster, and a same-coloured bonus star wipes that colour off the board.
 - A dead board is detected and shuffled back to life.
 - Seed + command log reproduces a run exactly (the base for replays and regression tests).
 

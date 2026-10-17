@@ -27,6 +27,7 @@ const FLASH_DURATION := 0.32
 var game: RefCounted
 var cursor_vertex := -1
 var hint_vertex := -1
+var hover_cell := Vector2i(-1, -1)
 
 var _origin := Vector2.ZERO
 var _flash_cells: Array[Vector2i] = []
@@ -53,12 +54,27 @@ func vertex_at(local_point: Vector2) -> int:
 	return HexGrid.nearest_vertex(local_point - _origin, cell_size)
 
 
-## Cells that just cleared: fade them out over a few frames.
+## Local point -> cell, for picking a special piece directly.
+func cell_at(local_point: Vector2) -> Vector2i:
+	var best := Vector2i(-1, -1)
+	var best_distance := INF
+	for cell: Vector2i in HexGrid.all_cells():
+		var distance := local_point.distance_squared_to(cell_center(cell))
+		if distance < best_distance:
+			best_distance = distance
+			best = cell
+	return best
+
+
+## Cells that just cleared: fade them out over a few frames. Promotions flash
+## too, so a bloom into a starflower or pearl reads.
 func show_result(result: RefCounted) -> void:
 	_flash_cells.clear()
 	for group in result.clear_groups:
 		for cell: Vector2i in group.cells:
 			_flash_cells.append(cell)
+	for promotion: Dictionary in result.promotions:
+		_flash_cells.append(promotion["cell"])
 	_flash_time = FLASH_DURATION if not _flash_cells.is_empty() else 0.0
 	queue_redraw()
 
@@ -118,6 +134,12 @@ func _draw_cell(cell: Vector2i) -> void:
 			if Pieces.is_bonus_star(piece):
 				draw_colored_polygon(_star_points(centre, radius * 0.62, radius * 0.26, 6), Color("fff3c4"))
 				draw_polyline(_closed(_star_points(centre, radius * 0.62, radius * 0.26, 6)), Color("8a6d1f"), 1.0)
+
+	# Starflowers and pearls can be turned on their own: hint that they are grabbable.
+	if Pieces.is_starflower(piece) or Pieces.is_pearl(piece):
+		var hovered := cell == hover_cell
+		var ring_color := Color(1.0, 0.86, 0.45, 0.85 if hovered else 0.45)
+		draw_arc(centre, radius * 0.98, 0, TAU, 28, ring_color, 2.5 if hovered else 1.5)
 
 
 func _draw_flash() -> void:

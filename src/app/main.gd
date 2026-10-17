@@ -5,6 +5,7 @@ extends Node2D
 ## rules live in src/core (docs/design.md §10.1).
 
 const HexGrid := preload("res://src/core/hex_grid.gd")
+const Pieces := preload("res://src/core/piece.gd")
 const GameScript := preload("res://src/core/game.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 
@@ -46,10 +47,50 @@ func play_move(direction: int) -> void:
 		hud.set_message("%s: %s" % [turn, result.rejected_reason])
 		return
 
+	_apply(result, turn)
+
+
+## Turns the starflower or pearl under the cursor, if there is one.
+func use_special(direction: int = GameScript.CLOCKWISE) -> void:
+	if game == null:
+		return
+	var cells: Array = HexGrid.vertices()[cursor_vertex]
+	var target := Vector2i(-1, -1)
+	for cell: Vector2i in cells:
+		var piece: int = game.board.get_piece(cell)
+		if Pieces.is_starflower(piece) or Pieces.is_pearl(piece):
+			target = cell
+			break
+	if target == Vector2i(-1, -1):
+		hud.set_message("no starflower or pearl under the cursor")
+		return
+	play_piece_move(target, direction)
+
+
+func play_piece_move(cell: Vector2i, direction: int) -> void:
+	if game == null:
+		return
+	board_view.hint_vertex = -1
+	var result = game.rotate_piece(cell, direction)
+	if not result.committed:
+		hud.set_message("piece: %s" % result.rejected_reason)
+		return
+	_apply(result, "turn piece")
+
+
+## Shared presentation tail for any committed move.
+func _apply(result, label: String) -> void:
 	board_view.show_result(result)
 	hud.update_from_game(game)
 
-	var parts := PackedStringArray([turn])
+	if result.bomb_exploded:
+		hud.set_message("BOOM — a bomb went off. Press R for a new board.")
+		return
+	if result.finished:
+		hud.set_message("PERFECT FINISH (%s) for %d points!" % [result.finish_kind, result.score])
+		return
+
+	var parts := PackedStringArray([label])
 	if result.cleared_count > 0:
 		parts.append("cleared %d  +%d" % [result.cleared_count, result.score])
 		if result.cascades > 1:
@@ -58,6 +99,10 @@ func play_move(direction: int) -> void:
 			parts.append("%d combos" % result.combos)
 	else:
 		parts.append("no clear (position kept)")
+	if result.promotions.size() > 0:
+		parts.append("promoted x%d" % result.promotions.size())
+	if result.bombs_ticked.size() > 0:
+		parts.append("bomb ticking")
 	if result.level_up:
 		parts.append("LEVEL %d" % result.new_level)
 	if result.shuffled:
@@ -121,7 +166,7 @@ func toggle_rotation_mode() -> void:
 	if game == null:
 		return
 	var ruleset: Variant = game.ruleset
-	if int(ruleset.rotation_mode) == RulesetScript.RotationMode.FREE:
+	if int(ruleset.rotation_mode) == int(RulesetScript.RotationMode.FREE):
 		ruleset.rotation_mode = RulesetScript.RotationMode.STRICT
 		hud.set_message("rotation mode: STRICT (reference) — non-clearing spins revert")
 	else:
@@ -138,16 +183,36 @@ func _unhandled_input(event: InputEvent) -> void:
 		if key.pressed and not key.echo:
 			_handle_key(key.keycode)
 	elif event is InputEventMouseMotion:
-		snap_cursor_to(board_view.to_local((event as InputEventMouseMotion).position))
+		_mouse_moved((event as InputEventMouseMotion).position)
 	elif event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
-		if not button.pressed:
-			return
-		snap_cursor_to(board_view.to_local(button.position))
-		if button.button_index == MOUSE_BUTTON_LEFT:
-			play_move(GameScript.CLOCKWISE)
-		elif button.button_index == MOUSE_BUTTON_RIGHT:
-			play_move(GameScript.COUNTER_CLOCKWISE)
+		if button.pressed:
+			_mouse_clicked(button.position, button.button_index)
+
+
+func _mouse_moved(viewport_point: Vector2) -> void:
+	var local := board_view.to_local(viewport_point)
+	var cell := board_view.cell_at(local)
+	# Hovering a special piece is more useful than hovering its vertex.
+	if Pieces.is_starflower(game.board.get_piece(cell)) or Pieces.is_pearl(game.board.get_piece(cell)):
+		board_view.hover_cell = cell
+		board_view.queue_redraw()
+		return
+	board_view.hover_cell = Vector2i(-1, -1)
+	snap_cursor_to(viewport_point)
+
+
+func _mouse_clicked(viewport_point: Vector2, button_index: int) -> void:
+	var direction := GameScript.CLOCKWISE if button_index == MOUSE_BUTTON_LEFT else GameScript.COUNTER_CLOCKWISE
+	if button_index != MOUSE_BUTTON_LEFT and button_index != MOUSE_BUTTON_RIGHT:
+		return
+	var local := board_view.to_local(viewport_point)
+	var cell := board_view.cell_at(local)
+	if Pieces.is_starflower(game.board.get_piece(cell)) or Pieces.is_pearl(game.board.get_piece(cell)):
+		play_piece_move(cell, direction)
+		return
+	snap_cursor_to(viewport_point)
+	play_move(direction)
 
 
 func _handle_key(keycode: int) -> void:
@@ -164,6 +229,8 @@ func _handle_key(keycode: int) -> void:
 			play_move(GameScript.COUNTER_CLOCKWISE)
 		KEY_X, KEY_E:
 			play_move(GameScript.CLOCKWISE)
+		KEY_F:
+			use_special(GameScript.CLOCKWISE)
 		KEY_H:
 			show_hint()
 		KEY_R:

@@ -1,0 +1,443 @@
+extends "res://tests/test_case.gd"
+
+## Special pieces (docs/design.md §3.4): bonus stars, starflowers, black pearls
+## and bombs.
+##
+## Scenarios are painted onto a full, provably match-free background, because
+## gravity runs before formations are judged — a half-empty board would drop its
+## pieces and destroy the very formation under test.
+
+const Grid := preload("res://src/core/hex_grid.gd")
+const BoardScript := preload("res://src/core/board.gd")
+const Pieces := preload("res://src/core/piece.gd")
+const MatchFinder := preload("res://src/core/match_finder.gd")
+const RulesetScript := preload("res://src/core/ruleset.gd")
+const ResolverScript := preload("res://src/core/resolver.gd")
+const RngScript := preload("res://src/core/rng.gd")
+const MoveResultScript := preload("res://src/core/move_result.gd")
+const GameScript := preload("res://src/core/game.gd")
+
+## An interior cell, so it has all six neighbours (used for rings).
+const CENTRE := Vector2i(4, 4)
+
+
+# --- helpers ----------------------------------------------------------------
+
+## Fills the whole board with a pattern that cannot match: the colour index is
+## (2q + r) mod 5, and no vertex's three cells share that value.
+func _background(board) -> void:
+	var palette: Array = Pieces.BASE_COLORS
+	for cell: Vector2i in Grid.all_cells():
+		board.set_piece(cell, Pieces.gem(palette[(2 * cell.x + cell.y) % palette.size()]))
+
+
+func _full_board() -> RefCounted:
+	var board := BoardScript.new()
+	_background(board)
+	return board
+
+
+func _resolve(board, ruleset = null, level: int = 1, refill: bool = false) -> RefCounted:
+	var rules: Variant = ruleset if ruleset != null else RulesetScript.new()
+	var result = MoveResultScript.new()
+	ResolverScript.resolve(board, rules, RngScript.new(1), result, level, refill)
+	return result
+
+
+func _paint(board, cells: Array, color: int) -> void:
+	for cell: Vector2i in cells:
+		board.set_piece(cell, Pieces.gem(color))
+
+
+func _ring(centre: Vector2i) -> Array[Vector2i]:
+	var cells := Grid.neighbours(centre)
+	assert_eq(cells.size(), 6, "the scenario centre must have six neighbours")
+	return cells
+
+
+func _ring_in_order(centre: Vector2i) -> Array[Vector2i]:
+	return Grid.cyclic_order(Grid.neighbours(centre))
+
+
+func _count_kind(board, kind: int) -> int:
+	var total := 0
+	for cell: Vector2i in Grid.all_cells():
+		var piece: int = board.get_piece(cell)
+		if not Pieces.is_empty(piece) and Pieces.kind_of(piece) == kind:
+			total += 1
+	return total
+
+
+func _first_group(result):
+	assert_ge(result.clear_groups.size(), 1, "expected at least one clear group")
+	return result.clear_groups[0]
+
+
+# --- spawn gating -----------------------------------------------------------
+
+func test_the_test_background_is_match_free() -> void:
+	# If this ever fails, every scenario built on it becomes unreliable.
+	var board := _full_board()
+	assert_eq(board.filled_count(), 85, "the background fills the board")
+	assert_false(MatchFinder.has_any_match(board), "and contains no match")
+	assert_eq(board.invariant_violations().size(), 0, "and is gravity-settled")
+
+
+func test_spawns_are_gated_by_level() -> void:
+	var ruleset := RulesetScript.new()
+	assert_eq(ruleset.bonus_star_chance_at(1), 0.0, "no bonus stars at level 1")
+	assert_gt(ruleset.bonus_star_chance_at(2), 0.0, "bonus stars from level 2")
+	assert_eq(ruleset.bomb_chance_at(1), 0.0, "no bombs at level 1")
+	assert_eq(ruleset.bomb_chance_at(2), 0.0, "still no bombs at level 2")
+	assert_gt(ruleset.bomb_chance_at(3), 0.0, "bombs from level 3")
+	assert_gt(ruleset.bomb_counter_at(3), 0, "bombs arrive with a fuse")
+	assert_le(
+		ruleset.bomb_counter_at(7), ruleset.bomb_counter_at(3),
+		"fuses get shorter as levels climb"
+	)
+
+
+func test_gems_only_ruleset_never_spawns_specials() -> void:
+	var ruleset := RulesetScript.gems_only()
+	var board := BoardScript.new()
+	var result := MoveResultScript.new()
+	ResolverScript.refill_board(board, RngScript.new(4), result, 7, ruleset)
+	assert_eq(board.filled_count(), 85, "the board is filled")
+	assert_eq(_count_kind(board, Pieces.Kind.BONUS_STAR), 0, "no stars")
+	assert_eq(_count_kind(board, Pieces.Kind.BOMB), 0, "no bombs")
+
+
+func test_refill_mixes_in_specials_at_level_three() -> void:
+	var ruleset := RulesetScript.new()
+	var stars := 0
+	var bombs := 0
+	var gems := 0
+	for run in 10:
+		var board := BoardScript.new()
+		var result := MoveResultScript.new()
+		ResolverScript.refill_board(board, RngScript.new(run + 1), result, 3, ruleset)
+		stars += _count_kind(board, Pieces.Kind.BONUS_STAR)
+		bombs += _count_kind(board, Pieces.Kind.BOMB)
+		gems += _count_kind(board, Pieces.Kind.GEM)
+	info("850 refills at level 3: %d gems, %d stars, %d bombs" % [gems, stars, bombs])
+	assert_gt(stars, 15, "bonus stars appear")
+	assert_gt(bombs, 15, "bombs appear")
+	assert_gt(gems, 600, "and most pieces are still plain gems")
+
+
+# --- bonus stars ------------------------------------------------------------
+
+func test_bonus_star_doubles_the_clear() -> void:
+	var board := BoardScript.new()
+	_paint(board, [Vector2i(4, 7), Vector2i(4, 8)], Pieces.GemColor.RED)
+	board.set_piece(Vector2i(5, 7), Pieces.bonus_star(Pieces.GemColor.RED))
+
+	var group = _first_group(_resolve(board))
+	assert_eq(group.bonus_stars, 1, "the star is counted")
+	assert_eq(group.multiplier, 2, "x2 for one star")
+	assert_eq(group.base_score, 5, "base is the 3-cluster tier")
+	assert_eq(group.score, 10, "so the clear pays 5 x 2")
+
+
+func test_two_bonus_stars_multiply_together() -> void:
+	var board := BoardScript.new()
+	board.set_piece(Vector2i(4, 7), Pieces.bonus_star(Pieces.GemColor.RED))
+	board.set_piece(Vector2i(4, 8), Pieces.bonus_star(Pieces.GemColor.RED))
+	board.set_piece(Vector2i(5, 7), Pieces.gem(Pieces.GemColor.RED))
+
+	var group = _first_group(_resolve(board))
+	assert_eq(group.bonus_stars, 2, "two stars")
+	assert_eq(group.multiplier, 4, "x2 per star, stacking")
+	assert_eq(group.score, 20, "5 base x 4")
+
+
+func test_three_bonus_stars_clear_what_they_touch() -> void:
+	var board := BoardScript.new()
+	# Three stars of *different* colours still cluster.
+	board.set_piece(Vector2i(4, 7), Pieces.bonus_star(Pieces.GemColor.RED))
+	board.set_piece(Vector2i(4, 8), Pieces.bonus_star(Pieces.GemColor.GREEN))
+	board.set_piece(Vector2i(5, 7), Pieces.bonus_star(Pieces.GemColor.BLUE))
+	# A bystander adjacent to the stars, and one two cells away.
+	board.set_piece(Vector2i(3, 7), Pieces.gem(Pieces.GemColor.CYAN))
+	board.set_piece(Vector2i(2, 7), Pieces.gem(Pieces.GemColor.VIOLET))
+
+	var group = _first_group(_resolve(board))
+	assert_true(group.has_formation("bonus_star_cluster"), "reported as a bonus-star cluster")
+	assert_true(group.cells.has(Vector2i(3, 7)), "the adjacent gem was swept up")
+	assert_false(group.cells.has(Vector2i(2, 7)), "but not the one two cells away")
+	assert_eq(group.base_score, 1000, "a star cluster is worth the star tier")
+
+
+func test_two_bonus_stars_are_not_a_star_cluster() -> void:
+	var board := BoardScript.new()
+	board.set_piece(Vector2i(4, 7), Pieces.bonus_star(Pieces.GemColor.RED))
+	board.set_piece(Vector2i(4, 8), Pieces.bonus_star(Pieces.GemColor.GREEN))
+	board.set_piece(Vector2i(5, 7), Pieces.gem(Pieces.GemColor.BLUE))
+
+	var result := _resolve(board)
+	assert_eq(result.clear_groups.size(), 0, "two stars and a gem clear nothing")
+
+
+# --- flowers ----------------------------------------------------------------
+
+func test_a_flower_blooms_into_a_starflower() -> void:
+	var board := _full_board()
+	board.set_piece(CENTRE, Pieces.gem(Pieces.GemColor.BLUE))
+	_paint(board, _ring(CENTRE), Pieces.GemColor.RED)
+	assert_true(MatchFinder.is_flower(board, CENTRE), "the ring reads as a flower")
+
+	var result := _resolve(board)
+	var group = _first_group(result)
+	assert_true(group.has_formation("flower"), "the flower resolves first")
+	assert_eq(group.size(), 6, "six ring gems are consumed")
+	assert_eq(group.base_score, 1000, "flowers use the flower tier")
+	assert_eq(result.promotions.size(), 1, "the centre blooms")
+	assert_eq(result.promotions[0]["piece"], Pieces.starflower(), "into a starflower")
+	assert_eq(_count_kind(board, Pieces.Kind.STARFLOWER), 1, "and it is on the board")
+
+
+func test_a_same_coloured_ring_is_a_cluster_not_a_flower() -> void:
+	var board := _full_board()
+	board.set_piece(CENTRE, Pieces.gem(Pieces.GemColor.RED))
+	_paint(board, _ring(CENTRE), Pieces.GemColor.RED)
+	assert_false(MatchFinder.is_flower(board, CENTRE), "a same-coloured centre is not a flower")
+
+	var result := _resolve(board)
+	assert_eq(result.promotions.size(), 0, "nothing is promoted")
+	var group = _first_group(result)
+	assert_true(group.has_formation("cluster"), "the ring resolves as a normal cluster")
+	# The 7-cell blob also swallows same-coloured background neighbours, so the
+	# group is at least the centre plus its ring.
+	assert_ge(group.size(), 7, "the centre joins the cluster")
+	assert_true(group.cells.has(CENTRE), "the centre is part of it")
+
+
+func test_a_flower_around_a_starflower_makes_a_pearl() -> void:
+	var board := _full_board()
+	board.set_piece(CENTRE, Pieces.starflower())
+	_paint(board, _ring(CENTRE), Pieces.GemColor.GREEN)
+
+	var result := _resolve(board)
+	assert_true(_first_group(result).has_formation("flower"), "the ring is a flower")
+	assert_eq(result.promotions[0]["piece"], Pieces.pearl(), "starflower becomes a pearl")
+	assert_eq(_count_kind(board, Pieces.Kind.PEARL), 1, "and it is on the board")
+
+
+func test_six_starflowers_ring_makes_a_pearl() -> void:
+	var board := _full_board()
+	board.set_piece(CENTRE, Pieces.gem(Pieces.GemColor.YELLOW))
+	for cell: Vector2i in _ring(CENTRE):
+		board.set_piece(cell, Pieces.starflower())
+	assert_true(MatchFinder.is_pearl_creation_ring(board, CENTRE), "six starflowers ring the centre")
+
+	var result := _resolve(board)
+	var group = _first_group(result)
+	assert_true(group.has_formation("pearl_built"), "reported as a pearl")
+	assert_eq(group.base_score, 10000, "pearls use the pearl tier")
+	assert_eq(result.promotions[0]["piece"], Pieces.pearl(), "the centre becomes a pearl")
+	assert_eq(_count_kind(board, Pieces.Kind.PEARL), 1, "and it is on the board")
+
+
+# --- starflower clusters ----------------------------------------------------
+
+func test_three_starflowers_pay_a_windfall() -> void:
+	var board := BoardScript.new()
+	for cell: Vector2i in [Vector2i(4, 7), Vector2i(4, 8), Vector2i(5, 7)]:
+		board.set_piece(cell, Pieces.starflower())
+
+	var group = _first_group(_resolve(board))
+	assert_true(group.has_formation("starflower_cluster"), "starflower cluster")
+	assert_eq(group.base_score, 2500, "starflower tier")
+	assert_eq(board.filled_count(), 0, "all three are consumed")
+
+
+# --- pearl finish -----------------------------------------------------------
+
+func test_three_pearls_finish_the_run() -> void:
+	var board := BoardScript.new()
+	for cell: Vector2i in [Vector2i(4, 7), Vector2i(4, 8), Vector2i(5, 7)]:
+		board.set_piece(cell, Pieces.pearl())
+
+	var result := _resolve(board)
+	assert_true(result.finished, "the run ends")
+	assert_eq(result.finish_kind, "pearl_cluster", "as a pearl cluster")
+	assert_eq(_first_group(result).base_score, 50000, "pearl cluster tier")
+	assert_eq(result.score, 50000, "paid at level 1")
+
+
+func test_six_pearls_in_a_ring_finish_the_run() -> void:
+	var board := _full_board()
+	board.set_piece(CENTRE, Pieces.gem(Pieces.GemColor.CYAN))
+	for cell: Vector2i in _ring(CENTRE):
+		board.set_piece(cell, Pieces.pearl())
+
+	var result := _resolve(board)
+	assert_true(result.finished, "the run ends")
+	assert_eq(result.finish_kind, "pearl_ring", "as the ultimate pearl ring")
+	assert_eq(_first_group(result).base_score, 250000, "the reference figure")
+	assert_eq(result.score, 250000, "paid at level 1")
+
+
+func test_finish_scales_with_level() -> void:
+	var board := BoardScript.new()
+	for cell: Vector2i in [Vector2i(4, 7), Vector2i(4, 8), Vector2i(5, 7)]:
+		board.set_piece(cell, Pieces.pearl())
+	var result := _resolve(board, null, 4)
+	assert_eq(result.score, 200000, "50000 x level 4")
+
+
+# --- bombs ------------------------------------------------------------------
+
+func test_a_bomb_is_defused_by_a_colour_cluster() -> void:
+	var board := BoardScript.new()
+	board.set_piece(Vector2i(4, 7), Pieces.bomb(Pieces.GemColor.RED, 5))
+	_paint(board, [Vector2i(4, 8), Vector2i(5, 7)], Pieces.GemColor.RED)
+
+	var group = _first_group(_resolve(board))
+	assert_true(group.has_formation("bomb_defused"), "the bomb was defused")
+	assert_eq(group.score, 5 + 200, "cluster points plus the defuse bonus")
+	assert_eq(_count_kind(board, Pieces.Kind.BOMB), 0, "no bomb left on the board")
+
+
+func test_a_bomb_with_a_matching_star_wipes_the_colour() -> void:
+	var board := BoardScript.new()
+	board.set_piece(Vector2i(4, 7), Pieces.bomb(Pieces.GemColor.RED, 5))
+	board.set_piece(Vector2i(4, 8), Pieces.bonus_star(Pieces.GemColor.RED))
+	board.set_piece(Vector2i(5, 7), Pieces.gem(Pieces.GemColor.RED))
+	# Two more red gems far from the cluster, and a control gem.
+	_paint(board, [Vector2i(0, 7), Vector2i(9, 7)], Pieces.GemColor.RED)
+	board.set_piece(Vector2i(2, 8), Pieces.gem(Pieces.GemColor.BLUE))
+
+	var group = _first_group(_resolve(board))
+	assert_true(group.has_formation("bomb_defused"), "the bomb was defused")
+	assert_true(group.has_formation("bomb_colour_wipe"), "and the colour was wiped")
+	assert_true(board.is_empty(Vector2i(0, 7)), "a distant red gem is cleared too")
+	assert_true(board.is_empty(Vector2i(9, 7)), "and another one")
+	assert_false(board.is_empty(Vector2i(2, 8)), "the blue control gem survives")
+	# 3 cluster cells x2 (one star) + defuse + 2 wiped gems.
+	assert_eq(group.score, 10 + 200 + 1000, "cluster x2, defuse bonus, wipe bonus")
+	assert_eq(_count_kind(board, Pieces.Kind.BOMB), 0, "bomb gone")
+
+
+func test_a_bomb_ticks_down_each_move_and_explodes() -> void:
+	var game := GameScript.new(7, RulesetScript.free_rotation())
+	game.board.set_piece(Vector2i(0, 0), Pieces.bomb(Pieces.GemColor.BLUE, 1))
+
+	var move := _non_matching_rotation(game)
+	var result = game.rotate(move["vertex"], move["direction"])
+	assert_true(result.committed, "the spin was accepted")
+	assert_true(result.bomb_exploded, "the fuse ran out and it exploded")
+	assert_true(result.game_over, "which ends the run")
+	assert_eq(game.state, GameScript.State.FINISHED, "game state is finished")
+	assert_false(game.rotate(move["vertex"], move["direction"]).committed, "no further moves")
+
+
+func test_a_bomb_loses_exactly_one_tick_per_move() -> void:
+	var game := GameScript.new(7, RulesetScript.free_rotation())
+	game.board.set_piece(Vector2i(0, 0), Pieces.bomb(Pieces.GemColor.BLUE, 5))
+
+	var move := _non_matching_rotation(game)
+	var result = game.rotate(move["vertex"], move["direction"])
+	assert_eq(result.bombs_ticked.size(), 1, "one bomb ticked")
+	assert_false(result.bomb_exploded, "not yet")
+	var found := Vector2i(-1, -1)
+	for cell: Vector2i in Grid.all_cells():
+		if Pieces.is_bomb(game.board.get_piece(cell)):
+			found = cell
+	assert_ne(found, Vector2i(-1, -1), "the bomb is still on the board")
+	assert_eq(Pieces.counter_of(game.board.get_piece(found)), 4, "the fuse went 5 -> 4")
+
+
+# --- special-piece rotation -------------------------------------------------
+
+func test_starflower_rotates_its_ring_without_a_match() -> void:
+	# The painted background ring has no match, so the only thing that happens is
+	# the rotation itself.
+	var game := GameScript.new(5, RulesetScript.strict_rotation())
+	_background(game.board)
+	game.board.set_piece(CENTRE, Pieces.starflower())
+
+	var ring := _ring_in_order(CENTRE)
+	var before := []
+	for cell: Vector2i in ring:
+		before.append(game.board.get_piece(cell))
+
+	var result = game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
+	assert_true(result.committed, "ring rotation always persists, even in STRICT")
+	assert_eq(result.clear_groups.size(), 0, "and needs no match")
+	assert_eq(game.board.get_piece(CENTRE), Pieces.starflower(), "the starflower stays put")
+	for index in ring.size():
+		var source := posmod(index - GameScript.CLOCKWISE, ring.size())
+		assert_eq(
+			game.board.get_piece(ring[index]), before[source],
+			"neighbour %d took the piece from %d (clockwise)" % [index, source]
+		)
+
+
+func test_a_pearl_rotates_three_of_its_six_neighbours() -> void:
+	var game := GameScript.new(5, RulesetScript.free_rotation())
+	_background(game.board)
+	game.board.set_piece(CENTRE, Pieces.pearl())
+
+	var turning: Array = game._pearl_y_cells(CENTRE)
+	assert_eq(turning.size(), 3, "a pearl turns three neighbours")
+	var ring := _ring(CENTRE)
+	var unturned := {}
+	for cell: Vector2i in ring:
+		if not turning.has(cell):
+			unturned[cell] = game.board.get_piece(cell)
+	var before := []
+	for cell: Vector2i in turning:
+		before.append(game.board.get_piece(cell))
+
+	var result = game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
+	assert_true(result.committed, "the pearl turns")
+	assert_eq(result.clear_groups.size(), 0, "the background has nothing to clear")
+	assert_eq(game.board.get_piece(CENTRE), Pieces.pearl(), "the pearl itself stays")
+	for cell: Vector2i in unturned:
+		assert_eq(game.board.get_piece(cell), unturned[cell], "the other three neighbours stay")
+	var after := []
+	for cell: Vector2i in turning:
+		after.append(game.board.get_piece(cell))
+	after.sort()
+	before.sort()
+	assert_eq(after, before, "the three turning neighbours exchanged pieces")
+
+
+func test_only_specials_can_be_rotated_alone() -> void:
+	var game := GameScript.new(5, RulesetScript.free_rotation())
+	var result = game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
+	assert_false(result.committed, "a plain gem cannot be spun on its own")
+	assert_gt(result.rejected_reason.length(), 0, "with an explanation")
+
+
+func test_piece_rotations_are_logged_for_replay() -> void:
+	# A hand-edited board cannot be reproduced from a seed alone, so this checks
+	# the command log; seeded runs replay in full (see test_game.gd).
+	var game := GameScript.new(5, RulesetScript.free_rotation())
+	game.board.set_piece(CENTRE, Pieces.starflower())
+	var ring := _ring(CENTRE)
+	for index in ring.size():
+		game.board.set_piece(ring[index], Pieces.gem(index + 1))
+
+	game.rotate_piece(CENTRE, GameScript.COUNTER_CLOCKWISE)
+	var log := game.commands()
+	assert_eq(log.size(), 1, "one command recorded")
+	assert_eq(String(log[0][0]), "piece", "tagged as a piece rotation")
+	assert_eq(Vector2i(int(log[0][1]), int(log[0][2])), CENTRE, "the cell is recorded")
+	assert_eq(int(log[0][3]), GameScript.COUNTER_CLOCKWISE, "the direction is recorded")
+	assert_eq(game.turns, 1, "and it counts as a turn")
+
+
+# --- helpers ----------------------------------------------------------------
+
+func _non_matching_rotation(game) -> Dictionary:
+	var legal := {}
+	for move: Dictionary in game.find_legal_rotations():
+		legal["%d:%d" % [move["vertex"], move["direction"]]] = true
+	var vertices := Grid.vertices()
+	for vertex_index in vertices.size():
+		for direction in [1, -1]:
+			if not legal.has("%d:%d" % [vertex_index, direction]):
+				return {"vertex": vertex_index, "direction": direction}
+	return {}

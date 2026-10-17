@@ -83,7 +83,14 @@ func _smoke() -> void:
 	_main.call("show_hint")
 	_main.call("toggle_rotation_mode")
 	_main.call("toggle_rotation_mode")
-	_check(true, "hint and mode toggle ran without error")
+	_main.call("use_special")
+	_main.call("use_special", GameScript.COUNTER_CLOCKWISE)
+	_check(true, "hint, mode toggle and special-turn paths ran without error")
+
+	# Mouse picking must resolve without a real pointer.
+	var view = _main.get_node("BoardView")
+	_check(view.call("cell_at", Vector2(0, 0)) is Vector2i, "cell picking returns a cell")
+	_check(view.call("vertex_at", Vector2(0, 0)) is int, "vertex picking returns an index")
 
 	# Restart with a fresh seed and make sure state resets.
 	_main.call("new_game", 99)
