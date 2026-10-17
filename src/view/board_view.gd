@@ -69,6 +69,8 @@ var _step_time := 0.0
 var _playing := false
 var _plate: StyleBoxFlat = null
 var _backdrop: ImageTexture = null
+## Juice settings; null means "full juice" (tests and the tutorial).
+var settings: Settings
 var _shake_strength := 0.0
 var _shake_clock := 0.0
 ## True while steps that actually change the board are playing. A refused-spin
@@ -173,7 +175,7 @@ func show_result(result: RefCounted) -> void:
 		if result.rotation_cells.size() > 0:
 			_steps.append({
 				"kind": "bounce", "cells": result.rotation_cells.duplicate(),
-				"dir": result.direction, "duration": BOUNCE_TIME,
+				"dir": result.direction, "duration": BOUNCE_TIME * _motion(),
 			})
 			_playing = true
 			_settling = false
@@ -183,40 +185,41 @@ func show_result(result: RefCounted) -> void:
 	if result.rotation_cells.size() > 0:
 		_steps.append({
 			"kind": "spin", "cells": result.rotation_cells.duplicate(),
-			"dir": result.direction, "duration": SPIN_TIME,
+			"dir": result.direction, "duration": SPIN_TIME * _motion(),
 		})
 
 	for depth: int in _depths(result):
 		var cleared := _cells_at_depth(result, depth)
 		if not cleared.is_empty():
 			_steps.append({
-				"kind": "clear", "cells": cleared, "duration": CLEAR_TIME,
+				"kind": "clear", "cells": cleared, "duration": CLEAR_TIME * _motion(),
 				"score": _score_at_depth(result, depth),
 			})
 		var falls := _entries_at_depth(result.gravity_moves, depth)
 		if not falls.is_empty():
-			_steps.append({"kind": "fall", "moves": falls, "duration": FALL_TIME})
+			_steps.append({"kind": "fall", "moves": falls, "duration": FALL_TIME * _motion()})
 		var drops := _entries_at_depth(result.spawns, depth)
 		if not drops.is_empty():
-			_steps.append({"kind": "drop", "spawns": drops, "duration": DROP_TIME})
-		_steps.append({"kind": "wait", "duration": STEP_GAP})
+			_steps.append({"kind": "drop", "spawns": drops, "duration": DROP_TIME * _motion()})
+		_steps.append({"kind": "wait", "duration": STEP_GAP * _motion()})
 
 	if not result.promotions.is_empty():
 		_steps.append({
 			"kind": "bloom", "promotions": result.promotions.duplicate(),
-			"duration": BLOOM_TIME,
+			"duration": BLOOM_TIME * _motion(),
 		})
 
 	# A dying bomb takes the board with it: flash, shockwave, debris.
 	if result.bomb_exploded and result.exploded_cells.size() > 0:
 		var origin: Vector2i = result.exploded_cells[0]
-		_steps.append({"kind": "blast", "cell": origin, "duration": BLAST_TIME})
+		_steps.append({"kind": "blast", "cell": origin, "duration": BLAST_TIME * _motion()})
 		_steps.append({
 			"kind": "shatter", "cells": result.exploded_cells.duplicate(),
-			"centre": origin, "duration": SHATTER_TIME,
+			"centre": origin, "duration": SHATTER_TIME * _motion(),
 		})
-		_shake_strength = 1.0
-		_shake_clock = 0.0
+		if _shake_allowed():
+			_shake_strength = 1.0
+			_shake_clock = 0.0
 
 	_playing = not _steps.is_empty()
 	_settling = _playing
@@ -595,8 +598,9 @@ func _draw_bloom(step: Dictionary, t: float) -> void:
 func _draw_blast(step: Dictionary, t: float) -> void:
 	var centre := cell_center(step["cell"])
 	# Core flash: brightest at the instant it goes.
-	draw_circle(centre, cell_size * (0.7 + 1.5 * t), Color(1.0, 0.96, 0.84, 0.85 * (1.0 - t)))
-	draw_circle(centre, cell_size * (0.4 + 0.6 * t), Color(1.0, 1.0, 1.0, 0.95 * (1.0 - t)))
+	if _flashes_allowed():
+		draw_circle(centre, cell_size * (0.7 + 1.5 * t), Color(1.0, 0.96, 0.84, 0.85 * (1.0 - t)))
+		draw_circle(centre, cell_size * (0.4 + 0.6 * t), Color(1.0, 1.0, 1.0, 0.95 * (1.0 - t)))
 	# Three staggered rings so the wave reads as travelling, not as one circle.
 	for index in 3:
 		var lag := t - float(index) * 0.10
@@ -622,6 +626,19 @@ func _draw_shatter(step: Dictionary, t: float) -> void:
 			direction = Vector2(0.0, -1.0)
 		var thrown := from + direction.normalized() * cell_size * 1.8 * t
 		_draw_piece(thrown, piece, cell_size * 0.92 * (1.0 - t), 1.0 - t)
+
+
+## Juice knobs come from Settings; null means full juice (tests, tutorial).
+func _motion() -> float:
+	return settings.motion_scale() if settings != null else 1.0
+
+
+func _shake_allowed() -> bool:
+	return settings == null or settings.shake_enabled()
+
+
+func _flashes_allowed() -> bool:
+	return settings == null or settings.flashes_enabled()
 
 
 func _draw_cursor() -> void:

@@ -11,7 +11,7 @@ const GameScript := preload("res://src/core/game.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 const TutorialScript := preload("res://src/core/tutorial.gd")
 
-enum Screen { MENU, PLAYING, RESULT }
+enum Screen { MENU, PLAYING, RESULT, SETTINGS }
 
 @onready var board_view: BoardView = $BoardView
 @onready var hud: Hud = $Hud
@@ -28,6 +28,11 @@ var _pending_result := false
 ## What the HUD shows: it lags game.score until each cascade step lands.
 var _displayed_score := 0
 
+var settings: Settings
+var profile: ProfileService
+var audio: AudioService
+var settings_panel: SettingsPanel
+
 
 func _ready() -> void:
 	hud.mode_chosen.connect(_on_mode_chosen)
@@ -40,6 +45,21 @@ func _ready() -> void:
 	# A cleared group landing in the animation rolls the score up step by step.
 	board_view.clear_scored.connect(_on_clear_scored)
 
+	settings = Settings.new()
+	settings.load_from()
+	profile = ProfileService.new()
+	profile.load_from()
+	audio = AudioService.new()
+	add_child(audio)
+	settings_panel = SettingsPanel.new()
+	settings_panel.settings = settings
+	settings_panel.profile = profile
+	add_child(settings_panel)
+	settings_panel.closed.connect(_close_settings)
+	settings_panel.changed.connect(_on_settings_changed)
+	hud.settings_pressed.connect(_open_settings)
+	_apply_juice()
+
 
 func _process(delta: float) -> void:
 	if screen != Screen.PLAYING or game == null:
@@ -50,6 +70,7 @@ func _process(delta: float) -> void:
 	# core again so bonuses outside a clear group (round bonus, buys) land too.
 	if board_view.is_settled() and _displayed_score != game.score:
 		_displayed_score = game.score
+	_apply_juice()
 	hud.update_from_game(game, _displayed_score)
 	if game.state == GameScript.State.FINISHED:
 		# A countdown ending has nothing to play out; a bomb does.
@@ -139,6 +160,11 @@ func _enter_playing() -> void:
 func _enter_result() -> void:
 	screen = Screen.RESULT
 	board_view.hint_vertex = -1
+	if profile != null and game != null:
+		profile.record_run(game.summary(), Time.get_datetime_string_from_system())
+		profile.save_to()
+	if settings_panel != null:
+		settings_panel.profile = profile
 	hud.show_result(game.summary())
 
 
@@ -198,6 +224,7 @@ func play_move(direction: int) -> void:
 
 	if not result.committed:
 		board_view.show_result(result)   # a refused spin still turns out and back
+		audio.play_move(result)
 		var guidance := ""
 		if result.rejected_reason.begins_with("no match"):
 			guidance = "  — the cursor is grey here; press H to find a spin that clears"
@@ -241,6 +268,7 @@ func play_piece_move(cell: Vector2i, direction: int) -> void:
 ## Shared presentation tail for any committed move.
 func _apply(result: MoveResult, label: String) -> void:
 	board_view.show_result(result)
+	audio.play_move(result)
 	_refresh_cursor()
 	hud.update_from_game(game, _displayed_score)
 
@@ -371,6 +399,8 @@ func _handle_key(code: int) -> void:
 			_menu_key(code)
 		Screen.RESULT:
 			_result_key(code)
+		Screen.SETTINGS:
+			pass
 		_:
 			_play_key(code)
 
@@ -389,6 +419,8 @@ func _menu_key(code: int) -> void:
 			var next := difficulties.find(selected_difficulty) + step
 			selected_difficulty = difficulties[posmod(next, difficulties.size())]
 			hud.highlight_menu(selected_mode, selected_difficulty)
+		KEY_S:
+			_open_settings()
 		KEY_ENTER, KEY_SPACE, KEY_KP_ENTER:
 			start_run(selected_mode, selected_difficulty)
 		KEY_ESCAPE:
@@ -464,3 +496,37 @@ func _mouse_clicked(viewport_point: Vector2, button_index: int) -> void:
 		return
 	snap_cursor_to(viewport_point)
 	play_move(direction)
+
+
+# --- settings and audio -----------------------------------------------------
+
+func _open_settings() -> void:
+	if settings_panel == null:
+		return
+	screen = Screen.SETTINGS
+	hud.visible = false
+	settings_panel.open()
+
+
+func _close_settings() -> void:
+	if settings_panel != null:
+		settings_panel.close()
+	settings.save_to()
+	hud.visible = true
+	screen = Screen.MENU
+	hud.show_menu(selected_mode, selected_difficulty)
+
+
+func _on_settings_changed() -> void:
+	settings.save_to()
+	_apply_juice()
+
+
+## Pushes the juice settings into the view. Reduced motion also shortens every
+## animation step, which the view does from one place.
+func _apply_juice() -> void:
+	if settings == null:
+		return
+	board_view.settings = settings
+	if audio != null:
+		audio.settings = settings

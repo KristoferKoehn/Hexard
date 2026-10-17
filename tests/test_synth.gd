@@ -1,0 +1,70 @@
+extends "res://tests/test_case.gd"
+
+## The procedural synth (src/core/synth.gd). Testable headless precisely because
+## it is floats and recipes with no AudioStream in sight.
+
+const SynthScript := preload("res://src/core/synth.gd")
+const RATE := 22050.0
+
+
+func test_every_cue_class_has_a_usable_recipe() -> void:
+	assert_gt(SynthScript.CUES.size(), 5, "there is a recipe per event class")
+	for cue: String in SynthScript.CUES:
+		var voice := SynthScript.voice_for(cue)
+		assert_true(not voice.is_empty(), "%s makes a voice" % cue)
+		assert_gt(float(voice["dur"]), 0.005, "%s has a real duration" % cue)
+		assert_gt(float(voice["amp"]), 0.0, "%s is audible" % cue)
+		assert_gt(float(voice["freq"]), 0.0, "%s has a pitch" % cue)
+
+
+func test_an_unknown_cue_is_quiet_rather_than_crashing() -> void:
+	assert_true(SynthScript.voice_for("no_such_cue").is_empty(), "no voice for an unknown cue")
+
+
+func test_a_cue_actually_makes_sound_and_stays_in_range() -> void:
+	var samples := SynthScript.render_offline("clear", 1, RATE, 4096)
+	var peak := 0.0
+	var energy := 0.0
+	for value: float in samples:
+		peak = maxf(peak, absf(value))
+		energy += absf(value)
+	assert_gt(peak, 0.01, "the cue is audible")
+	assert_le(peak, 1.0, "and never leaves the legal sample range")
+	assert_gt(energy, 0.0, "with real energy in it")
+
+
+func test_cascade_depth_raises_the_pitch_and_nothing_else_does() -> void:
+	var first := SynthScript.voice_for("clear", 1)
+	var second := SynthScript.voice_for("clear", 2)
+	var third := SynthScript.voice_for("clear", 3)
+	assert_gt(float(second["freq"]), float(first["freq"]), "depth 2 is higher than depth 1")
+	assert_gt(float(third["freq"]), float(second["freq"]), "depth 3 is higher still")
+	var plain := SynthScript.voice_for("rotate", 1)
+	var deep := SynthScript.voice_for("rotate", 4)
+	assert_almost_eq(float(deep["freq"]), float(plain["freq"]), 0.001, "other cues ignore depth")
+
+
+func test_a_voice_ends_and_then_falls_silent() -> void:
+	var voice := SynthScript.voice_for("rotate")
+	var frames := int(float(voice["dur"]) * RATE) + 4
+	for _index in frames:
+		SynthScript.sample(voice, RATE)
+	assert_true(SynthScript.is_finished(voice), "the voice finished after its duration")
+	assert_almost_eq(SynthScript.sample(voice, RATE), 0.0, 0.0001, "and is silent afterwards")
+
+
+func test_the_noise_waveform_is_not_a_pure_tone() -> void:
+	var samples := SynthScript.render_offline("explosion", 1, RATE, 512)
+	var distinct := {}
+	for value: float in samples:
+		distinct[snappedf(value, 0.001)] = true
+	assert_gt(distinct.size(), 20, "noise sweeps many distinct values")
+
+
+func test_voices_are_independent() -> void:
+	var a := SynthScript.voice_for("clear", 1)
+	var b := SynthScript.voice_for("clear", 1)
+	for _index in 32:
+		SynthScript.sample(a, RATE)
+	assert_gt(float(a["t"]), 0.0, "one voice advanced")
+	assert_almost_eq(float(b["t"]), 0.0, 0.0001, "the other did not")

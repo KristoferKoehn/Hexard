@@ -11,6 +11,7 @@ signal mode_chosen(mode: int)
 signal difficulty_chosen(difficulty: String)
 signal start_pressed
 signal tutorial_pressed
+signal settings_pressed
 signal restart_pressed
 signal menu_pressed
 
@@ -268,6 +269,11 @@ func _build_menu() -> void:
 	tutorial.custom_minimum_size = Vector2(140, 44)
 	tutorial.pressed.connect(func() -> void: tutorial_pressed.emit())
 	action_row.add_child(tutorial)
+	var settings_button := Button.new()
+	settings_button.text = "Settings"
+	settings_button.custom_minimum_size = Vector2(140, 44)
+	settings_button.pressed.connect(func() -> void: settings_pressed.emit())
+	action_row.add_child(settings_button)
 	column.add_child(action_row)
 
 	column.add_child(_title("←/→ mode   ·   ↑/↓ difficulty   ·   Enter start", 15))
