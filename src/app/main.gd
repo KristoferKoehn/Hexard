@@ -361,7 +361,10 @@ func _special_owned_by_cursor() -> Vector2i:
 		var piece: int = game.board.get_piece(cell)
 		if not (Pieces.is_starflower(piece) or Pieces.is_pearl(piece)):
 			continue
-		var owner: int = HexGrid.nearest_vertex(board_view.cell_center(cell), board_view.cell_size)
+		# cell_center() is in board space including the view's origin offset, so go
+		# through vertex_at(), which converts back. Calling HexGrid.nearest_vertex()
+		# directly fed it a shifted point and gave a bogus owning vertex.
+		var owner: int = board_view.vertex_at(board_view.cell_center(cell))
 		if owner == cursor_vertex:
 			return cell
 	return Vector2i(-1, -1)
