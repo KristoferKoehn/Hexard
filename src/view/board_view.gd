@@ -1,4 +1,4 @@
-﻿class_name BoardView
+class_name BoardView
 extends Node2D
 
 ## The board, its container, and the move animation (docs/design.md Â§7.5, Â§8).
@@ -76,6 +76,7 @@ func sync_from_game() -> void:
 	_step_index = 0
 	_step_time = 0.0
 	_playing = false
+	_settling = false
 	_display.clear()
 	if game == null:
 		queue_redraw()

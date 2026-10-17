@@ -1,4 +1,4 @@
-﻿extends Node2D
+extends Node2D
 
 ## Dev controller: owns the Game, moves the cursor, feeds input to the rules
 ## core and hands results to the view. Rules live in src/core (docs/design.md
@@ -375,7 +375,17 @@ func _result_key(code: int) -> void:
 			get_tree().quit()
 
 
+## Rotation keys, which must wait for the board to settle. Cursor movement is
+## deliberately not in this list: moving the cursor is always safe.
+const ROTATION_KEYS := [KEY_Z, KEY_Q, KEY_X, KEY_E, KEY_F]
+
+
 func _play_key(code: int) -> void:
+	# One move at a time. The rules core resolves instantly and is always final,
+	# so accepting a spin mid-animation would advance it past what the player can
+	# see (and used to drop the animation in flight).
+	if not board_view.is_settled() and ROTATION_KEYS.has(code):
+		return
 	match code:
 		KEY_LEFT, KEY_A:
 			move_cursor(Vector2.LEFT)
@@ -414,6 +424,8 @@ func _mouse_moved(viewport_point: Vector2) -> void:
 
 func _mouse_clicked(viewport_point: Vector2, button_index: int) -> void:
 	if button_index != MOUSE_BUTTON_LEFT and button_index != MOUSE_BUTTON_RIGHT:
+		return
+	if not board_view.is_settled():
 		return
 	var direction := GameScript.CLOCKWISE if button_index == MOUSE_BUTTON_LEFT else GameScript.COUNTER_CLOCKWISE
 	var cell := board_view.cell_at(board_view.to_local(viewport_point))

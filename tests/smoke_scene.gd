@@ -1,4 +1,4 @@
-﻿extends SceneTree
+extends SceneTree
 
 ## View-layer smoke test: loads the real scene, drives it with synthetic input,
 ## and fails loudly if anything errors or the wiring breaks.
@@ -157,6 +157,25 @@ func _smoke() -> void:
 		_main.call("play_move", int(legal[0]["direction"]))
 	_check(view_effects_are_animating(), "a committed move queued animation steps")
 
+	# While those steps play the board is not settled, so rotation input must be
+	# refused — the core is already final and would run ahead of the screen.
+	var anim_view = _main.get_node("BoardView")
+	_check(not bool(anim_view.call("is_settled")), "the board is unsettled while tiles fall")
+	var turns_while_falling: int = game.turns
+	_main.call("_play_key", KEY_X)
+	_main.call("_play_key", KEY_Z)
+	_main.call("_play_key", KEY_F)
+	_check(game.turns == turns_while_falling, "rotation keys are refused while the board settles")
+
+	var cursor_before: int = _main.get("cursor_vertex")
+	_main.call("_play_key", KEY_RIGHT)
+	_check(_main.get("cursor_vertex") != cursor_before, "the cursor still moves while tiles fall")
+
+	anim_view.call("sync_from_game")
+	_check(bool(anim_view.call("is_settled")), "the board settles again once synced")
+	_main.call("_play_key", KEY_X)
+	_check(game.turns >= turns_while_falling, "rotation keys are accepted again once settled")
+
 	var cursor: int = _main.get("cursor_vertex")
 	_check(cursor >= 0 and cursor < HexGrid.vertices().size(), "cursor stayed in range")
 
@@ -180,6 +199,8 @@ func _smoke() -> void:
 ## positions are viewport coordinates and must be converted to board space
 ## before the nearest-vertex lookup.
 func _inject_mouse_motion() -> void:
+	# Mouse picking needs a settled board too (clicks are refused mid-animation).
+	_main.get_node("BoardView").call("sync_from_game")
 	var view = _main.get_node("BoardView")
 	var viewport_point: Vector2 = view.position + view.call("cell_center", Vector2i(4, 4))
 	var event := InputEventMouseMotion.new()
@@ -238,6 +259,9 @@ func _prepare_legal_keyboard_move() -> void:
 
 
 func _inject_rotation_key() -> void:
+	# Rotation input is refused while tiles are settling, so let the board settle
+	# first: a player would do the same by waiting for the cascade to finish.
+	_main.get_node("BoardView").call("sync_from_game")
 	var code := KEY_X if _pending_direction > 0 else KEY_Z
 	var event := InputEventKey.new()
 	event.keycode = code
