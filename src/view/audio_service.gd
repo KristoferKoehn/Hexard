@@ -76,16 +76,33 @@ func play_move(result: MoveResult) -> void:
 	elif result.bombs_ticked.size() > 0:
 		play_cue("bomb_tick")
 
-	for group in result.clear_groups:
-		var cue := "clear"
-		if group.has_formation("bonus_star_cluster"):
-			cue = "star"
-		elif group.has_formation("flower") or group.has_formation("starflower_cluster"):
-			cue = "bloom"
-		elif group.has_formation("pearl_built") or group.has_formation("pearl_cluster") \
-				or group.has_formation("pearl_ring"):
-			cue = "pearl"
-		play_cue(cue, int(group.cascade_depth))
+	# Clears are deliberately NOT played here: they belong to the animation steps,
+	# so a cascade sounds as it lands instead of all at once on the turn.
+
+
+
+## Called as each animation step begins. Cascade depth drives the pitch, so the
+## ladder climbs through a chain and resets when the board settles.
+func on_step(kind: String, step: Dictionary) -> void:
+	if kind == "clear":
+		if settings != null and settings.muted:
+			return
+		var depth := int(step.get("depth", 1))
+		for group in step.get("groups", []):
+			play_cue(_cue_for(group), depth)
+	elif kind == "blast":
+		play_cue("explosion")
+
+
+func _cue_for(group) -> String:
+	if group.has_formation("bonus_star_cluster"):
+		return "star"
+	if group.has_formation("flower") or group.has_formation("starflower_cluster"):
+		return "bloom"
+	if group.has_formation("pearl_built") or group.has_formation("pearl_cluster") \
+			or group.has_formation("pearl_ring"):
+		return "pearl"
+	return "clear"
 
 
 func _process(_delta: float) -> void:

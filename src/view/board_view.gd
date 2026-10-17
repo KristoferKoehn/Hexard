@@ -27,6 +27,10 @@ const GEM_COLORS := {
 ## to the total the rules core already knows.
 signal clear_scored(amount: int)
 
+## Emitted as each animation step begins, so sound follows the visuals instead
+## of firing once per move.
+signal step_began(kind: String, step: Dictionary)
+
 # --- timing (seconds) -------------------------------------------------------
 const SPIN_TIME := 0.11
 const CLEAR_TIME := 0.14
@@ -71,6 +75,7 @@ var _plate: StyleBoxFlat = null
 var _backdrop: ImageTexture = null
 ## Juice settings; null means "full juice" (tests and the tutorial).
 var settings: Settings
+var _announced_step := -1
 var _shake_strength := 0.0
 var _shake_clock := 0.0
 ## True while steps that actually change the board are playing. A refused-spin
@@ -169,6 +174,7 @@ func show_result(result: RefCounted) -> void:
 	_steps.clear()
 	_step_index = 0
 	_step_time = 0.0
+	_announced_step = -1
 
 	# A spin the rules refused: show the turn it asked for, then undo it.
 	if not result.committed:
@@ -193,7 +199,8 @@ func show_result(result: RefCounted) -> void:
 		if not cleared.is_empty():
 			_steps.append({
 				"kind": "clear", "cells": cleared, "duration": CLEAR_TIME * _motion(),
-				"score": _score_at_depth(result, depth),
+				"score": _score_at_depth(result, depth), "depth": depth,
+				"groups": _groups_at_depth(result, depth),
 			})
 		var falls := _entries_at_depth(result.gravity_moves, depth)
 		if not falls.is_empty():
@@ -251,6 +258,14 @@ func _cells_at_depth(result: MoveResult, depth: int) -> Array[Vector2i]:
 
 
 ## What one cascade step is worth: the sum of the groups that cleared in it.
+func _groups_at_depth(result: MoveResult, depth: int) -> Array:
+	var out: Array = []
+	for group in result.clear_groups:
+		if int(group.cascade_depth) == depth:
+			out.append(group)
+	return out
+
+
 func _score_at_depth(result: MoveResult, depth: int) -> int:
 	var total := 0
 	for group in result.clear_groups:
@@ -268,6 +283,9 @@ func _entries_at_depth(entries: Array, depth: int) -> Array:
 
 
 func _process(delta: float) -> void:
+	if _playing and _step_index != _announced_step:
+		_announced_step = _step_index
+		step_began.emit(str(_steps[_step_index]["kind"]), _steps[_step_index])
 	# The shake decays even after the timeline ends, so it can never freeze.
 	if _shake_strength > 0.0:
 		_shake_clock += delta
@@ -288,6 +306,7 @@ func _process(delta: float) -> void:
 
 func _stop(sync: bool = true) -> void:
 	_playing = false
+	_announced_step = -1
 	_settling = false
 	_steps.clear()
 	_step_index = 0

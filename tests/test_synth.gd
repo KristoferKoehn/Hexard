@@ -61,6 +61,25 @@ func test_the_noise_waveform_is_not_a_pure_tone() -> void:
 	assert_gt(distinct.size(), 20, "noise sweeps many distinct values")
 
 
+func test_the_clear_cue_is_a_descending_hiss() -> void:
+	var samples := SynthScript.render_offline("clear", 1, RATE, 2048)
+	var quarter := int(samples.size() / 4)
+	var early := _zero_crossings(samples, 0, quarter)
+	var late := _zero_crossings(samples, samples.size() - quarter, samples.size())
+	# A one-pole filter chasing a falling cutoff lets fewer and fewer sign changes
+	# through, which is what makes it read as a descent rather than flat noise.
+	assert_gt(early, 8, "the opening is bright (%d crossings)" % early)
+	assert_gt(early, late, "and the hiss descends (%d -> %d crossings)" % [early, late])
+
+
+func _zero_crossings(samples: PackedFloat32Array, from: int, to: int) -> int:
+	var count := 0
+	for index in range(from + 1, mini(to, samples.size())):
+		if (samples[index - 1] < 0.0) != (samples[index] < 0.0):
+			count += 1
+	return count
+
+
 func test_voices_are_independent() -> void:
 	var a := SynthScript.voice_for("clear", 1)
 	var b := SynthScript.voice_for("clear", 1)

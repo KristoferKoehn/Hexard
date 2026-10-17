@@ -58,6 +58,7 @@ func _ready() -> void:
 	settings_panel.closed.connect(_close_settings)
 	settings_panel.changed.connect(_on_settings_changed)
 	hud.settings_pressed.connect(_open_settings)
+	board_view.step_began.connect(audio.on_step)
 	_apply_juice()
 
 

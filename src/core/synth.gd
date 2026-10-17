@@ -21,13 +21,15 @@ const DECAY_CURVE := 4.0
 const CUES := {
 	"rotate":     {"wave": Wave.TRIANGLE, "freq": 660.0, "dur": 0.06, "amp": 0.22, "slide": 0.0},
 	"refuse":     {"wave": Wave.SQUARE, "freq": 240.0, "dur": 0.10, "amp": 0.16, "slide": -90.0},
-	"clear":      {"wave": Wave.SINE, "freq": 520.0, "dur": 0.15, "amp": 0.30, "slide": 210.0},
+	# Clears are a brief descending hiss rather than a tone: a filtered noise
+	# sweep reads as "shhk" and layering several in a cascade stays legible.
+	"clear":      {"wave": Wave.NOISE, "freq": 1700.0, "dur": 0.13, "amp": 0.30, "slide": -1350.0},
 	"star":       {"wave": Wave.SINE, "freq": 1180.0, "dur": 0.34, "amp": 0.26, "slide": 0.0},
 	"bloom":      {"wave": Wave.TRIANGLE, "freq": 440.0, "dur": 0.30, "amp": 0.26, "slide": 520.0},
 	"pearl":      {"wave": Wave.SINE, "freq": 240.0, "dur": 0.55, "amp": 0.32, "slide": -60.0},
 	"bomb_tick":  {"wave": Wave.SQUARE, "freq": 180.0, "dur": 0.07, "amp": 0.24, "slide": 0.0},
 	"defuse":     {"wave": Wave.SINE, "freq": 700.0, "dur": 0.22, "amp": 0.26, "slide": -420.0},
-	"explosion":  {"wave": Wave.NOISE, "freq": 90.0, "dur": 0.75, "amp": 0.55, "slide": -40.0},
+	"explosion":  {"wave": Wave.NOISE, "freq": 700.0, "dur": 0.75, "amp": 0.55, "slide": -560.0},
 	"ui":         {"wave": Wave.SQUARE, "freq": 880.0, "dur": 0.05, "amp": 0.14, "slide": 0.0},
 }
 
@@ -53,6 +55,7 @@ static func voice_for(cue: String, depth: int = 1) -> Dictionary:
 		"dur": float(recipe["dur"]),
 		"amp": float(recipe["amp"]),
 		"phase": 0.0,
+		"lp": 0.0,
 		"t": 0.0,
 		"seed": 0x2545F49 + int(recipe["freq"]),
 	}
@@ -82,8 +85,14 @@ static func sample(voice: Dictionary, rate: float) -> float:
 		Wave.SAW:
 			value = 2.0 * fmod(phase / TAU, 1.0) - 1.0
 		Wave.NOISE:
+			# One-pole low-pass whose cutoff follows freq+slide, so noise can be
+			# pitched: a descending cutoff turns white noise into a falling hiss.
 			voice["seed"] = _next_seed(int(voice["seed"]))
-			value = float(int(voice["seed"]) & 0xFFFF) / 32767.5 - 1.0
+			var raw := float(int(voice["seed"]) & 0xFFFF) / 32767.5 - 1.0
+			var cutoff := clampf(freq, 60.0, rate * 0.45)
+			var alpha := 1.0 - exp(-TAU * cutoff / rate)
+			voice["lp"] = float(voice["lp"]) + alpha * (raw - float(voice["lp"]))
+			value = float(voice["lp"]) * 2.2
 
 	voice["phase"] = fmod(phase + TAU * freq / rate, TAU * 1024.0)
 	voice["t"] = t + 1.0 / rate
