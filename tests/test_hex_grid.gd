@@ -143,3 +143,93 @@ func test_ascii_silhouette() -> void:
 	var lines := ascii.split("\n")
 	assert_eq(lines.size(), Grid.EXPECTED_HALF_ROWS, "ascii dump covers every half-row")
 	info("board silhouette:\n" + ascii)
+
+
+# --- keyboard navigation ----------------------------------------------------
+# The cursor lives on the rotation-vertex graph. Navigation must be local (no
+# teleporting) and must be able to reach every vertex, or some spots become
+# unselectable with the keyboard.
+
+func test_vertex_adjacency_is_symmetric_with_degree_at_most_three() -> void:
+	var adjacency := Grid.vertex_adjacency()
+	assert_eq(adjacency.size(), Grid.vertices().size(), "one adjacency entry per vertex")
+	for index in adjacency.size():
+		var links: Array = adjacency[index]
+		assert_le(links.size(), 3, "a triple point has at most three cell edges")
+		assert_ge(links.size(), 1, "and at least one edge inside the board")
+		for other: int in links:
+			assert_true(
+				(adjacency[other] as Array).has(index),
+				"vertex adjacency is symmetric (%d <-> %d)" % [index, other]
+			)
+
+
+func test_every_vertex_is_reachable_from_the_keyboard() -> void:
+	# Regression: the old cursor picked the best-aligned vertex of *all* 135, which
+	# teleported across the board and left some vertices unselectable.
+	var directions := [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]
+	var visited := {0: true}
+	var frontier: Array[int] = [0]
+	while not frontier.is_empty():
+		var next: Array[int] = []
+		for index: int in frontier:
+			for direction: Vector2 in directions:
+				var target := Grid.step_vertex(index, direction, 30.0)
+				if target == index or visited.has(target):
+					continue
+				visited[target] = true
+				next.append(target)
+		frontier = next
+
+	var unreachable: Array[int] = []
+	for index in Grid.vertices().size():
+		if not visited.has(index):
+			unreachable.append(index)
+	assert_eq(
+		unreachable.size(), 0,
+		"all 135 vertices reachable with arrows (unreachable: %s)" % str(unreachable)
+	)
+	info("keyboard reachability: %d/%d vertices" % [visited.size(), Grid.vertices().size()])
+
+
+func test_keyboard_steps_are_local() -> void:
+	var directions := [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]
+	var size := 30.0
+	var max_hop := size * 4.0
+	var hops: Array[float] = []
+	for index in Grid.vertices().size():
+		for direction: Vector2 in directions:
+			var target := Grid.step_vertex(index, direction, size)
+			if target == index:
+				continue
+			var hop := Grid.vertex_centroid(index, size).distance_to(Grid.vertex_centroid(target, size))
+			hops.append(hop)
+			assert_le(hop, max_hop, "step %d -> %d stays local (%.1f px)" % [index, target, hop])
+
+	var total := 0.0
+	for hop: float in hops:
+		total += hop
+	info(
+		"keyboard steps: %d moves, mean hop %.1f px, longest %.1f px (cell radius %.0f)"
+		% [hops.size(), total / maxf(float(hops.size()), 1.0), hops.max() if hops.size() > 0 else 0.0, size]
+	)
+
+
+func test_steps_respect_the_requested_direction() -> void:
+	var size := 30.0
+	for index in Grid.vertices().size():
+		var target := Grid.step_vertex(index, Vector2.RIGHT, size)
+		if target == index:
+			continue
+		var offset := Grid.vertex_centroid(target, size) - Grid.vertex_centroid(index, size)
+		assert_gt(offset.x, 0.0, "a right step moves right (vertex %d)" % index)
+
+
+func test_diagonal_directions_also_work() -> void:
+	var size := 30.0
+	var start := 40
+	var target := Grid.step_vertex(start, Vector2(1, -1), size)
+	assert_ne(target, start, "a diagonal step moves somewhere")
+	var offset := Grid.vertex_centroid(target, size) - Grid.vertex_centroid(start, size)
+	assert_gt(offset.x, 0.0, "and it goes right...")
+	assert_lt(offset.y, 0.0, "...and up")

@@ -35,6 +35,7 @@ const _OFFSETS_ODD := [
 static var _cells_cache: Array[Vector2i] = []
 static var _vertices_cache: Array = []
 static var _vertex_neighbours_cache: Array = []
+static var _vertex_adjacency_cache: Array = []
 
 
 # --- cells ------------------------------------------------------------------
@@ -206,6 +207,102 @@ static func nearest_vertex(point: Vector2, size: float = 32.0) -> int:
 		if distance < best_distance:
 			best_distance = distance
 			best = index
+	return best
+
+
+# --- vertex navigation (the keyboard cursor lives on this graph) -------------
+
+## Structural adjacency between rotation vertices: two vertices are joined when
+## they share exactly two cells, i.e. they are the two ends of one cell edge.
+## Interior vertices therefore have degree 3; boundary ones have fewer.
+static func vertex_adjacency() -> Array:
+	if _vertex_adjacency_cache.is_empty():
+		_build_vertex_adjacency()
+	return _vertex_adjacency_cache
+
+
+static func _build_vertex_adjacency() -> void:
+	var all_vertices := vertices()
+	_vertex_adjacency_cache.resize(all_vertices.size())
+
+	var owners := {}  # cell -> Array[int] of vertex indices touching it
+	for index in all_vertices.size():
+		for cell: Vector2i in all_vertices[index]:
+			if not owners.has(cell):
+				owners[cell] = []
+			owners[cell].append(index)
+
+	for index in all_vertices.size():
+		var shared := {}  # other vertex -> how many cells we have in common
+		for cell: Vector2i in all_vertices[index]:
+			for other: int in owners[cell]:
+				if other == index:
+					continue
+				shared[other] = int(shared.get(other, 0)) + 1
+		var list: Array[int] = []
+		for other: int in shared:
+			if int(shared[other]) == 2:
+				list.append(other)
+		list.sort()
+		_vertex_adjacency_cache[index] = list
+
+
+## Vertices up to `rings` hops away, excluding the starting vertex.
+static func vertices_within(vertex_index: int, rings: int = 2) -> Array[int]:
+	var all_vertices := vertices()
+	if vertex_index < 0 or vertex_index >= all_vertices.size():
+		return []
+	var adjacency := vertex_adjacency()
+	var seen := {vertex_index: true}
+	var frontier: Array[int] = [vertex_index]
+	var out: Array[int] = []
+	for ring in rings:
+		var next: Array[int] = []
+		for index: int in frontier:
+			for other: int in adjacency[index]:
+				if seen.has(other):
+					continue
+				seen[other] = true
+				next.append(other)
+				out.append(other)
+		frontier = next
+	return out
+
+
+## One keyboard step from a vertex towards a screen direction.
+##
+## Only nearby vertices are candidates (unlike a global "best aligned" search,
+## which teleported across the board and left some vertices unreachable). Among
+## them it prefers a good directional match, then a shorter hop.
+static func step_vertex(
+	vertex_index: int,
+	direction: Vector2,
+	size: float = 32.0,
+	rings: int = 2,
+	min_alignment: float = 0.30
+) -> int:
+	var all_vertices := vertices()
+	if vertex_index < 0 or vertex_index >= all_vertices.size():
+		return vertex_index
+	var dir := direction.normalized()
+	if dir == Vector2.ZERO:
+		return vertex_index
+
+	var origin := vertex_centroid(vertex_index, size)
+	var best := vertex_index
+	var best_score := -INF
+	for candidate: int in vertices_within(vertex_index, rings):
+		var offset := vertex_centroid(candidate, size) - origin
+		var distance := offset.length()
+		if distance < 0.001:
+			continue
+		var alignment := offset.normalized().dot(dir)
+		if alignment < min_alignment:
+			continue
+		var score := alignment - distance / (size * 8.0)
+		if score > best_score:
+			best_score = score
+			best = candidate
 	return best
 
 

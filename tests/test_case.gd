@@ -70,6 +70,12 @@ func assert_le(actual: Variant, maximum: Variant, message: String) -> void:
 		_record("%s — expected <= %s, got %s" % [message, str(maximum), str(actual)])
 
 
+func assert_lt(actual: Variant, maximum: Variant, message: String) -> void:
+	assertions += 1
+	if actual >= maximum:
+		_record("%s — expected < %s, got %s" % [message, str(maximum), str(actual)])
+
+
 func assert_almost_eq(actual: float, expected: float, tolerance: float, message: String) -> void:
 	assertions += 1
 	if absf(actual - expected) > tolerance:

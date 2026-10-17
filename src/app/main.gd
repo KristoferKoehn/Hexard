@@ -10,8 +10,8 @@ const GameScript := preload("res://src/core/game.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 
 const DEFAULT_SEED := 20261016
-## How well a candidate vertex must line up with a direction to be considered.
-const DIRECTION_ALIGNMENT := 0.55
+## Diagonal directions are supported too, so the cursor is not restricted to a
+## plus-shaped walk.
 
 @onready var board_view: BoardView = $BoardView
 @onready var hud: Hud = $Hud
@@ -118,26 +118,7 @@ func _apply(result, label: String) -> void:
 func move_cursor(direction: Vector2) -> void:
 	if game == null:
 		return
-	var vertices := HexGrid.vertices()
-	var current := HexGrid.vertex_centroid(cursor_vertex, board_view.cell_size)
-	var best := cursor_vertex
-	var best_score := -INF
-	for index in vertices.size():
-		if index == cursor_vertex:
-			continue
-		var offset := HexGrid.vertex_centroid(index, board_view.cell_size) - current
-		var distance := offset.length()
-		if distance < 0.001:
-			continue
-		var alignment := offset.normalized().dot(direction)
-		if alignment < DIRECTION_ALIGNMENT:
-			continue
-		# Prefer well-aligned, then near: enough for a dev cursor.
-		var score := alignment - distance / (board_view.cell_size * 6.0)
-		if score > best_score:
-			best_score = score
-			best = index
-	cursor_vertex = best
+	cursor_vertex = HexGrid.step_vertex(cursor_vertex, direction, board_view.cell_size)
 	_refresh_cursor()
 
 
