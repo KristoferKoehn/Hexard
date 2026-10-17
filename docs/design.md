@@ -103,7 +103,7 @@ A move = `rotate(vertex, direction)`, where `direction ∈ {CW, CCW}` and the ro
 
 A match exists at a vertex `V` when **all 3 cells around `V` hold the same gem colour**. This is the only match trigger — a straight line of 3 same-coloured gems in a column or diagonal does **not** clear, because those cells share no vertex.
 
-When any match triggers, the **clear set** is the connected group of same-coloured cells containing the matched cells, **minus any tile that does not touch at least two same-coloured tiles**. That is the Hexi HD rule: only solid tiles are scored and deleted, so a gem hanging off a cluster by a single edge stays on the board and earns nothing, and the score tier follows the surviving count (a triangle with a tail is priced as a three, not a four). The trigger is still a vertex triangle — lines never match.
+When any match triggers, the **clear set** is the connected group of same-coloured cells containing the matched cells, **minus any tile that is not part of a monochrome vertex triangle**. A tile must be in a solid part of the cluster to be scored and deleted; thin limbs, chains and the far side of a ring are left behind. That is the Hexi HD rule: only solid tiles are scored and deleted, so a gem hanging off a cluster by a single edge stays on the board and earns nothing, and the score tier follows the surviving count (a triangle with a tail is priced as a three, not a four). The trigger is still a vertex triangle — lines never match.
 
 Flower formation (6 same-coloured gems ringing one centre) takes **precedence** over a plain colour cluster that would form in the same step.
 

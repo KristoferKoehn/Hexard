@@ -234,3 +234,22 @@ func test_a_diagonal_line_of_hexes_does_not_clear() -> void:
 	_paint(board, diagonal, Pieces.GemColor.BLUE)
 	assert_false(MatchFinder.has_any_match(board), "a diagonal line is not a match")
 	assert_eq(MatchFinder.clear_groups(board).size(), 0, "and produces no clear group")
+
+
+## The defect reports: an adjacent same-coloured limb was cleared with the cluster,
+## and ring-like shapes swept whole. Triangle membership is the fix: (4,3) has two
+## orange neighbours but is in no monochrome triangle, so it must stay.
+func test_a_limb_on_a_triangle_is_not_swept() -> void:
+	var board := BoardScript.new()
+	_background(board)
+	var painted: Array = [
+		Vector2i(4, 4), Vector2i(4, 5), Vector2i(3, 4),   # a real vertex
+		Vector2i(4, 3), Vector2i(4, 2),                   # a limb running up the column
+	]
+	_paint(board, painted, Pieces.GemColor.ORANGE)
+	var groups := MatchFinder.clear_groups(board)
+	assert_eq(groups.size(), 1, "one cluster formed")
+	var cells: Array = groups[0].cells
+	assert_eq(cells.size(), 3, "only the triangle clears")
+	assert_false(cells.has(Vector2i(4, 3)), "the tile touching two cluster tiles stays")
+	assert_false(cells.has(Vector2i(4, 2)), "and so does the rest of the limb")

@@ -123,13 +123,23 @@ static func _expand(board: Board, seed_cells: Array) -> Array[Vector2i]:
 			visited[neighbour] = true
 			queue.append(neighbour)
 
-	# Hexi HD rule: only tiles touching at least two other same-coloured tiles are
-	# scored and deleted. Expansion above finds the connected cluster; this keeps
-	# its solid core, so a gem hanging off by a single edge stays on the board and
-	# earns nothing. A matching vertex's own three tiles always qualify.
+	# Hexi HD rule: a tile is scored and deleted only if it is part of a solid
+	# cluster, which here means it belongs to at least one monochrome vertex
+	# triangle - the same shape that triggers a match in the first place.
+	#
+	# Counting same-coloured neighbours is not enough: in a thin ring or a straight
+	# run every tile has exactly two like neighbours, so a triangle on one side of a
+	# loop would sweep the entire loop. Triangle membership keeps the solid body and
+	# drops thin limbs, chains and the far side of a ring.
+	var in_triangle := {}
+	for vertex: Array in Grid.vertices():
+		if _cells_are_monochrome(board, vertex):
+			for cell: Vector2i in vertex:
+				in_triangle[cell] = true
+
 	var kept: Array[Vector2i] = []
 	for cell: Vector2i in result:
-		if _same_color_neighbours(board, cell, color) >= 2:
+		if in_triangle.has(cell):
 			kept.append(cell)
 	result = kept
 
@@ -138,19 +148,6 @@ static func _expand(board: Board, seed_cells: Array) -> Array[Vector2i]:
 			return a.x < b.x
 		return a.y < b.y)
 	return result
-
-
-## How many of this tile's neighbours are matchable and the same colour. This is
-## the counting rule behind a clear: two or more means the tile is part of a solid
-## cluster rather than a tail.
-static func _same_color_neighbours(board: Board, cell: Vector2i, color: int) -> int:
-	var count := 0
-	for neighbour: Vector2i in Grid.neighbours(cell):
-		if not _is_matchable(board, neighbour):
-			continue
-		if Pieces.color_of(board.get_piece(neighbour)) == color:
-			count += 1
-	return count
 
 
 static func group_key(cells: Array) -> String:
