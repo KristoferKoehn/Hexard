@@ -19,7 +19,7 @@ enum Screen { MENU, PLAYING, RESULT, SETTINGS }
 var game: Game
 var cursor_vertex := 0
 ## When the cursor has snapped onto a starflower or pearl, this is its cell.
-var cursor_special := Vector2i(-1, -1)
+var cursor_special := HexGrid.NO_CELL
 var screen: Screen = Screen.MENU
 var selected_mode: int = RulesetScript.Mode.MARATHON
 var selected_difficulty := "normal"
@@ -74,7 +74,7 @@ func _process(delta: float) -> void:
 	if board_view.is_settled() and _displayed_score != game.score:
 		_displayed_score = game.score
 	_apply_juice()
-	hud.update_from_game(game, _displayed_score)
+	hud.update_from_game(HudModel.from_game(game, _displayed_score))
 	if game.state == GameScript.State.FINISHED:
 		# A countdown ending has nothing to play out; a bomb does.
 		if _pending_result and board_view.is_settled():
@@ -152,12 +152,12 @@ func _enter_playing() -> void:
 	_displayed_score = game.score
 	board_view.set_game(game)
 	board_view.hint_vertex = -1
-	board_view.hover_cell = Vector2i(-1, -1)
+	board_view.hover_cell = HexGrid.NO_CELL
 	_refresh_cursor()
 	if tutorial == null:
 		hud.set_banner("")
 	hud.show_playing()
-	hud.update_from_game(game, _displayed_score)
+	hud.update_from_game(HudModel.from_game(game, _displayed_score))
 
 
 func _enter_result() -> void:
@@ -213,7 +213,7 @@ func _on_menu_pressed() -> void:
 func _on_clear_scored(amount: int) -> void:
 	_displayed_score += amount
 	if game != null:
-		hud.update_from_game(game, _displayed_score)
+		hud.update_from_game(HudModel.from_game(game, _displayed_score))
 
 
 # --- actions (also the programmatic API the smoke test drives) --------------
@@ -222,7 +222,7 @@ func play_move(direction: int) -> void:
 	if game == null or screen != Screen.PLAYING:
 		return
 	# Snapped onto a special: the rotate keys turn that piece instead of the trio.
-	if cursor_special != Vector2i(-1, -1):
+	if cursor_special != HexGrid.NO_CELL:
 		play_piece_move(cursor_special, direction)
 		return
 	board_view.hint_vertex = -1
@@ -247,7 +247,7 @@ func use_special(direction: int = GameScript.CLOCKWISE) -> void:
 	if game == null or screen != Screen.PLAYING:
 		return
 	for cell: Vector2i in HexGrid.vertices()[cursor_vertex]:
-		if _special_at(cell) != Vector2i(-1, -1):
+		if _special_at(cell) != HexGrid.NO_CELL:
 			play_piece_move(cell, direction)
 			return
 	hud.set_message("no starflower or pearl under the cursor")
@@ -258,7 +258,7 @@ func _special_at(cell: Vector2i) -> Vector2i:
 	var piece: int = game.board.get_piece(cell)
 	if Pieces.is_starflower(piece) or Pieces.is_pearl(piece):
 		return cell
-	return Vector2i(-1, -1)
+	return HexGrid.NO_CELL
 
 
 func play_piece_move(cell: Vector2i, direction: int) -> void:
@@ -277,7 +277,7 @@ func _apply(result: MoveResult, label: String) -> void:
 	board_view.show_result(result)
 	audio.play_move(result)
 	_refresh_cursor()
-	hud.update_from_game(game, _displayed_score)
+	hud.update_from_game(HudModel.from_game(game, _displayed_score))
 
 	if game.state == GameScript.State.FINISHED:
 		if board_view.is_animating():
@@ -343,7 +343,7 @@ func _refresh_cursor() -> void:
 	board_view.cursor_vertex = cursor_vertex
 	cursor_special = _special_owned_by_cursor()
 	board_view.cursor_special = cursor_special
-	if cursor_special != Vector2i(-1, -1):
+	if cursor_special != HexGrid.NO_CELL:
 		# Snapped onto a special: a rotate turns the piece, not the trio.
 		board_view.cursor_legal = _special_turn_is_legal(cursor_special)
 	else:
@@ -356,7 +356,7 @@ func _refresh_cursor() -> void:
 ## the board keeps rotating its trio as normal.
 func _special_owned_by_cursor() -> Vector2i:
 	if game == null or board_view == null:
-		return Vector2i(-1, -1)
+		return HexGrid.NO_CELL
 	for cell: Vector2i in HexGrid.all_cells():
 		var piece: int = game.board.get_piece(cell)
 		if not (Pieces.is_starflower(piece) or Pieces.is_pearl(piece)):
@@ -367,7 +367,7 @@ func _special_owned_by_cursor() -> Vector2i:
 		var owner: int = board_view.vertex_at(board_view.cell_center(cell))
 		if owner == cursor_vertex:
 			return cell
-	return Vector2i(-1, -1)
+	return HexGrid.NO_CELL
 
 
 func _special_turn_is_legal(cell: Vector2i) -> bool:
@@ -405,7 +405,7 @@ func toggle_rotation_mode() -> void:
 	else:
 		ruleset.rotation_mode = RulesetScript.RotationMode.FREE
 		hud.set_message("rotation mode: FREE — the trio stays where you put it")
-	hud.update_from_game(game, _displayed_score)
+	hud.update_from_game(HudModel.from_game(game, _displayed_score))
 
 
 # --- input ------------------------------------------------------------------
@@ -519,7 +519,7 @@ func _mouse_moved(viewport_point: Vector2) -> void:
 	# Hovering a special piece is more useful than hovering its vertex.
 	var special := _special_at(cell)
 	board_view.hover_cell = special
-	if special == Vector2i(-1, -1):
+	if special == HexGrid.NO_CELL:
 		snap_cursor_to(viewport_point)
 	else:
 		board_view.queue_redraw()
@@ -532,7 +532,7 @@ func _mouse_clicked(viewport_point: Vector2, button_index: int) -> void:
 		return
 	var direction := GameScript.CLOCKWISE if button_index == MOUSE_BUTTON_LEFT else GameScript.COUNTER_CLOCKWISE
 	var cell := board_view.cell_at(board_view.to_local(viewport_point))
-	if _special_at(cell) != Vector2i(-1, -1):
+	if _special_at(cell) != HexGrid.NO_CELL:
 		play_piece_move(cell, direction)
 		return
 	snap_cursor_to(viewport_point)

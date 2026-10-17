@@ -32,6 +32,15 @@ signal clear_scored(amount: int)
 signal step_began(kind: String, step: Dictionary)
 
 # --- timing (seconds) -------------------------------------------------------
+# Radii as fractions of cell_size, kept together so the visual hierarchy is legible
+# in one place: a gem sits inside its socket, inside the cursor outline.
+const GEM_SCALE := 0.92
+const SOCKET_SCALE := 0.94
+const OUTLINE_SCALE := 0.96
+const REFUSE_SCALE := 0.97
+## Pieces in flight are drawn slightly small so motion reads against the board.
+const FLIGHT_SCALE := 0.90
+
 const SPIN_TIME := 0.11
 const CLEAR_TIME := 0.14
 const FALL_TIME := 0.17
@@ -61,10 +70,10 @@ const SOCKET_LINE := Color("1d3b4d")
 
 @export var cell_size: float = 30.0
 
-var game: RefCounted
+var game: Game
 var cursor_vertex := -1
 ## Set when the cursor has snapped onto a starflower or pearl centre.
-var cursor_special := Vector2i(-1, -1)
+var cursor_special := HexGrid.NO_CELL
 # Outline segments for the current cursor cells. The shape depends only on which
 # cells are outlined, so it is rebuilt when the selection changes and merely
 # redrawn every frame while animating.
@@ -72,7 +81,7 @@ var _outline_key := ""
 var _outline_segments: Array = []
 var cursor_legal := true
 var hint_vertex := -1
-var hover_cell := Vector2i(-1, -1)
+var hover_cell := HexGrid.NO_CELL
 
 var _origin := Vector2.ZERO
 var _display: Dictionary = {}      # cell -> piece, what is actually drawn
@@ -94,7 +103,7 @@ var _settling := false
 
 # --- setup ------------------------------------------------------------------
 
-func set_game(new_game: RefCounted) -> void:
+func set_game(new_game: Game) -> void:
 	game = new_game
 	_recenter()
 	sync_from_game()
@@ -136,7 +145,7 @@ func vertex_at(local_point: Vector2) -> int:
 
 
 func cell_at(local_point: Vector2) -> Vector2i:
-	var best := Vector2i(-1, -1)
+	var best := HexGrid.NO_CELL
 	var best_distance := INF
 	for cell: Vector2i in HexGrid.all_cells():
 		var distance := local_point.distance_squared_to(cell_center(cell))
@@ -175,7 +184,7 @@ func finish_now() -> void:
 
 
 ## Replays a move: spin, then per cascade depth clear â†’ fall â†’ drop.
-func show_result(result: RefCounted) -> void:
+func show_result(result: MoveResult) -> void:
 	# A new result while the previous one is still playing: finish it first so
 	# nothing is dropped mid-flight, then play this one from that state.
 	if _playing:
@@ -391,7 +400,7 @@ func _draw() -> void:
 	for cell: Vector2i in _display:
 		if skip.has(cell):
 			continue
-		_draw_piece(cell_center(cell), int(_display[cell]), cell_size * 0.92, 1.0)
+		_draw_piece(cell_center(cell), int(_display[cell]), cell_size * GEM_SCALE, 1.0)
 	if not active.is_empty():
 		_draw_step(active)
 	_draw_cursor()
@@ -484,7 +493,7 @@ func _draw_plate() -> void:
 
 
 func _draw_socket(cell: Vector2i) -> void:
-	var corners := _corners(cell_center(cell), cell_size * 0.94)
+	var corners := _corners(cell_center(cell), cell_size * SOCKET_SCALE)
 	draw_colored_polygon(corners, SOCKET_FILL)
 	draw_polyline(_closed(corners), SOCKET_LINE, 1.0)
 
@@ -565,7 +574,7 @@ func _draw_spin(step: Dictionary, t: float) -> void:
 		var position := from.lerp(to, t)
 		# Bulge around the vertex so the trio reads as turning, not sliding.
 		position += (position - centre).rotated(PI * 0.5) * sin(t * PI) * 0.25
-		_draw_piece(position, piece, cell_size * 0.90, 1.0)
+		_draw_piece(position, piece, cell_size * FLIGHT_SCALE, 1.0)
 
 
 ## A refused spin: turn to the position that was asked for, then straight back.
@@ -591,14 +600,14 @@ func _draw_bounce(step: Dictionary, t: float) -> void:
 		var to := cell_center(cells[i])
 		var position := from.lerp(to, sweep)
 		position += (position - centre).rotated(PI * 0.5) * sin(sweep * PI) * 0.25
-		_draw_piece(position, piece, cell_size * 0.90, 1.0)
+		_draw_piece(position, piece, cell_size * FLIGHT_SCALE, 1.0)
 
 	for cell: Vector2i in cells:
-		draw_polyline(_closed(_corners(cell_center(cell), cell_size * 0.97)), amber, 2.0)
+		draw_polyline(_closed(_corners(cell_center(cell), cell_size * REFUSE_SCALE)), amber, 2.0)
 
 
 func _draw_clear(step: Dictionary, t: float) -> void:
-	var radius := cell_size * 0.92 * (1.0 - t * 0.85)
+	var radius := cell_size * GEM_SCALE * (1.0 - t * 0.85)
 	var alpha := 1.0 - t
 	for cell: Vector2i in step["cells"]:
 		_draw_piece(cell_center(cell), int(_display.get(cell, Pieces.EMPTY)), radius, alpha)
@@ -613,7 +622,7 @@ func _draw_fall(step: Dictionary, t: float) -> void:
 		var position := cell_center(move["from"]).lerp(cell_center(move["to"]), eased)
 		# A little squash as it lands sells the weight.
 		var squash := 1.0 + 0.10 * maxf(0.0, t - 0.75) * 4.0
-		_draw_piece(position, piece, cell_size * 0.92 / squash, 1.0)
+		_draw_piece(position, piece, cell_size * GEM_SCALE / squash, 1.0)
 
 
 func _draw_drop(step: Dictionary, t: float) -> void:
@@ -622,7 +631,7 @@ func _draw_drop(step: Dictionary, t: float) -> void:
 		var cell: Vector2i = spawn["cell"]
 		var target := cell_center(cell)
 		var start := target - Vector2(0.0, cell_size * 4.0)
-		_draw_piece(start.lerp(target, eased), int(spawn["piece"]), cell_size * 0.92, minf(1.0, t * 2.0))
+		_draw_piece(start.lerp(target, eased), int(spawn["piece"]), cell_size * GEM_SCALE, minf(1.0, t * 2.0))
 
 
 func _draw_bloom(step: Dictionary, t: float) -> void:
@@ -631,7 +640,7 @@ func _draw_bloom(step: Dictionary, t: float) -> void:
 		# The new piece pops in oversized, so the conversion is unmistakable.
 		var piece: int = promotion["piece"]
 		if not Pieces.is_empty(piece):
-			_draw_piece(centre, piece, cell_size * 0.92 * (0.55 + 0.78 * t), minf(1.0, t * 3.0))
+			_draw_piece(centre, piece, cell_size * GEM_SCALE * (0.55 + 0.78 * t), minf(1.0, t * 3.0))
 		var radius := cell_size * (0.35 + 1.7 * t)
 		draw_arc(centre, radius, 0, TAU, 32, Color(1.0, 0.88, 0.42, 0.85 * (1.0 - t)), 2.5)
 
@@ -667,7 +676,7 @@ func _draw_shatter(step: Dictionary, t: float) -> void:
 		if direction.length() < 0.001:
 			direction = Vector2(0.0, -1.0)
 		var thrown := from + direction.normalized() * cell_size * 1.8 * t
-		_draw_piece(thrown, piece, cell_size * 0.92 * (1.0 - t), 1.0 - t)
+		_draw_piece(thrown, piece, cell_size * GEM_SCALE * (1.0 - t), 1.0 - t)
 
 
 ## Juice knobs come from Settings; null means full juice (tests, tutorial).
@@ -714,7 +723,7 @@ func _build_outline_segments(cells: Array) -> Array:
 	var segments: Array = []
 	for cell: Vector2i in cells:
 		var centre := cell_center(cell)
-		var corners := _corners(centre, cell_size * 0.96)
+		var corners := _corners(centre, cell_size * OUTLINE_SCALE)
 		for index in 6:
 			# The neighbour across an edge is found by probing along that edge's
 			# normal, so the grid's adjacency stays the single source of truth.
@@ -743,7 +752,7 @@ func _draw_cursor() -> void:
 	# A special turn swaps a different set than the trio: a starflower turns its six
 	# neighbours and a pearl turns three in a Y. Ask the rules, never guess.
 	var swapped: Array[Vector2i] = []
-	if cursor_special != Vector2i(-1, -1):
+	if cursor_special != HexGrid.NO_CELL:
 		swapped = game.swapped_cells(cursor_special)
 	else:
 		for cell: Vector2i in vertices[cursor_vertex]:
@@ -751,7 +760,7 @@ func _draw_cursor() -> void:
 	_draw_cluster_outline(swapped, outline, 2.5)
 
 	# A snapped special has no vertex position, so the vertex dot goes away.
-	if cursor_special != Vector2i(-1, -1):
+	if cursor_special != HexGrid.NO_CELL:
 		return
 
 	var centre := HexGrid.vertex_centroid(cursor_vertex, cell_size) + _origin

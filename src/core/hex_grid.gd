@@ -50,6 +50,11 @@ static func has_cell(cell: Vector2i) -> bool:
 	return cell.y >= 0 and cell.y < column_height(cell.x)
 
 
+## Sentinel for "no cell". The cursor, hover and picking code compare against it,
+## so the meaning is named instead of a bare (-1, -1) at a dozen call sites.
+const NO_CELL := Vector2i(-1, -1)
+
+
 static func all_cells() -> Array[Vector2i]:
 	if _cells_cache.is_empty():
 		for column_index in COLUMNS:

@@ -133,7 +133,7 @@ func _make_rich(position: Vector2, font_size: int) -> RichTextLabel:
 
 
 ## One labelled figure: quiet label, accented value.
-func _stat(name: String, value: String, accent: Color = NEON_ACCENT) -> String:
+static func _stat(name: String, value: String, accent: Color = NEON_ACCENT) -> String:
 	return "[color=#%s]%s[/color] [color=#%s]%s[/color]" % [
 		NEON_DIM.to_html(false), name, accent.to_html(false), value,
 	]
@@ -153,39 +153,41 @@ func _make_label(position: Vector2, font_size: int, color: Color) -> Label:
 	return label
 
 
-## `displayed_score` lets the view roll the score up as each cascade step lands;
-## -1 means "whatever the rules core says" (used for the result screen and for
-## any caller that is not animating).
-func update_from_game(game: RefCounted, displayed_score: int = -1) -> void:
-	if _info == null or game == null:
+## Renders the status bar from a snapshot. `Hud.format_status()` is static and pure
+## so the row can be unit-tested without a scene or a running game.
+func update_from_game(model: HudModel) -> void:
+	if _info == null or model == null:
 		return
-	var shown: int = displayed_score if displayed_score >= 0 else int(game.score)
-	var mode := "STRICT" if _is_strict(game) else "FREE"
-	var parts := PackedStringArray()
-	parts.append(_stat("SCORE", str(shown)))
-	parts.append(_stat("LEVEL", str(game.level)))
-	parts.append(_stat("COMBOS TO NEXT", str(game.combos_remaining())))
-	if int(game.ruleset.mode) == int(RulesetScript.Mode.TIMED):
-		parts.append(_stat("TIME", _clock_text(game.clock, game.max_clock)))
-	elif int(game.ruleset.mode) == int(RulesetScript.Mode.SURVIVAL):
-		parts.append(_stat("ROUND", str(game.round)))
-		parts.append(_stat("FROZEN", str(game.board.locked_count())))
-	else:
-		parts.append(_stat("BOMBS", str(_count(game.board, Pieces.Kind.BOMB))))
-	parts.append(_stat("PEARLS", str(_count(game.board, Pieces.Kind.PEARL))))
-	parts.append(_stat("TURN", str(game.turns)))
-	parts.append(_stat("SEED", str(game.seed_value), NEON_DIM))
-	var tag_color := NEON_ACCENT if mode == "STRICT" else NEON_AMBER
-	var tail := "[color=#%s][%s][/color]" % [tag_color.to_html(false), mode]
-	if int(game.state) != 0:
-		tail += "  [color=#%s]RUN OVER[/color]" % NEON_AMBER.to_html(false)
-	parts.append(tail)
-	var text := "     ".join(parts)
+	var text := format_status(model)
+	# The row is a bbcode string that is re-parsed and re-laid-out on assignment, so
+	# identical frames are skipped rather than rebuilt.
 	if text == _last_status:
 		return
 	_last_status = text
 	_info.text = text
 
+
+static func format_status(model: HudModel) -> String:
+	var parts := PackedStringArray()
+	parts.append(_stat("SCORE", str(model.score)))
+	parts.append(_stat("LEVEL", str(model.level)))
+	parts.append(_stat("COMBOS TO NEXT", str(model.combos_remaining)))
+	if model.mode == int(RulesetScript.Mode.TIMED):
+		parts.append(_stat("TIME", _clock_text(model.clock, model.max_clock)))
+	elif model.mode == int(RulesetScript.Mode.SURVIVAL):
+		parts.append(_stat("ROUND", str(model.round)))
+		parts.append(_stat("FROZEN", str(model.frozen)))
+	else:
+		parts.append(_stat("BOMBS", str(model.bombs)))
+	parts.append(_stat("PEARLS", str(model.pearls)))
+	parts.append(_stat("TURN", str(model.turn)))
+	parts.append(_stat("SEED", str(model.seed_value), NEON_DIM))
+	var tag_color := NEON_ACCENT if model.strict else NEON_AMBER
+	var tail := "[color=#%s][%s][/color]" % [tag_color.to_html(false), "STRICT" if model.strict else "FREE"]
+	if model.finished:
+		tail += "  [color=#%s]RUN OVER[/color]" % NEON_AMBER.to_html(false)
+	parts.append(tail)
+	return "     ".join(parts)
 
 func set_message(text: String) -> void:
 	if _message != null:
@@ -205,25 +207,9 @@ func banner_text() -> String:
 	return _banner.text if _banner != null else ""
 
 
-func _clock_text(clock: float, maximum: float) -> String:
+static func _clock_text(clock: float, maximum: float) -> String:
 	return "%0.1f/%0.0fs" % [maxf(clock, 0.0), maximum]
 
-
-func _count(board: Board, kind: int) -> int:
-	var total := 0
-	for cell: Vector2i in Grid.all_cells():
-		var piece: int = board.get_piece(cell)
-		if not Pieces.is_empty(piece) and Pieces.kind_of(piece) == kind:
-			total += 1
-	return total
-
-
-func _is_strict(game: RefCounted) -> bool:
-	var ruleset: Variant = game.ruleset
-	return int(ruleset.rotation_mode) == int(RulesetScript.RotationMode.STRICT)
-
-
-# --- menu -------------------------------------------------------------------
 
 func _build_menu() -> void:
 	_menu = CenterContainer.new()
