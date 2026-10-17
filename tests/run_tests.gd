@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 
 ## Headless test runner (no plugin dependency).
 ##
@@ -24,7 +24,7 @@ const TEST_SCRIPTS := [
 
 
 func _initialize() -> void:
-	print("Hexard core tests — ", Time.get_datetime_string_from_system())
+	print("Hexard core tests â€” ", Time.get_datetime_string_from_system())
 	var total := 0
 	var failed := 0
 	var assertions := 0
@@ -40,7 +40,7 @@ func _initialize() -> void:
 			print("  FAIL  <script did not compile>")
 			all_failures.append("could not load or compile %s" % path)
 			continue
-		var suite = script.new()
+		var suite: RefCounted = script.new()
 		if not suite.has_method("run_all"):
 			total += 1
 			failed += 1
@@ -58,7 +58,7 @@ func _initialize() -> void:
 			print("  %s  %s" % ["PASS" if passed else "FAIL", result["name"]])
 			for message: String in messages:
 				print("        - %s" % message)
-				all_failures.append("%s::%s — %s" % [path.get_file(), result["name"], message])
+				all_failures.append("%s::%s â€” %s" % [path.get_file(), result["name"], message])
 
 	print("\n%d tests, %d failed, %d assertions" % [total, failed, assertions])
 	if failed == 0:

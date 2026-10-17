@@ -1,7 +1,7 @@
-class_name MatchFinder
+﻿class_name MatchFinder
 extends RefCounted
 
-## Match detection (docs/design.md §3.2).
+## Match detection (docs/design.md Â§3.2).
 ##
 ## The one and only match trigger: a rotation vertex whose three cells all hold
 ## the same gem colour. Three same-coloured pieces in a straight line do NOT
@@ -21,14 +21,14 @@ const ClearGroupScript := preload("res://src/core/clear_group.gd")
 # --- the predicate ----------------------------------------------------------
 
 ## True when the three cells around this vertex are all the same gem colour.
-static func vertex_is_match_at(board, vertex_index: int) -> bool:
+static func vertex_is_match_at(board: Board, vertex_index: int) -> bool:
 	var all_vertices := Grid.vertices()
 	if vertex_index < 0 or vertex_index >= all_vertices.size():
 		return false
 	return _cells_are_monochrome(board, all_vertices[vertex_index])
 
 
-static func _cells_are_monochrome(board, cells: Array) -> bool:
+static func _cells_are_monochrome(board: Board, cells: Array) -> bool:
 	if not _is_matchable(board, cells[0]):
 		return false
 	var color := Pieces.color_of(board.get_piece(cells[0]))
@@ -41,7 +41,7 @@ static func _cells_are_monochrome(board, cells: Array) -> bool:
 
 
 ## Can this cell take part in a formation? Present, unlocked, and coloured.
-static func _is_matchable(board, cell: Vector2i) -> bool:
+static func _is_matchable(board: Board, cell: Vector2i) -> bool:
 	if board.is_locked(cell):
 		return false
 	var piece: int = board.get_piece(cell)
@@ -51,7 +51,7 @@ static func _is_matchable(board, cell: Vector2i) -> bool:
 
 
 ## Full-board scan. Used after gravity/refill steps where many cells moved.
-static func has_any_match(board) -> bool:
+static func has_any_match(board: Board) -> bool:
 	for vertex: Array in Grid.vertices():
 		if _cells_are_monochrome(board, vertex):
 			return true
@@ -60,7 +60,7 @@ static func has_any_match(board) -> bool:
 
 ## Does the current arrangement match at this vertex or any vertex sharing a
 ## cell with it? Cheap test for "did the rotation I just applied match?".
-static func matches_near_vertex(board, vertex_index: int) -> bool:
+static func matches_near_vertex(board: Board, vertex_index: int) -> bool:
 	for index: int in Grid.vertex_neighbours(vertex_index):
 		if vertex_is_match_at(board, index):
 			return true
@@ -68,7 +68,7 @@ static func matches_near_vertex(board, vertex_index: int) -> bool:
 
 
 ## Indices of every matching vertex, ascending.
-static func matching_vertices(board) -> Array[int]:
+static func matching_vertices(board: Board) -> Array[int]:
 	var out: Array[int] = []
 	var all_vertices := Grid.vertices()
 	for index in all_vertices.size():
@@ -81,7 +81,7 @@ static func matching_vertices(board) -> Array[int]:
 
 ## All clear groups in resolution order: bigger groups first, then by their
 ## top-left cell, so resolution is deterministic for replays.
-static func clear_groups(board) -> Array:
+static func clear_groups(board: Board) -> Array:
 	var seen := {}
 	var groups: Array = []
 	for vertex: Array in Grid.vertices():
@@ -92,7 +92,7 @@ static func clear_groups(board) -> Array:
 		if seen.has(key):
 			continue
 		seen[key] = true
-		var group = ClearGroupScript.new()
+		var group := ClearGroupScript.new()
 		group.cells = cells
 		group.gem_color = Pieces.color_of(board.get_piece(cells[0]))
 		groups.append(group)
@@ -101,7 +101,7 @@ static func clear_groups(board) -> Array:
 
 
 ## Grow a matching vertex into the maximal connected same-coloured group.
-static func _expand(board, seed_cells: Array) -> Array[Vector2i]:
+static func _expand(board: Board, seed_cells: Array) -> Array[Vector2i]:
 	var color := Pieces.color_of(board.get_piece(seed_cells[0]))
 	var visited := {}
 	var queue: Array[Vector2i] = []
@@ -143,11 +143,11 @@ static func _group_before(a, b) -> bool:
 	return group_key(a.cells) < group_key(b.cells)
 
 
-# --- special formations (docs/design.md §3.4) -------------------------------
+# --- special formations (docs/design.md Â§3.4) -------------------------------
 
 ## A flower is six plain gems of one colour ringing a centre piece that is a
 ## different colour or a different type. The ring clears; the centre blooms.
-static func is_flower(board, centre: Vector2i) -> bool:
+static func is_flower(board: Board, centre: Vector2i) -> bool:
 	var centre_piece: int = board.get_piece(centre)
 	if Pieces.is_empty(centre_piece) or Pieces.is_pearl(centre_piece):
 		return false
@@ -173,7 +173,7 @@ static func is_flower(board, centre: Vector2i) -> bool:
 	return true
 
 
-static func flower_centres(board) -> Array[Vector2i]:
+static func flower_centres(board: Board) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	for cell: Vector2i in Grid.all_cells():
 		if is_flower(board, cell):
@@ -182,27 +182,27 @@ static func flower_centres(board) -> Array[Vector2i]:
 
 
 ## Six starflowers ringing a centre: the centre becomes a black pearl.
-static func is_pearl_creation_ring(board, centre: Vector2i) -> bool:
+static func is_pearl_creation_ring(board: Board, centre: Vector2i) -> bool:
 	if Pieces.is_pearl(board.get_piece(centre)):
 		return false
 	return _six_neighbours_all(board, centre, Pieces.Kind.STARFLOWER)
 
 
 ## Six pearls ringing a centre: the pearl finish, the biggest payout in the game.
-## A pearl at the centre is allowed — that is a ring of seven, and the ring rule
+## A pearl at the centre is allowed â€” that is a ring of seven, and the ring rule
 ## should claim it before the three-pearl cluster rule does.
-static func is_pearl_finish_ring(board, centre: Vector2i) -> bool:
+static func is_pearl_finish_ring(board: Board, centre: Vector2i) -> bool:
 	return _six_neighbours_all(board, centre, Pieces.Kind.PEARL)
 
 
-static func _six_neighbours_all(board, centre: Vector2i, kind: int) -> bool:
+static func _six_neighbours_all(board: Board, centre: Vector2i, kind: int) -> bool:
 	var ring := Grid.neighbours(centre)
 	if ring.size() != 6:
 		return false
 	return _cells_all_kind(board, ring, kind)
 
 
-static func pearl_ring_centres(board) -> Array[Vector2i]:
+static func pearl_ring_centres(board: Board) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	for cell: Vector2i in Grid.all_cells():
 		if is_pearl_creation_ring(board, cell):
@@ -212,7 +212,7 @@ static func pearl_ring_centres(board) -> Array[Vector2i]:
 
 ## The perfect finish: a ring of six pearls (the biggest payout) or a cluster of
 ## three. Returns {} when neither exists.
-static func pearl_finish(board) -> Dictionary:
+static func pearl_finish(board: Board) -> Dictionary:
 	for cell: Vector2i in Grid.all_cells():
 		if is_pearl_finish_ring(board, cell):
 			return {"kind": "pearl_ring", "cells": Grid.neighbours(cell), "anchor": cell}
@@ -226,8 +226,8 @@ static func pearl_finish(board) -> Dictionary:
 
 
 ## Cells removed by a bonus-star cluster: the three stars plus every tile each
-## star touches (docs/design.md §3.4). Locked tiles stay put.
-static func star_cluster_cells(board) -> Array[Vector2i]:
+## star touches (docs/design.md Â§3.4). Locked tiles stay put.
+static func star_cluster_cells(board: Board) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	var seen := {}
 	for vertex: Array in Grid.vertices():
@@ -239,7 +239,7 @@ static func star_cluster_cells(board) -> Array[Vector2i]:
 
 
 ## Three starflowers together pay a windfall and clear.
-static func starflower_cluster_cells(board) -> Array[Vector2i]:
+static func starflower_cluster_cells(board: Board) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	var seen := {}
 	for vertex: Array in Grid.vertices():
@@ -253,7 +253,7 @@ static func starflower_cluster_cells(board) -> Array[Vector2i]:
 
 
 ## Every playable cell holding a piece of this gem colour (bomb colour wipe).
-static func cells_with_color(board, gem_color: int) -> Array[Vector2i]:
+static func cells_with_color(board: Board, gem_color: int) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	for cell: Vector2i in Grid.all_cells():
 		if not _is_matchable(board, cell):
@@ -263,7 +263,7 @@ static func cells_with_color(board, gem_color: int) -> Array[Vector2i]:
 	return out
 
 
-static func _cells_all_kind(board, cells: Array, kind: int) -> bool:
+static func _cells_all_kind(board: Board, cells: Array, kind: int) -> bool:
 	for cell: Vector2i in cells:
 		if board.is_locked(cell):
 			return false
@@ -273,7 +273,7 @@ static func _cells_all_kind(board, cells: Array, kind: int) -> bool:
 	return true
 
 
-static func _add_cell_and_neighbours(board, cell: Vector2i, seen: Dictionary, out: Array[Vector2i]) -> void:
+static func _add_cell_and_neighbours(board: Board, cell: Vector2i, seen: Dictionary, out: Array[Vector2i]) -> void:
 	if not seen.has(cell):
 		seen[cell] = true
 		out.append(cell)

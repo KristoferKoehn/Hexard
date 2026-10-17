@@ -1,11 +1,11 @@
-class_name Hud
+﻿class_name Hud
 extends CanvasLayer
 
 ## Everything the player sees outside the board: the per-mode status line, the
 ## mode/difficulty menu, and the end-of-run summary.
 ##
-## The HUD owns presentation only — it emits signals and the controller decides
-## what a choice means (docs/design.md §10.1).
+## The HUD owns presentation only â€” it emits signals and the controller decides
+## what a choice means (docs/design.md Â§10.1).
 
 signal mode_chosen(mode: int)
 signal difficulty_chosen(difficulty: String)
@@ -103,13 +103,13 @@ func _box(fill: Color, border: Color) -> StyleBoxFlat:
 
 func _build_status() -> void:
 	# Rich text so the numbers can carry the accent colour while the labels stay
-	# quiet — the fastest way to read a score row is by scanning the figures.
+	# quiet â€” the fastest way to read a score row is by scanning the figures.
 	_info = _make_rich(Vector2(18, 10), INFO_FONT_SIZE)
 	_banner = _make_label(Vector2(18, 44), 17, NEON_GOOD)
 	_banner.visible = false
 	_message = _make_label(Vector2(18, 632), MESSAGE_FONT_SIZE, NEON_AMBER)
 	_controls = _make_label(Vector2(18, 684), 15, NEON_DIM)
-	_controls.text = "arrows/WASD  move    ·    Z/X or click  rotate    ·    F  starflower    ·    H  hint    ·    R  new board    ·    T  rotation mode    ·    esc  quit"
+	_controls.text = "arrows/WASD  move    Â·    Z/X or click  rotate    Â·    F  starflower    Â·    H  hint    Â·    R  new board    Â·    T  rotation mode    Â·    esc  quit"
 
 
 func _make_rich(position: Vector2, font_size: int) -> RichTextLabel:
@@ -197,7 +197,7 @@ func _clock_text(clock: float, maximum: float) -> String:
 	return "%0.1f/%0.0fs" % [maxf(clock, 0.0), maximum]
 
 
-func _count(board, kind: int) -> int:
+func _count(board: Board, kind: int) -> int:
 	var total := 0
 	for cell: Vector2i in Grid.all_cells():
 		var piece: int = board.get_piece(cell)
@@ -224,7 +224,7 @@ func _build_menu() -> void:
 	_menu.add_child(column)
 
 	column.add_child(_title("HEXARD", 64))
-	column.add_child(_title("rotate trios · build flowers · close the pearl ring", 18))
+	column.add_child(_title("rotate trios Â· build flowers Â· close the pearl ring", 18))
 
 	var mode_row := HBoxContainer.new()
 	mode_row.add_theme_constant_override("separation", 8)
@@ -266,7 +266,7 @@ func _build_menu() -> void:
 	action_row.add_child(tutorial)
 	column.add_child(action_row)
 
-	column.add_child(_title("←/→ mode   ·   ↑/↓ difficulty   ·   Enter start", 15))
+	column.add_child(_title("â†/â†’ mode   Â·   â†‘/â†“ difficulty   Â·   Enter start", 15))
 
 
 func _title(text: String, font_size: int) -> Label:
@@ -375,7 +375,7 @@ func show_result(summary: Dictionary) -> void:
 
 	var lines := PackedStringArray()
 	lines.append(_reason_text(str(summary.get("reason", ""))))
-	lines.append("%s · %s" % [summary.get("mode", ""), str(summary.get("difficulty", "")).capitalize()])
+	lines.append("%s Â· %s" % [summary.get("mode", ""), str(summary.get("difficulty", "")).capitalize()])
 	lines.append("Score %d      Level %d      Combos %d" % [
 		int(summary.get("score", 0)), int(summary.get("level", 1)), int(summary.get("combos", 0)),
 	])

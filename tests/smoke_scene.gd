@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 
 ## View-layer smoke test: loads the real scene, drives it with synthetic input,
 ## and fails loudly if anything errors or the wiring breaks.
@@ -80,7 +80,7 @@ func _process(_delta: float) -> bool:
 
 ## Force a bomb to go off: a one-tick fuse, then any committed spin.
 func _start_bomb_explosion() -> void:
-	var game = _main.get("game")
+	var game: GameScript = _main.get("game")
 	_check(game != null, "a run is active for the bomb test")
 	if game == null:
 		return
@@ -91,10 +91,10 @@ func _start_bomb_explosion() -> void:
 
 ## The summary must not cut off the explosion: board first, panel after.
 func _check_bomb_explosion_defers_the_summary() -> void:
-	var game = _main.get("game")
+	var game: GameScript = _main.get("game")
 	_check(game.state == GameScript.State.FINISHED, "the bomb ended the run")
 	_check(_main.call("screen_name") == "playing", "the summary waits for the explosion")
-	var view = _main.get_node("BoardView")
+	var view := _main.get_node("BoardView")
 	_check(not bool(view.call("is_settled")), "the blast is still playing")
 	view.call("finish_now")
 	_main.call("_process", 0.016)
@@ -104,10 +104,10 @@ func _check_bomb_explosion_defers_the_summary() -> void:
 func _check_tutorial_started() -> void:
 	_check(_main.call("screen_name") == "playing", "the tutorial starts in play")
 	_check(_main.get("tutorial") != null, "the controller holds a tutorial")
-	var hud = _main.get_node("Hud")
+	var hud := _main.get_node("Hud")
 	var banner := str(hud.call("banner_text"))
 	_check(banner.begins_with("Tutorial 1/"), "the banner introduces step 1 (got '%s')" % banner)
-	var game = _main.get("game")
+	var game: GameScript = _main.get("game")
 	_check(game != null and game.tile_count() == 85, "the tutorial board is ready")
 
 
@@ -115,7 +115,7 @@ func _check_tutorial_started() -> void:
 
 func _start_timed_run() -> void:
 	_main.call("start_run", RulesetScript.Mode.TIMED, "normal", 777)
-	var game = _main.get("game")
+	var game: GameScript = _main.get("game")
 	_check(game != null, "a Timed run was created")
 	if game == null:
 		return
@@ -139,7 +139,7 @@ func _check(condition: bool, message: String) -> void:
 
 ## The board view should be mid-animation right after a move.
 func view_effects_are_animating() -> bool:
-	var view = _main.get_node("BoardView")
+	var view := _main.get_node("BoardView")
 	return int(view.call("effect_count")) > 0
 
 
@@ -154,14 +154,14 @@ func _smoke() -> void:
 	_main.call("start_run", RulesetScript.Mode.MARATHON, "normal", 12345)
 	_check(_main.call("screen_name") == "playing", "starting a run switches to play")
 
-	var game = _main.get("game")
+	var game: GameScript = _main.get("game")
 	_check(game != null, "controller created a game")
 	if game == null:
 		return
 	_check(game.tile_count() == 85, "board starts full")
 	_check(not MatchFinder.has_any_match(game.board), "board starts match-free")
 
-	var board_view = _main.get_node("BoardView")
+	var board_view := _main.get_node("BoardView")
 	_check(board_view.get("game") == game, "board view received the game")
 	_check(board_view.get("cursor_vertex") == 0, "cursor starts on the first vertex")
 
@@ -181,8 +181,8 @@ func _smoke() -> void:
 	_check(view_effects_are_animating(), "a committed move queued animation steps")
 
 	# While those steps play the board is not settled, so rotation input must be
-	# refused â€” the core is already final and would run ahead of the screen.
-	var anim_view = _main.get_node("BoardView")
+	# refused Ã¢â‚¬â€ the core is already final and would run ahead of the screen.
+	var anim_view := _main.get_node("BoardView")
 	_check(not bool(anim_view.call("is_settled")), "the board is unsettled while tiles fall")
 	var turns_while_falling: int = game.turns
 	_main.call("_play_key", KEY_X)
@@ -215,7 +215,7 @@ func _smoke() -> void:
 	_main.call("use_special", GameScript.COUNTER_CLOCKWISE)
 	_check(true, "hint, mode toggle and special-turn paths ran without error")
 
-	var view = _main.get_node("BoardView")
+	var view := _main.get_node("BoardView")
 	_check(view.call("cell_at", Vector2(0, 0)) is Vector2i, "cell picking returns a cell")
 	_check(view.call("vertex_at", Vector2(0, 0)) is int, "vertex picking returns an index")
 
@@ -229,7 +229,7 @@ func _smoke() -> void:
 func _inject_mouse_motion() -> void:
 	# Mouse picking needs a settled board too (clicks are refused mid-animation).
 	_main.get_node("BoardView").call("sync_from_game")
-	var view = _main.get_node("BoardView")
+	var view := _main.get_node("BoardView")
 	var viewport_point: Vector2 = view.position + view.call("cell_center", Vector2i(4, 4))
 	var event := InputEventMouseMotion.new()
 	event.position = viewport_point
@@ -238,7 +238,7 @@ func _inject_mouse_motion() -> void:
 
 
 func _check_mouse_mapped_to_the_right_place() -> void:
-	var view = _main.get_node("BoardView")
+	var view := _main.get_node("BoardView")
 	var viewport_point: Vector2 = view.position + view.call("cell_center", Vector2i(4, 4))
 	var injected_cursor: int = _main.get("cursor_vertex")
 
@@ -248,7 +248,7 @@ func _check_mouse_mapped_to_the_right_place() -> void:
 	var used_event := _vertex_touches_cell(injected_cursor, Vector2i(4, 4))
 	if not used_event:
 		_main.call("snap_cursor_to", viewport_point)
-	print("        Ã‚Â· mouse path: %s" % ("synthetic event" if used_event else "direct snap_cursor_to"))
+	print("        Ãƒâ€šÃ‚Â· mouse path: %s" % ("synthetic event" if used_event else "direct snap_cursor_to"))
 
 	var cursor: int = _main.get("cursor_vertex")
 	var vertices := HexGrid.vertices()
@@ -272,7 +272,7 @@ func _vertex_touches_cell(vertex_index: int, cell: Vector2i) -> bool:
 # --- keyboard ---------------------------------------------------------------
 
 func _prepare_legal_keyboard_move() -> void:
-	var game = _main.get("game")
+	var game: GameScript = _main.get("game")
 	var legal: Array = game.find_legal_rotations()
 	_check(legal.size() > 0, "the board offers at least one legal spin")
 	if legal.is_empty():
@@ -282,7 +282,7 @@ func _prepare_legal_keyboard_move() -> void:
 	_pending_direction = int(move["direction"])
 	_turns_before = game.turns
 	_score_before = game.score
-	var view = _main.get_node("BoardView")
+	var view := _main.get_node("BoardView")
 	_check(view.get("cursor_legal") == true, "the cursor highlights a spot that can clear")
 
 
@@ -299,7 +299,7 @@ func _inject_rotation_key() -> void:
 
 
 func _check_keyboard_rotation_worked() -> void:
-	var game = _main.get("game")
+	var game: GameScript = _main.get("game")
 	_check(
 		game.turns == _turns_before + 1,
 		"a rotation key is one move (turns %d -> %d)" % [_turns_before, game.turns]
@@ -309,7 +309,7 @@ func _check_keyboard_rotation_worked() -> void:
 
 
 func _prepare_illegal_cursor() -> void:
-	var game = _main.get("game")
+	var game: GameScript = _main.get("game")
 	var legal := {}
 	for move: Dictionary in game.find_legal_rotations():
 		legal["%d:%d" % [move["vertex"], move["direction"]]] = true
@@ -320,15 +320,15 @@ func _prepare_illegal_cursor() -> void:
 		_main.call("select_vertex", index)
 		_pending_direction = 1
 		_turns_before = game.turns
-		var view = _main.get_node("BoardView")
+		var view := _main.get_node("BoardView")
 		_check(view.get("cursor_legal") == false, "the cursor dims where no spin can clear")
 		return
 	_check(false, "expected at least one vertex where neither spin clears")
 
 
 func _check_illegal_spin_rejected() -> void:
-	var game = _main.get("game")
-	var view = _main.get_node("BoardView")
+	var game: GameScript = _main.get("game")
+	var view := _main.get_node("BoardView")
 	_check(
 		game.turns == _turns_before,
 		"a spin that clears nothing is not a move in STRICT (turns stayed %d)" % game.turns

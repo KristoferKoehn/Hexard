@@ -1,8 +1,8 @@
-extends Node2D
+﻿extends Node2D
 
 ## Dev controller: owns the Game, moves the cursor, feeds input to the rules
 ## core and hands results to the view. Rules live in src/core (docs/design.md
-## Â§10.1); this file is the thin layer that also drives the menu, the clock and
+## Ã‚Â§10.1); this file is the thin layer that also drives the menu, the clock and
 ## the end-of-run screen.
 
 const HexGrid := preload("res://src/core/hex_grid.gd")
@@ -16,12 +16,12 @@ enum Screen { MENU, PLAYING, RESULT }
 @onready var board_view: BoardView = $BoardView
 @onready var hud: Hud = $Hud
 
-var game: RefCounted
+var game: Game
 var cursor_vertex := 0
 var screen: Screen = Screen.MENU
 var selected_mode: int = RulesetScript.Mode.MARATHON
 var selected_difficulty := "normal"
-var tutorial: RefCounted = null
+var tutorial: Tutorial = null
 ## Set when the run ended mid-animation (a bomb going off), so the summary panel
 ## waits for the shockwave instead of cutting it off.
 var _pending_result := false
@@ -63,12 +63,12 @@ func start_run(run_mode: int, difficulty: String, run_seed: int = -1) -> void:
 	game = GameScript.new(seed_value, RulesetScript.for_run(run_mode, difficulty))
 	_enter_playing()
 	hud.set_message(
-		"%s Â· %s â€” seed %d%s"
-		% [game.mode_name(), difficulty, seed_value, "  Â·  the clock is running" if run_mode == RulesetScript.Mode.TIMED else ""]
+		"%s Ã‚Â· %s Ã¢â‚¬â€ seed %d%s"
+		% [game.mode_name(), difficulty, seed_value, "  Ã‚Â·  the clock is running" if run_mode == RulesetScript.Mode.TIMED else ""]
 	)
 
 
-## The scripted tutorial: its own game, its own board rigs (docs/design.md Â§7.4).
+## The scripted tutorial: its own game, its own board rigs (docs/design.md Ã‚Â§7.4).
 func start_tutorial() -> void:
 	tutorial = TutorialScript.new()
 	game = tutorial.game
@@ -83,11 +83,11 @@ func _sync_tutorial() -> void:
 	# The tutorial rigs the board in place, so the view has to re-read it.
 	board_view.sync_from_game()
 	if tutorial.complete:
-		hud.set_banner("Tutorial complete â€” press M for the menu, or R to keep playing this board")
+		hud.set_banner("Tutorial complete Ã¢â‚¬â€ press M for the menu, or R to keep playing this board")
 		hud.set_message("you have seen every mechanic")
 		return
 	hud.set_banner(
-		"Tutorial %d/%d Â· %s â€” %s"
+		"Tutorial %d/%d Ã‚Â· %s Ã¢â‚¬â€ %s"
 		% [tutorial.step_number(), tutorial.step_count(), tutorial.step_title(), tutorial.instruction()]
 	)
 	var target: int = tutorial.hint_vertex()
@@ -177,14 +177,14 @@ func play_move(direction: int) -> void:
 	if game == null or screen != Screen.PLAYING:
 		return
 	board_view.hint_vertex = -1
-	var result = game.rotate(cursor_vertex, direction)
+	var result := game.rotate(cursor_vertex, direction)
 	var turn := "CW" if direction == GameScript.CLOCKWISE else "CCW"
 
 	if not result.committed:
 		board_view.show_result(result)   # a refused spin still turns out and back
 		var guidance := ""
 		if result.rejected_reason.begins_with("no match"):
-			guidance = "  â€” the cursor is grey here; press H to find a spin that clears"
+			guidance = "  Ã¢â‚¬â€ the cursor is grey here; press H to find a spin that clears"
 		hud.set_message("%s: %s%s" % [turn, result.rejected_reason, guidance])
 		_refresh_cursor()
 		return
@@ -215,7 +215,7 @@ func play_piece_move(cell: Vector2i, direction: int) -> void:
 	if game == null or screen != Screen.PLAYING:
 		return
 	board_view.hint_vertex = -1
-	var result = game.rotate_piece(cell, direction)
+	var result := game.rotate_piece(cell, direction)
 	if not result.committed:
 		hud.set_message("piece: %s" % result.rejected_reason)
 		return
@@ -223,7 +223,7 @@ func play_piece_move(cell: Vector2i, direction: int) -> void:
 
 
 ## Shared presentation tail for any committed move.
-func _apply(result, label: String) -> void:
+func _apply(result: MoveResult, label: String) -> void:
 	board_view.show_result(result)
 	_refresh_cursor()
 	hud.update_from_game(game)
@@ -258,12 +258,12 @@ func _apply(result, label: String) -> void:
 	if result.bombs_ticked.size() > 0:
 		parts.append("bomb ticking")
 	if result.round_ended:
-		parts.append("round %d â€” +%d" % [result.round_reached, result.round_bonus])
+		parts.append("round %d Ã¢â‚¬â€ +%d" % [result.round_reached, result.round_bonus])
 	if result.level_up:
 		parts.append("LEVEL %d" % result.new_level)
 	if result.shuffled:
-		parts.append("board was dead â€” shuffled")
-	hud.set_message("  Â·  ".join(parts))
+		parts.append("board was dead Ã¢â‚¬â€ shuffled")
+	hud.set_message("  Ã‚Â·  ".join(parts))
 
 
 func move_cursor(direction: Vector2) -> void:
@@ -299,7 +299,7 @@ func show_hint() -> void:
 		return
 	var legal: Array = game.find_legal_rotations()
 	if legal.is_empty():
-		hud.set_message("no legal rotation exists â€” the next move will shuffle the board")
+		hud.set_message("no legal rotation exists Ã¢â‚¬â€ the next move will shuffle the board")
 		return
 	var move: Dictionary = legal[0]
 	select_vertex(int(move["vertex"]))
@@ -316,10 +316,10 @@ func toggle_rotation_mode() -> void:
 	var ruleset: Variant = game.ruleset
 	if int(ruleset.rotation_mode) == int(RulesetScript.RotationMode.FREE):
 		ruleset.rotation_mode = RulesetScript.RotationMode.STRICT
-		hud.set_message("rotation mode: STRICT (reference) â€” non-clearing spins revert")
+		hud.set_message("rotation mode: STRICT (reference) Ã¢â‚¬â€ non-clearing spins revert")
 	else:
 		ruleset.rotation_mode = RulesetScript.RotationMode.FREE
-		hud.set_message("rotation mode: FREE â€” the trio stays where you put it")
+		hud.set_message("rotation mode: FREE Ã¢â‚¬â€ the trio stays where you put it")
 	hud.update_from_game(game)
 
 

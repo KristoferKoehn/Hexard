@@ -1,21 +1,21 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3 uid="uid://els7x8eh6335"]
 
-[ext_resource type="Script" path="res://src/app/main.gd" id="1_main"]
-[ext_resource type="Script" path="res://src/view/board_view.gd" id="2_board"]
-[ext_resource type="Script" path="res://src/view/hud.gd" id="3_hud"]
+[ext_resource type="Script" uid="uid://pllpfn56p1xg" path="res://src/app/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://skxxpfhmhjxl" path="res://src/view/board_view.gd" id="2_board"]
+[ext_resource type="Script" uid="uid://du1hgk8fhvay" path="res://src/view/hud.gd" id="3_hud"]
 
-[node name="Main" type="Node2D"]
+[node name="Main" type="Node2D" unique_id=721619485]
 script = ExtResource("1_main")
 
-[node name="Backdrop" type="ColorRect" parent="."]
+[node name="Backdrop" type="ColorRect" parent="." unique_id=1546025017]
 offset_right = 1280.0
 offset_bottom = 720.0
 mouse_filter = 2
 color = Color(0.0196078, 0.027451, 0.0470588, 1)
 
-[node name="BoardView" type="Node2D" parent="."]
+[node name="BoardView" type="Node2D" parent="." unique_id=1437652262]
 position = Vector2(640, 336)
 script = ExtResource("2_board")
 
-[node name="Hud" type="CanvasLayer" parent="."]
+[node name="Hud" type="CanvasLayer" parent="." unique_id=1450230395]
 script = ExtResource("3_hud")

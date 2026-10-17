@@ -1,6 +1,6 @@
-extends "res://tests/test_case.gd"
+﻿extends "res://tests/test_case.gd"
 
-## Game modes and run lifecycle (docs/design.md §5, §6): Timed's clock, Survival's
+## Game modes and run lifecycle (docs/design.md Â§5, Â§6): Timed's clock, Survival's
 ## rounds and locked pieces, difficulty scaling, and the end-of-run summary.
 
 const BoardScript := preload("res://src/core/board.gd")
@@ -125,7 +125,7 @@ func test_locked_pieces_are_inert() -> void:
 	assert_true(game.board.is_locked(frozen), "the piece is locked")
 	assert_false(game.board.is_playable(frozen), "and no longer playable")
 
-	var result = game.rotate_piece(frozen, 1)
+	var result := game.rotate_piece(frozen, 1)
 	assert_false(result.committed, "a frozen piece cannot be turned on its own")
 
 	# A rotation that would move a locked cell is refused too.
@@ -172,7 +172,7 @@ func test_a_survival_round_ends_and_freezes_the_leftovers() -> void:
 		if not keep.has(cell):
 			game.board.remove_piece(cell)
 
-	var result = game.rotate(0, 1)
+	var result := game.rotate(0, 1)
 	assert_true(result.committed, "the spin committed")
 	assert_true(result.round_ended, "and the round closed")
 	assert_eq(game.round, 2, "round counter advanced")

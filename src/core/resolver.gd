@@ -1,7 +1,7 @@
-class_name Resolver
+﻿class_name Resolver
 extends RefCounted
 
-## Cascade state machine (docs/design.md §3.3).
+## Cascade state machine (docs/design.md Â§3.3).
 ##
 ## Repeats until the board is stable: find the highest-priority formation, score
 ## and remove it, fall, refill. One category resolves per iteration, so
@@ -22,7 +22,7 @@ const ClearGroupScript := preload("res://src/core/clear_group.gd")
 ## Mutates `board`, accumulating everything into `result`.
 ## `refill` is false in Survival mode, where cleared cells stay empty for the
 ## rest of the round.
-static func resolve(board, ruleset, rng, result, level: int, refill: bool = true) -> void:
+static func resolve(board: Board, ruleset: Ruleset, rng: Rng, result: MoveResult, level: int, refill: bool = true) -> void:
 	# Pieces fall before formations are judged. On a board with gaps (Survival) a
 	# rotation can lift a piece into an empty cell, so this pass is what keeps
 	# "nothing is ever left floating" true after *every* move.
@@ -43,7 +43,7 @@ static func resolve(board, ruleset, rng, result, level: int, refill: bool = true
 
 ## One resolution step, highest priority first. Short-circuits on the first
 ## category that actually did something.
-static func _resolve_step(board, ruleset, result, level: int, depth: int) -> bool:
+static func _resolve_step(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
 	return (
 		_resolve_flowers(board, ruleset, result, level, depth)
 		or _resolve_pearl_rings(board, ruleset, result, level, depth)
@@ -57,11 +57,11 @@ static func _resolve_step(board, ruleset, result, level: int, depth: int) -> boo
 # --- formations -------------------------------------------------------------
 
 ## Ring of six same-coloured gems: the ring clears and the centre blooms into a
-## starflower — or into a black pearl when it was already a starflower.
+## starflower â€” or into a black pearl when it was already a starflower.
 ##
 ## Survival has no starflowers: there a flower unlocks the whole board and sweeps
-## every gem of the ring colour instead (docs/design.md §6.3).
-static func _resolve_flowers(board, ruleset, result, level: int, depth: int) -> bool:
+## every gem of the ring colour instead (docs/design.md Â§6.3).
+static func _resolve_flowers(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
 	var centres := MatchFinderScript.flower_centres(board)
 	if centres.is_empty():
 		return false
@@ -88,8 +88,8 @@ static func _resolve_flowers(board, ruleset, result, level: int, depth: int) -> 
 
 
 ## Six starflowers ringing a centre: the starflowers are consumed and the centre
-## becomes a black pearl (docs/design.md §3.4).
-static func _resolve_pearl_rings(board, ruleset, result, level: int, depth: int) -> bool:
+## becomes a black pearl (docs/design.md Â§3.4).
+static func _resolve_pearl_rings(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
 	var centres := MatchFinderScript.pearl_ring_centres(board)
 	if centres.is_empty():
 		return false
@@ -108,7 +108,7 @@ static func _resolve_pearl_rings(board, ruleset, result, level: int, depth: int)
 
 
 ## The perfect finish: a pearl cluster or a pearl ring ends the run.
-static func _resolve_pearl_finish(board, ruleset, result, level: int, depth: int) -> bool:
+static func _resolve_pearl_finish(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
 	var finish := MatchFinderScript.pearl_finish(board)
 	if finish.is_empty():
 		return false
@@ -127,7 +127,7 @@ static func _resolve_pearl_finish(board, ruleset, result, level: int, depth: int
 
 
 ## Three bonus stars of any colours: they clear, plus every tile they touch.
-static func _resolve_star_clusters(board, ruleset, result, level: int, depth: int) -> bool:
+static func _resolve_star_clusters(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
 	var cells := MatchFinderScript.star_cluster_cells(board)
 	if cells.is_empty():
 		return false
@@ -145,7 +145,7 @@ static func _resolve_star_clusters(board, ruleset, result, level: int, depth: in
 
 
 ## Three starflowers together are worth a windfall.
-static func _resolve_starflower_clusters(board, ruleset, result, level: int, depth: int) -> bool:
+static func _resolve_starflower_clusters(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
 	var cells := MatchFinderScript.starflower_cluster_cells(board)
 	if cells.is_empty():
 		return false
@@ -161,7 +161,7 @@ static func _resolve_starflower_clusters(board, ruleset, result, level: int, dep
 
 ## Ordinary colour clusters, plus the two bomb rules: a defuse bonus, and a
 ## colour wipe when a bonus star of the bomb's colour is in the same clear.
-static func _resolve_colour_clusters(board, ruleset, result, level: int, depth: int) -> bool:
+static func _resolve_colour_clusters(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
 	var groups: Array = MatchFinderScript.clear_groups(board)
 	if groups.is_empty():
 		return false
@@ -208,7 +208,7 @@ static func _resolve_colour_clusters(board, ruleset, result, level: int, depth: 
 			if stars > 0 and _thaw_around(board, clear_cells) > 0:
 				formations.append("thawed")
 
-		var emitted = _clear(board, result, clear_cells, depth, base, score, formations)
+		var emitted := _clear(board, result, clear_cells, depth, base, score, formations)
 		emitted.bonus_stars = stars
 		emitted.multiplier = multiplier
 	return true
@@ -220,9 +220,9 @@ static func _resolve_colour_clusters(board, ruleset, result, level: int, depth: 
 ## Scoring stays with the caller, so every formation can price itself however
 ## the design document says.
 static func _clear(
-	board, result, cells: Array, depth: int, base_score: int, score: int, formations: Array
+	board: Board, result: MoveResult, cells: Array, depth: int, base_score: int, score: int, formations: Array
 ) -> RefCounted:
-	var group = ClearGroupScript.new()
+	var group := ClearGroupScript.new()
 	group.cells = _sorted(cells)
 	group.cascade_depth = depth
 	group.base_score = base_score
@@ -238,7 +238,7 @@ static func _clear(
 
 
 ## The centre of a bloom becomes a new special piece.
-static func _promote(board, result, centre: Vector2i, kind: int) -> void:
+static func _promote(board: Board, result: MoveResult, centre: Vector2i, kind: int) -> void:
 	var piece := Pieces.make(kind, Pieces.GemColor.NONE)
 	board.set_piece(centre, piece)
 	result.promotions.append({"cell": centre, "piece": piece, "kind": Pieces.KIND_NAMES[kind]})
@@ -246,7 +246,7 @@ static func _promote(board, result, centre: Vector2i, kind: int) -> void:
 
 ## Survival's replacement for blooming: thaw the board, then sweep the colour.
 static func _survival_flourish(
-	board, ruleset, result, level: int, depth: int, centre: Vector2i, ring_color: int
+	board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int, centre: Vector2i, ring_color: int
 ) -> void:
 	var thawed: int = board.unlock_all()
 	var sweep := MatchFinderScript.cells_with_color(board, ring_color)
@@ -266,7 +266,7 @@ static func _survival_flourish(
 
 
 ## A blast thaws the frozen tiles around everything it touched.
-static func _thaw_around(board, cells: Array) -> int:
+static func _thaw_around(board: Board, cells: Array) -> int:
 	var thawed := 0
 	for cell: Vector2i in cells:
 		for neighbour: Vector2i in Grid.neighbours(cell):
@@ -276,7 +276,7 @@ static func _thaw_around(board, cells: Array) -> int:
 	return thawed
 
 
-static func _has_star_of_color(board, cells: Array, gem_color: int) -> bool:
+static func _has_star_of_color(board: Board, cells: Array, gem_color: int) -> bool:
 	for cell: Vector2i in cells:
 		var piece: int = board.get_piece(cell)
 		if Pieces.is_bonus_star(piece) and int(Pieces.color_of(piece)) == gem_color:
@@ -298,7 +298,7 @@ static func _sorted(cells: Array) -> Array[Vector2i]:
 # --- board upkeep -----------------------------------------------------------
 
 ## Gravity pass; records moves into `result` when one is supplied.
-static func apply_gravity(board, result = null, depth: int = 0) -> void:
+static func apply_gravity(board: Board, result: MoveResult = null, depth: int = 0) -> void:
 	if result == null:
 		board.apply_gravity()
 		return
@@ -309,7 +309,7 @@ static func apply_gravity(board, result = null, depth: int = 0) -> void:
 
 ## New pieces fall in above the top edge to fill the gaps gravity left behind.
 ## From level 2 some of them are bonus stars; from level 3 some are bombs.
-static func refill_board(board, rng, result, level: int, ruleset, depth: int = 0) -> void:
+static func refill_board(board: Board, rng: Rng, result: MoveResult, level: int, ruleset: Ruleset, depth: int = 0) -> void:
 	var colors: Array = Pieces.colors_for_level(level)
 	for column_index in Grid.COLUMNS:
 		for cell: Vector2i in Grid.column(column_index):
@@ -320,7 +320,7 @@ static func refill_board(board, rng, result, level: int, ruleset, depth: int = 0
 			result.spawns.append({"cell": cell, "piece": piece, "depth": depth})
 
 
-static func _roll_piece(rng, colors: Array, ruleset, level: int) -> int:
+static func _roll_piece(rng: Rng, colors: Array, ruleset: Ruleset, level: int) -> int:
 	var roll: float = rng.next_float()
 	var bomb_chance: float = ruleset.bomb_chance_at(level)
 	if bomb_chance > 0.0 and roll < bomb_chance:

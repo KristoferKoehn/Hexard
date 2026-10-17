@@ -1,6 +1,6 @@
-extends "res://tests/test_case.gd"
+﻿extends "res://tests/test_case.gd"
 
-## The scripted tutorial (docs/design.md §7.4): each step must rig a legal board,
+## The scripted tutorial (docs/design.md Â§7.4): each step must rig a legal board,
 ## wait for the player to do the thing, and only then move on.
 
 const MatchFinder := preload("res://src/core/match_finder.gd")
@@ -82,7 +82,7 @@ func test_the_turn_step_wants_a_piece_turn_not_a_spin() -> void:
 	assert_false(tutorial.evaluate(spin), "a trio spin does not complete this step")
 	assert_eq(tutorial.goal_id(), "turn", "still waiting")
 
-	var turned = tutorial.game.rotate_piece(Vector2i(4, 4), GameScript.CLOCKWISE)
+	var turned := tutorial.game.rotate_piece(Vector2i(4, 4), GameScript.CLOCKWISE)
 	assert_true(turned.committed, "the starflower turned")
 	assert_true(tutorial.evaluate(turned), "which completes the step")
 	assert_eq(tutorial.goal_id(), "pearl", "now teaching pearls")
@@ -106,7 +106,7 @@ func test_the_pearl_step_completes_the_tutorial() -> void:
 
 func test_a_rejected_move_never_advances() -> void:
 	var tutorial := TutorialScript.new()
-	var rejected = tutorial.game.rotate(-1, 1)
+	var rejected := tutorial.game.rotate(-1, 1)
 	assert_false(rejected.committed, "the move was rejected")
 	assert_false(tutorial.evaluate(rejected), "and cannot complete a step")
 	assert_eq(tutorial.step_number(), 1, "still on step 1")

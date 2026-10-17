@@ -18,7 +18,13 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 [debug]
 
 file_logging/enable_file_logging.pc=false
+; Typed declarations are the house style, so the linter enforces them. Godot only
+; reports GDScript warnings to the editor, never to a headless run — to get a
+; console report, flip treat_warnings_as_errors on and run:
+;   godot --headless --path . --check-only --script res://<a-script>.gd
+; (one script at a time: the message carries no file or line).
 gdscript/warnings/untyped_declaration=1
+gdscript/warnings/treat_warnings_as_errors=false
 
 [display]
 

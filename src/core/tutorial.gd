@@ -1,11 +1,11 @@
-class_name Tutorial
+﻿class_name Tutorial
 extends RefCounted
 
-## A short, scripted, hands-on tutorial (docs/design.md §7.4).
+## A short, scripted, hands-on tutorial (docs/design.md Â§7.4).
 ##
 ## Each step rigs the board so the mechanic under discussion is one move away,
 ## then watches the resulting MoveResult for the goal. Rigging is legitimate
-## here — the point is to *show* the mechanic, and every setup is a legal board
+## here â€” the point is to *show* the mechanic, and every setup is a legal board
 ## (a match-free background plus the formation under test).
 
 const Grid := preload("res://src/core/hex_grid.gd")
@@ -17,7 +17,7 @@ const RulesetScript := preload("res://src/core/ruleset.gd")
 const CENTRE := Vector2i(4, 4)
 const SEED := 777
 
-var game: RefCounted
+var game: Game
 var step_index := 0
 var complete := false
 ## Where the player should look: the controller moves the cursor here.
@@ -99,7 +99,7 @@ func hint_vertex() -> int:
 # --- evaluation -------------------------------------------------------------
 
 ## Feed the result of the player's move. Returns true when the step advanced.
-func evaluate(result) -> bool:
+func evaluate(result: MoveResult) -> bool:
 	if complete or result == null or not result.committed:
 		return false
 	if not _goal_met(str(_current()["id"]), result):
@@ -113,7 +113,7 @@ func evaluate(result) -> bool:
 	return true
 
 
-func _goal_met(goal: String, result) -> bool:
+func _goal_met(goal: String, result: MoveResult) -> bool:
 	match goal:
 		"clear":
 			return result.cleared_count >= 3
@@ -128,14 +128,14 @@ func _goal_met(goal: String, result) -> bool:
 	return false
 
 
-func _has_formation(result, name: String) -> bool:
+func _has_formation(result: MoveResult, name: String) -> bool:
 	for group in result.clear_groups:
 		if group.has_formation(name):
 			return true
 	return false
 
 
-func _has_promotion(result, kind: String) -> bool:
+func _has_promotion(result: MoveResult, kind: String) -> bool:
 	for promotion: Dictionary in result.promotions:
 		if str(promotion.get("kind", "")) == kind:
 			return true

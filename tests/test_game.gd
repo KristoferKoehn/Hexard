@@ -1,7 +1,7 @@
-extends "res://tests/test_case.gd"
+﻿extends "res://tests/test_case.gd"
 
 ## Game facade: rotation modes, cascades, scoring, progression, dead boards,
-## replay determinism (docs/design.md §3, §5, §10.2).
+## replay determinism (docs/design.md Â§3, Â§5, Â§10.2).
 
 const BoardScript := preload("res://src/core/board.gd")
 const MatchFinder := preload("res://src/core/match_finder.gd")
@@ -13,7 +13,7 @@ const GameScript := preload("res://src/core/game.gd")
 
 
 ## A rotation that clears nothing: anything absent from the legal set.
-func _illegal_rotation(game) -> Dictionary:
+func _illegal_rotation(game: GameScript) -> Dictionary:
 	var legal := {}
 	for move: Dictionary in game.find_legal_rotations():
 		legal["%d:%d" % [move["vertex"], move["direction"]]] = true
@@ -25,14 +25,14 @@ func _illegal_rotation(game) -> Dictionary:
 	return {}
 
 
-func _play_legal_moves(game, count: int) -> int:
+func _play_legal_moves(game: GameScript, count: int) -> int:
 	var played := 0
 	for step in count:
 		var legal: Array = game.find_legal_rotations()
 		if legal.is_empty():
 			break
 		var move: Dictionary = legal[0]
-		var result = game.rotate(move["vertex"], move["direction"])
+		var result := game.rotate(move["vertex"], move["direction"])
 		if result.committed:
 			played += 1
 	return played
@@ -93,7 +93,7 @@ func test_free_mode_keeps_a_non_matching_rotation() -> void:
 	var move := _illegal_rotation(game)
 	assert_true(move.size() > 0, "a non-matching rotation exists")
 	var before := game.signature()
-	var result = game.rotate(move["vertex"], move["direction"])
+	var result := game.rotate(move["vertex"], move["direction"])
 	assert_true(result.committed, "FREE mode accepts the spin")
 	assert_eq(result.clear_groups.size(), 0, "nothing cleared")
 	assert_ne(game.signature(), before, "but the trio stayed where it was put")
@@ -106,7 +106,7 @@ func test_strict_mode_reverts_a_non_matching_rotation() -> void:
 	var game := GameScript.new(3, RulesetScript.strict_rotation())
 	var move := _illegal_rotation(game)
 	var before := game.signature()
-	var result = game.rotate(move["vertex"], move["direction"])
+	var result := game.rotate(move["vertex"], move["direction"])
 	assert_false(result.committed, "STRICT mode refuses a spin that clears nothing")
 	assert_eq(game.signature(), before, "the board is byte-for-byte unchanged")
 	assert_eq(game.turns, 0, "and no move is consumed")
@@ -129,7 +129,7 @@ func test_a_legal_rotation_clears_scores_and_refills() -> void:
 	var legal := game.find_legal_rotations()
 	assert_gt(legal.size(), 0, "a fresh board offers a move")
 	var move: Dictionary = legal[0]
-	var result = game.rotate(move["vertex"], move["direction"])
+	var result := game.rotate(move["vertex"], move["direction"])
 
 	assert_true(result.committed, "the move committed")
 	assert_ge(result.clear_groups.size(), 1, "at least one clear group")
@@ -147,7 +147,7 @@ func test_clear_score_matches_the_table() -> void:
 	var game := GameScript.new(8)
 	var rules := RulesetScript.new()
 	var move: Dictionary = game.find_legal_rotations()[0]
-	var result = game.rotate(move["vertex"], move["direction"])
+	var result := game.rotate(move["vertex"], move["direction"])
 	for group in result.clear_groups:
 		var expected: int = rules.scoring.clear_score(
 			rules.scoring.base_for_cluster(group.size()), 1, group.cascade_depth, "normal"
@@ -157,7 +157,7 @@ func test_clear_score_matches_the_table() -> void:
 
 
 func test_cascade_chains_and_multiplies() -> void:
-	# Hand-built, rules-legal board pinning the fall geometry (docs/design.md §2.2).
+	# Hand-built, rules-legal board pinning the fall geometry (docs/design.md Â§2.2).
 	# Both columns are gravity-settled bottom-anchored prefixes, and the vertex
 	# {(2,7),(3,6),(3,7)} already matches:
 	#   clear it  ->  (2,6) drops 1 row to (2,7)
@@ -246,7 +246,7 @@ func test_a_dead_board_is_shuffled_back_to_life() -> void:
 		game.board.remove_piece(cell)
 	assert_false(game.has_any_legal_rotation(), "an empty board has no legal move")
 
-	var result = game.rotate(0, 1)
+	var result := game.rotate(0, 1)
 	assert_true(result.dead_board, "the dead board is reported")
 	assert_true(result.shuffled, "and shuffled")
 	assert_eq(game.tile_count(), 85, "the shuffle leaves a full board")
@@ -328,7 +328,7 @@ func test_random_playouts_keep_every_invariant() -> void:
 		for step in 400:
 			var vertex_index := rng.next_int(vertices.size())
 			var direction := 1 if rng.next_int(2) == 0 else -1
-			var result = game.rotate(vertex_index, direction)
+			var result := game.rotate(vertex_index, direction)
 			if result.committed:
 				committed += 1
 			assert_eq(game.board.invariant_violations().size(), 0, "no floating pieces (seed %d, step %d)" % [run_seed, step])

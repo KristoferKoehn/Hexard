@@ -1,10 +1,10 @@
-extends "res://tests/test_case.gd"
+﻿extends "res://tests/test_case.gd"
 
-## Special pieces (docs/design.md §3.4): bonus stars, starflowers, black pearls
+## Special pieces (docs/design.md Â§3.4): bonus stars, starflowers, black pearls
 ## and bombs.
 ##
 ## Scenarios are painted onto a full, provably match-free background, because
-## gravity runs before formations are judged — a half-empty board would drop its
+## gravity runs before formations are judged â€” a half-empty board would drop its
 ## pieces and destroy the very formation under test.
 
 const BoardScript := preload("res://src/core/board.gd")
@@ -22,7 +22,7 @@ const CENTRE := Vector2i(4, 4)
 # --- helpers ----------------------------------------------------------------
 
 
-## A rotation whose trio is one ring cell plus two cells outside the ring — the
+## A rotation whose trio is one ring cell plus two cells outside the ring â€” the
 ## shape needed to swing a gem into a nearly-finished flower or pearl ring.
 func _trio_outside_ring(centre: Vector2i, ring: Array) -> Dictionary:
 	var forbidden := {centre: true}
@@ -49,9 +49,9 @@ func _full_board() -> RefCounted:
 	return board
 
 
-func _resolve(board, ruleset = null, level: int = 1, refill: bool = false) -> RefCounted:
+func _resolve(board: Board, ruleset: Ruleset = null, level: int = 1, refill: bool = false) -> RefCounted:
 	var rules: Variant = ruleset if ruleset != null else RulesetScript.new()
-	var result = MoveResultScript.new()
+	var result := MoveResultScript.new()
 	ResolverScript.resolve(board, rules, RngScript.new(1), result, level, refill)
 	return result
 
@@ -128,7 +128,7 @@ func test_bonus_star_doubles_the_clear() -> void:
 	_paint(board, [Vector2i(4, 7), Vector2i(4, 8)], Pieces.GemColor.RED)
 	board.set_piece(Vector2i(5, 7), Pieces.bonus_star(Pieces.GemColor.RED))
 
-	var group = _first_group(_resolve(board))
+	var group := _first_group(_resolve(board))
 	assert_eq(group.bonus_stars, 1, "the star is counted")
 	assert_eq(group.multiplier, 2, "x2 for one star")
 	assert_eq(group.base_score, 5, "base is the 3-cluster tier")
@@ -141,7 +141,7 @@ func test_two_bonus_stars_multiply_together() -> void:
 	board.set_piece(Vector2i(4, 8), Pieces.bonus_star(Pieces.GemColor.RED))
 	board.set_piece(Vector2i(5, 7), Pieces.gem(Pieces.GemColor.RED))
 
-	var group = _first_group(_resolve(board))
+	var group := _first_group(_resolve(board))
 	assert_eq(group.bonus_stars, 2, "two stars")
 	assert_eq(group.multiplier, 4, "x2 per star, stacking")
 	assert_eq(group.score, 20, "5 base x 4")
@@ -157,7 +157,7 @@ func test_three_bonus_stars_clear_what_they_touch() -> void:
 	board.set_piece(Vector2i(3, 7), Pieces.gem(Pieces.GemColor.CYAN))
 	board.set_piece(Vector2i(2, 7), Pieces.gem(Pieces.GemColor.VIOLET))
 
-	var group = _first_group(_resolve(board))
+	var group := _first_group(_resolve(board))
 	assert_true(group.has_formation("bonus_star_cluster"), "reported as a bonus-star cluster")
 	assert_true(group.cells.has(Vector2i(3, 7)), "the adjacent gem was swept up")
 	assert_false(group.cells.has(Vector2i(2, 7)), "but not the one two cells away")
@@ -183,7 +183,7 @@ func test_a_flower_blooms_into_a_starflower() -> void:
 	assert_true(MatchFinder.is_flower(board, CENTRE), "the ring reads as a flower")
 
 	var result := _resolve(board)
-	var group = _first_group(result)
+	var group := _first_group(result)
 	assert_true(group.has_formation("flower"), "the flower resolves first")
 	assert_eq(group.size(), 6, "six ring gems are consumed")
 	assert_eq(group.base_score, 1000, "flowers use the flower tier")
@@ -200,7 +200,7 @@ func test_a_same_coloured_ring_is_a_cluster_not_a_flower() -> void:
 
 	var result := _resolve(board)
 	assert_eq(result.promotions.size(), 0, "nothing is promoted")
-	var group = _first_group(result)
+	var group := _first_group(result)
 	assert_true(group.has_formation("cluster"), "the ring resolves as a normal cluster")
 	# The 7-cell blob also swallows same-coloured background neighbours, so the
 	# group is at least the centre plus its ring.
@@ -227,7 +227,7 @@ func test_six_starflowers_ring_makes_a_pearl() -> void:
 	assert_true(MatchFinder.is_pearl_creation_ring(board, CENTRE), "six starflowers ring the centre")
 
 	var result := _resolve(board)
-	var group = _first_group(result)
+	var group := _first_group(result)
 	assert_true(group.has_formation("pearl_built"), "reported as a pearl")
 	assert_eq(group.base_score, 10000, "pearls use the pearl tier")
 	assert_eq(result.promotions[0]["piece"], Pieces.pearl(), "the centre becomes a pearl")
@@ -241,7 +241,7 @@ func test_three_starflowers_pay_a_windfall() -> void:
 	for cell: Vector2i in [Vector2i(4, 7), Vector2i(4, 8), Vector2i(5, 7)]:
 		board.set_piece(cell, Pieces.starflower())
 
-	var group = _first_group(_resolve(board))
+	var group := _first_group(_resolve(board))
 	assert_true(group.has_formation("starflower_cluster"), "starflower cluster")
 	assert_eq(group.base_score, 2500, "starflower tier")
 	assert_eq(board.filled_count(), 0, "all three are consumed")
@@ -289,7 +289,7 @@ func test_a_bomb_is_defused_by_a_colour_cluster() -> void:
 	board.set_piece(Vector2i(4, 7), Pieces.bomb(Pieces.GemColor.RED, 5))
 	_paint(board, [Vector2i(4, 8), Vector2i(5, 7)], Pieces.GemColor.RED)
 
-	var group = _first_group(_resolve(board))
+	var group := _first_group(_resolve(board))
 	assert_true(group.has_formation("bomb_defused"), "the bomb was defused")
 	assert_eq(group.score, 5 + 200, "cluster points plus the defuse bonus")
 	assert_eq(_count_kind(board, Pieces.Kind.BOMB), 0, "no bomb left on the board")
@@ -304,7 +304,7 @@ func test_a_bomb_with_a_matching_star_wipes_the_colour() -> void:
 	_paint(board, [Vector2i(0, 7), Vector2i(9, 7)], Pieces.GemColor.RED)
 	board.set_piece(Vector2i(2, 8), Pieces.gem(Pieces.GemColor.BLUE))
 
-	var group = _first_group(_resolve(board))
+	var group := _first_group(_resolve(board))
 	assert_true(group.has_formation("bomb_defused"), "the bomb was defused")
 	assert_true(group.has_formation("bomb_colour_wipe"), "and the colour was wiped")
 	assert_true(board.is_empty(Vector2i(0, 7)), "a distant red gem is cleared too")
@@ -320,7 +320,7 @@ func test_a_bomb_ticks_down_each_move_and_explodes() -> void:
 	game.board.set_piece(Vector2i(0, 0), Pieces.bomb(Pieces.GemColor.BLUE, 1))
 
 	var move := _non_matching_rotation(game)
-	var result = game.rotate(move["vertex"], move["direction"])
+	var result := game.rotate(move["vertex"], move["direction"])
 	assert_true(result.committed, "the spin was accepted")
 	assert_true(result.bomb_exploded, "the fuse ran out and it exploded")
 	assert_true(result.game_over, "which ends the run")
@@ -334,7 +334,7 @@ func test_an_exploding_bomb_flattens_the_whole_board_and_scores_nothing() -> voi
 	game.board.set_piece(bomb_cell, Pieces.bomb(Pieces.GemColor.BLUE, 1))
 
 	var move := _non_matching_rotation(game)
-	var result = game.rotate(move["vertex"], move["direction"])
+	var result := game.rotate(move["vertex"], move["direction"])
 	assert_true(result.committed, "the spin was accepted")
 	assert_true(result.bomb_exploded, "the fuse ran out")
 	assert_eq(result.exploded_cells.size(), 85, "the blast takes the entire board")
@@ -353,7 +353,7 @@ func test_an_exploding_bomb_flattens_the_whole_board_and_scores_nothing() -> voi
 
 
 ## STRICT mode only accepts a spin that clears something. Forming a flower is a
-## move too — and a flower's ring is uniform, so the swap that completes it often
+## move too â€” and a flower's ring is uniform, so the swap that completes it often
 ## lands the match somewhere other than the vertex being turned. The last spin
 ## into a flower must never be refused.
 func test_strict_accepts_the_last_spin_into_a_flower() -> void:
@@ -377,7 +377,7 @@ func test_strict_accepts_the_last_spin_into_a_flower() -> void:
 	var accepted := false
 	var promoted := false
 	for direction in [1, -1]:
-		var result = game.rotate(int(found["vertex"]), direction)
+		var result := game.rotate(int(found["vertex"]), direction)
 		if not result.committed:
 			continue
 		accepted = true
@@ -389,7 +389,7 @@ func test_strict_accepts_the_last_spin_into_a_flower() -> void:
 	assert_true(promoted, "and the flower bloomed")
 
 
-## Pearl rings are made of starflowers, which have no colour — so completing one
+## Pearl rings are made of starflowers, which have no colour â€” so completing one
 ## creates no colour match at all. Without the formation rule STRICT would refuse
 ## the winning spin outright.
 func test_strict_accepts_the_last_spin_into_a_pearl_ring() -> void:
@@ -415,7 +415,7 @@ func test_strict_accepts_the_last_spin_into_a_pearl_ring() -> void:
 	var accepted := false
 	var pearls := 0
 	for direction in [1, -1]:
-		var result = game.rotate(int(found["vertex"]), direction)
+		var result := game.rotate(int(found["vertex"]), direction)
 		if not result.committed:
 			continue
 		accepted = true
@@ -430,7 +430,7 @@ func test_a_strict_spin_that_makes_nothing_is_still_rejected() -> void:
 	# A board with no formation of any kind, and a spin that clears nothing.
 	var move := _non_matching_rotation(game)
 	assert_eq(game.find_legal_rotations().size() >= 0, true, "the scan ran")
-	var result = game.rotate(move["vertex"], move["direction"])
+	var result := game.rotate(move["vertex"], move["direction"])
 	if result.committed:
 		info("this seed had a clearing spin at the sampled vertex; skipped")
 		return
@@ -443,7 +443,7 @@ func test_a_bomb_loses_exactly_one_tick_per_move() -> void:
 	game.board.set_piece(Vector2i(0, 0), Pieces.bomb(Pieces.GemColor.BLUE, 5))
 
 	var move := _non_matching_rotation(game)
-	var result = game.rotate(move["vertex"], move["direction"])
+	var result := game.rotate(move["vertex"], move["direction"])
 	assert_eq(result.bombs_ticked.size(), 1, "one bomb ticked")
 	assert_false(result.bomb_exploded, "not yet")
 	var found := Vector2i(-1, -1)
@@ -468,7 +468,7 @@ func test_starflower_rotates_its_ring_without_a_match() -> void:
 	for cell: Vector2i in ring:
 		before.append(game.board.get_piece(cell))
 
-	var result = game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
+	var result := game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
 	assert_true(result.committed, "ring rotation always persists, even in STRICT")
 	assert_eq(result.clear_groups.size(), 0, "and needs no match")
 	assert_eq(game.board.get_piece(CENTRE), Pieces.starflower(), "the starflower stays put")
@@ -496,7 +496,7 @@ func test_a_pearl_rotates_three_of_its_six_neighbours() -> void:
 	for cell: Vector2i in turning:
 		before.append(game.board.get_piece(cell))
 
-	var result = game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
+	var result := game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
 	assert_true(result.committed, "the pearl turns")
 	assert_eq(result.clear_groups.size(), 0, "the background has nothing to clear")
 	assert_eq(game.board.get_piece(CENTRE), Pieces.pearl(), "the pearl itself stays")
@@ -512,7 +512,7 @@ func test_a_pearl_rotates_three_of_its_six_neighbours() -> void:
 
 func test_only_specials_can_be_rotated_alone() -> void:
 	var game := GameScript.new(5, RulesetScript.free_rotation())
-	var result = game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
+	var result := game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
 	assert_false(result.committed, "a plain gem cannot be spun on its own")
 	assert_gt(result.rejected_reason.length(), 0, "with an explanation")
 

@@ -1,7 +1,7 @@
-class_name Game
+﻿class_name Game
 extends RefCounted
 
-## Facade over the rules core (docs/design.md §3, §5).
+## Facade over the rules core (docs/design.md Â§3, Â§5).
 ##
 ##   var game := Game.new(1234)
 ##   var result := game.rotate(vertex_index, Game.CLOCKWISE)
@@ -36,12 +36,12 @@ var seed_value := 0
 var turns := 0
 var shuffle_count := 0
 
-## Timed mode (docs/design.md §6.2).
+## Timed mode (docs/design.md Â§6.2).
 var clock := 0.0
 var max_clock := 0.0
 var elapsed := 0.0
 
-## Survival mode (docs/design.md §6.3).
+## Survival mode (docs/design.md Â§6.3).
 var round := 1
 var rounds_cleared := 0
 var bombs_defused := 0
@@ -91,8 +91,8 @@ func tile_count() -> int:
 # --- moves ------------------------------------------------------------------
 
 ## Rotates the trio around `vertex_index` one 60-degree step.
-func rotate(vertex_index: int, direction: int = CLOCKWISE):
-	var result = MoveResultScript.new()
+func rotate(vertex_index: int, direction: int = CLOCKWISE) -> MoveResult:
+	var result := MoveResultScript.new()
 	if state != State.PLAYING:
 		return _reject(result, "game is over")
 
@@ -115,7 +115,7 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE):
 		if ruleset.rotation_mode == RulesetScript.RotationMode.STRICT:
 			# Reference behaviour: a spin that clears nothing is not a move.
 			_cycle(cells, -direction)
-			var rejected = _reject(result, "the spin clears nothing (strict mode reverts)")
+			var rejected := _reject(result, "the spin clears nothing (strict mode reverts)")
 			# Still check the dead-board rule: if no spin at all can clear, the
 			# player is stuck and the board must be reshuffled.
 			settle(rejected)
@@ -134,12 +134,12 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE):
 	return result
 
 
-## Rotates a special piece in place (docs/design.md §3.4):
+## Rotates a special piece in place (docs/design.md Â§3.4):
 ##   starflower -> cycles all six neighbours one step
 ##   black pearl -> cycles three of six neighbours in a Y / inverted-Y
 ## These rotations always persist, match or not, in both rotation modes.
-func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE):
-	var result = MoveResultScript.new()
+func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE) -> MoveResult:
+	var result := MoveResultScript.new()
 	if state != State.PLAYING:
 		return _reject(result, "game is over")
 	if direction != CLOCKWISE and direction != COUNTER_CLOCKWISE:
@@ -215,7 +215,7 @@ func is_legal_rotation(vertex_index: int, direction: int) -> bool:
 	return _rotation_makes_something(vertex_index, direction, vertices[vertex_index])
 
 
-## True when either direction clears here — what the cursor highlight shows.
+## True when either direction clears here â€” what the cursor highlight shows.
 func has_legal_spin(vertex_index: int) -> bool:
 	return is_legal_rotation(vertex_index, CLOCKWISE) \
 		or is_legal_rotation(vertex_index, COUNTER_CLOCKWISE)
@@ -265,7 +265,7 @@ func fill_board() -> void:
 			board.set_piece(cell, Pieces.make(Pieces.Kind.GEM, candidates[0]))
 
 	if MatchFinderScript.has_any_match(board):
-		var settle = MoveResultScript.new()
+		var settle := MoveResultScript.new()
 		ResolverScript.resolve(board, ruleset, _rng_refill, settle, level, true)
 
 
@@ -283,7 +283,7 @@ func _cycle(cells: Array, direction: int) -> void:
 
 
 ## A spin is worth accepting when it makes anything at all: a colour match, or a
-## formation — a flower blooming, or a pearl ring closing. That second clause is
+## formation â€” a flower blooming, or a pearl ring closing. That second clause is
 ## what lets the last spin into a flower land even in STRICT mode, where a spin
 ## that clears nothing is otherwise not a move.
 ##
@@ -330,7 +330,7 @@ func _record_piece(cell: Vector2i, direction: int) -> void:
 	turns += 1
 
 
-func _reject(result, reason: String):
+func _reject(result: MoveResult, reason: String) -> MoveResult:
 	result.committed = false
 	result.rejected_reason = reason
 	return result
@@ -338,12 +338,12 @@ func _reject(result, reason: String):
 
 ## A rejection that still lets the board close its round: a Survival board where
 ## everything is frozen must not be able to soft-lock the player.
-func _reject_settling(result, reason: String):
+func _reject_settling(result: MoveResult, reason: String) -> MoveResult:
 	settle(_reject(result, reason))
 	return result
 
 
-func _award(result) -> void:
+func _award(result: MoveResult) -> void:
 	score += result.score
 	total_combos += result.combos
 	combos_in_level += result.combos
@@ -356,7 +356,7 @@ func _award(result) -> void:
 
 ## Shared tail of every committed move: bank the score, pay out mode-specific
 ## rewards, age the bombs, and check whether the board is still playable.
-func _finish_move(result) -> void:
+func _finish_move(result: MoveResult) -> void:
 	_award(result)
 	if ruleset.mode == RulesetScript.Mode.SURVIVAL:
 		_round_cleared += result.cleared_count
@@ -375,8 +375,8 @@ func _finish_move(result) -> void:
 
 
 ## Timed mode: clears buy seconds back; a starflower refills and raises the cap
-## (docs/design.md §6.2).
-func _reward_clock(result) -> void:
+## (docs/design.md Â§6.2).
+func _reward_clock(result: MoveResult) -> void:
 	if ruleset.mode != RulesetScript.Mode.TIMED:
 		return
 	clock += float(result.cleared_count) * RulesetScript.TIMED_PER_GEM
@@ -397,7 +397,7 @@ func _reward_clock(result) -> void:
 
 ## Every bomb loses one move. Reaching zero detonates it and ends the run.
 ## A bomb going off ends the run and levels the board (nothing scores).
-func _tick_bombs(result) -> void:
+func _tick_bombs(result: MoveResult) -> void:
 	var exploders: Array[Vector2i] = []
 	for cell: Vector2i in Grid.all_cells():
 		var piece: int = board.get_piece(cell)
@@ -431,8 +431,8 @@ func _tick_bombs(result) -> void:
 	_finish("bomb_exploded", false)
 
 
-## After every move: is the board still playable? (docs/design.md §5.3, §6.3)
-func settle(result) -> void:
+## After every move: is the board still playable? (docs/design.md Â§5.3, Â§6.3)
+func settle(result: MoveResult) -> void:
 	if state != State.FINISHED and not result.finished:
 		if ruleset.mode == RulesetScript.Mode.SURVIVAL:
 			_settle_survival(result)
@@ -444,9 +444,9 @@ func settle(result) -> void:
 	result.new_level = level
 
 
-## Survival never reshuffles: when nothing can be cleared the round is over —
+## Survival never reshuffles: when nothing can be cleared the round is over â€”
 ## the leftovers freeze, the gaps refill, and the next round begins.
-func _settle_survival(result) -> void:
+func _settle_survival(result: MoveResult) -> void:
 	if board.filled_count() == 0:
 		_end_survival("board_cleared", true, result)
 		return
@@ -457,7 +457,7 @@ func _settle_survival(result) -> void:
 
 ## Ends the current Survival round: pay the round bonus, freeze what is left,
 ## refill, and check the two survival endings.
-func _close_round(result) -> void:
+func _close_round(result: MoveResult) -> void:
 	var bonus := _round_cleared * RulesetScript.SURVIVAL_ROUND_BONUS_PER_GEM
 	score += bonus
 	result.score += bonus
@@ -484,7 +484,7 @@ func _close_round(result) -> void:
 
 
 ## Marks the run finished from inside a move's bookkeeping.
-func _end_survival(reason: String, did_win: bool, result) -> void:
+func _end_survival(reason: String, did_win: bool, result: MoveResult) -> void:
 	_finish(reason, did_win)
 	result.finished = true
 	result.finish_kind = reason
