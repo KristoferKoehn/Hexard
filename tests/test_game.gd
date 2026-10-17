@@ -332,7 +332,10 @@ func test_random_playouts_keep_every_invariant() -> void:
 			if result.committed:
 				committed += 1
 			assert_eq(game.board.invariant_violations().size(), 0, "no floating pieces (seed %d, step %d)" % [run_seed, step])
-			assert_eq(game.tile_count(), 85, "Marathon keeps the board full")
+			# A bomb that explodes craters the board on its way to game over, so
+			# "full" only holds while the run is still going.
+			if game.state == GameScript.State.PLAYING:
+				assert_eq(game.tile_count(), 85, "Marathon keeps the board full")
 			assert_ge(game.score, 0, "score never goes negative")
 			assert_le(game.level, 7, "level never exceeds the cap")
 		assert_gt(committed, 0, "random play commits moves (seed %d)" % run_seed)

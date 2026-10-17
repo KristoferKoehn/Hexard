@@ -307,6 +307,43 @@ func test_a_bomb_ticks_down_each_move_and_explodes() -> void:
 	assert_false(game.rotate(move["vertex"], move["direction"]).committed, "no further moves")
 
 
+func test_an_exploding_bomb_leaves_a_crater_and_scores_nothing() -> void:
+	var game := GameScript.new(11, RulesetScript.free_rotation())
+	var bomb_cell := Vector2i(4, 4)
+	game.board.set_piece(bomb_cell, Pieces.bomb(Pieces.GemColor.BLUE, 1))
+
+	var move := _non_matching_rotation(game)
+	var result = game.rotate(move["vertex"], move["direction"])
+	assert_true(result.committed, "the spin was accepted")
+	assert_true(result.bomb_exploded, "the fuse ran out")
+	assert_eq(result.exploded_cells.size(), 19, "the shockwave takes two rings")
+	assert_eq(result.exploded_cells[0], bomb_cell, "and starts at the bomb itself")
+	# Gravity collapses the crater, so the blasted cells are refilled from above —
+	# what matters is that the bomb destroyed itself and nothing scored.
+	assert_eq(_count_kind(game.board, Pieces.Kind.BOMB), 0, "the bomb is gone")
+	# Nothing is created by an explosion: the crater leaves exactly its own holes,
+	# so every tile outside the blast radius is still there.
+	assert_eq(game.tile_count(), 85 - 19, "the crater leaves exactly its own holes")
+	# The crater is a game-over event, not a clear: no score, no combos, no groups.
+	assert_eq(result.cleared_count, 0, "the blast is not a clear")
+	assert_eq(result.score, 0, "and awards nothing")
+	assert_eq(result.clear_groups.size(), 0, "with no clear group recorded")
+	assert_eq(game.board.invariant_violations().size(), 0, "the crater settles")
+
+
+func test_the_blast_spares_tiles_outside_its_radius() -> void:
+	var game := GameScript.new(11, RulesetScript.free_rotation())
+	game.board.set_piece(Vector2i(4, 4), Pieces.bomb(Pieces.GemColor.BLUE, 1))
+	var before: int = game.tile_count()
+	var move := _non_matching_rotation(game)
+	var result = game.rotate(move["vertex"], move["direction"])
+	assert_true(result.bomb_exploded, "it went off")
+	# The rotation and the explosion are move-preserving / destructive only: the
+	# board loses exactly the crater, never more.
+	assert_eq(game.tile_count(), before - 19, "only the crater is destroyed")
+	assert_eq(result.cleared_count, 0, "and none of it counts as a clear")
+
+
 func test_a_bomb_loses_exactly_one_tick_per_move() -> void:
 	var game := GameScript.new(7, RulesetScript.free_rotation())
 	game.board.set_piece(Vector2i(0, 0), Pieces.bomb(Pieces.GemColor.BLUE, 5))

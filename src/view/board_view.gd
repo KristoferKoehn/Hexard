@@ -29,6 +29,9 @@ const FALL_TIME := 0.17
 const DROP_TIME := 0.15
 const STEP_GAP := 0.045
 const BLOOM_TIME := 0.28
+## A bomb going off: the flash, then the crater's debris flying outward.
+const BLAST_TIME := 0.42
+const SHATTER_TIME := 0.34
 ## A refused spin turns out and straight back; the snap-back is quicker than the
 ## turn so it reads as a rejection rather than a move.
 const BOUNCE_TIME := 0.22
@@ -190,6 +193,15 @@ func show_result(result: RefCounted) -> void:
 			"duration": BLOOM_TIME,
 		})
 
+	# A dying bomb takes the board with it: flash, shockwave, debris.
+	if result.bomb_exploded and result.exploded_cells.size() > 0:
+		var origin: Vector2i = result.exploded_cells[0]
+		_steps.append({"kind": "blast", "cell": origin, "duration": BLAST_TIME})
+		_steps.append({
+			"kind": "shatter", "cells": result.exploded_cells.duplicate(),
+			"centre": origin, "duration": SHATTER_TIME,
+		})
+
 	_playing = not _steps.is_empty()
 	_settling = _playing
 	queue_redraw()
@@ -284,6 +296,9 @@ func _commit(step: Dictionary) -> void:
 				var piece: int = promotion["piece"]
 				if not Pieces.is_empty(piece):
 					_display[promotion["cell"]] = piece
+		"shatter":
+			for cell: Vector2i in step["cells"]:
+				_display.erase(cell)
 		_:
 			pass
 
@@ -331,6 +346,11 @@ func _skipped_cells(step: Dictionary) -> Dictionary:
 		return skip
 	match str(step["kind"]):
 		"spin", "clear", "bounce":
+			for cell: Vector2i in step["cells"]:
+				skip[cell] = true
+		"blast":
+			skip[step["cell"]] = true
+		"shatter":
 			for cell: Vector2i in step["cells"]:
 				skip[cell] = true
 		"fall":
@@ -445,6 +465,10 @@ func _draw_step(step: Dictionary) -> void:
 			_draw_drop(step, t)
 		"bloom":
 			_draw_bloom(step, t)
+		"blast":
+			_draw_blast(step, t)
+		"shatter":
+			_draw_shatter(step, t)
 
 
 func _draw_spin(step: Dictionary, t: float) -> void:
@@ -530,6 +554,39 @@ func _draw_bloom(step: Dictionary, t: float) -> void:
 		var centre := cell_center(promotion["cell"])
 		var radius := cell_size * (0.35 + 1.7 * t)
 		draw_arc(centre, radius, 0, TAU, 32, Color(1.0, 0.88, 0.42, 0.85 * (1.0 - t)), 2.5)
+
+
+## The bomb's flash and the shockwave rings running out from it.
+func _draw_blast(step: Dictionary, t: float) -> void:
+	var centre := cell_center(step["cell"])
+	# Core flash: brightest at the instant it goes.
+	draw_circle(centre, cell_size * (0.7 + 1.5 * t), Color(1.0, 0.96, 0.84, 0.85 * (1.0 - t)))
+	draw_circle(centre, cell_size * (0.4 + 0.6 * t), Color(1.0, 1.0, 1.0, 0.95 * (1.0 - t)))
+	# Three staggered rings so the wave reads as travelling, not as one circle.
+	for index in 3:
+		var lag := t - float(index) * 0.10
+		if lag <= 0.0:
+			continue
+		var radius := cell_size * (0.6 + (2.4 + float(index) * 1.1) * lag * 3.2)
+		draw_arc(
+			centre, radius, 0, TAU, 44,
+			Color(0.55, 0.93, 1.0, 0.9 * (1.0 - lag)), maxf(3.0 - float(index) * 0.8, 1.0)
+		)
+
+
+## Debris thrown outward from the blast, shrinking and fading.
+func _draw_shatter(step: Dictionary, t: float) -> void:
+	var origin := cell_center(step["centre"])
+	for cell: Vector2i in step["cells"]:
+		var piece: int = int(_display.get(cell, Pieces.EMPTY))
+		if Pieces.is_empty(piece):
+			continue
+		var from := cell_center(cell)
+		var direction := from - origin
+		if direction.length() < 0.001:
+			direction = Vector2(0.0, -1.0)
+		var thrown := from + direction.normalized() * cell_size * 1.8 * t
+		_draw_piece(thrown, piece, cell_size * 0.92 * (1.0 - t), 1.0 - t)
 
 
 func _draw_cursor() -> void:

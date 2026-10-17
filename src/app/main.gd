@@ -22,6 +22,9 @@ var screen: Screen = Screen.MENU
 var selected_mode: int = RulesetScript.Mode.MARATHON
 var selected_difficulty := "normal"
 var tutorial: RefCounted = null
+## Set when the run ended mid-animation (a bomb going off), so the summary panel
+## waits for the shockwave instead of cutting it off.
+var _pending_result := false
 
 
 func _ready() -> void:
@@ -41,7 +44,12 @@ func _process(delta: float) -> void:
 	game.tick(delta)
 	hud.update_from_game(game)
 	if game.state == GameScript.State.FINISHED:
-		_enter_result()
+		# A countdown ending has nothing to play out; a bomb does.
+		if _pending_result and board_view.is_settled():
+			_pending_result = false
+			_enter_result()
+		elif not _pending_result:
+			_enter_result()
 
 
 # --- run lifecycle ----------------------------------------------------------
@@ -108,6 +116,7 @@ func new_game(seed_value: int) -> void:
 func _enter_playing() -> void:
 	screen = Screen.PLAYING
 	cursor_vertex = 0
+	_pending_result = false
 	board_view.set_game(game)
 	board_view.hint_vertex = -1
 	board_view.hover_cell = Vector2i(-1, -1)
@@ -220,6 +229,11 @@ func _apply(result, label: String) -> void:
 	hud.update_from_game(game)
 
 	if game.state == GameScript.State.FINISHED:
+		if board_view.is_animating():
+			# Let the explosion finish; the summary waits for the shockwave.
+			_pending_result = true
+			hud.set_message("the bomb went off")
+			return
 		_enter_result()
 		return
 

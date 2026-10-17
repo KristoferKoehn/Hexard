@@ -364,6 +364,11 @@ func _reward_clock(result) -> void:
 
 
 ## Every bomb loses one move. Reaching zero detonates it and ends the run.
+## How far a bomb's shockwave reaches, in hex rings. Everything inside is
+## destroyed; none of it scores (it is the game-over event, not a clear).
+const BOMB_BLAST_RADIUS := 2
+
+
 func _tick_bombs(result) -> void:
 	var exploders: Array[Vector2i] = []
 	for cell: Vector2i in Grid.all_cells():
@@ -380,11 +385,24 @@ func _tick_bombs(result) -> void:
 
 	if exploders.is_empty():
 		return
+
+	# The shockwave. `exploded_cells` starts with the bomb itself, so the view can
+	# use element 0 as the blast origin.
+	var shattered: Array[Vector2i] = exploders.duplicate()
+	for bomb_cell: Vector2i in exploders:
+		for cell: Vector2i in Grid.cells_within(bomb_cell, BOMB_BLAST_RADIUS):
+			if not shattered.has(cell):
+				shattered.append(cell)
+	for cell: Vector2i in shattered:
+		board.remove_piece(cell)
+	# The crater settles so the board stays legal; it is not scored or refilled.
+	board.apply_gravity()
+
 	result.bomb_exploded = true
 	result.game_over = true
 	result.finished = true
 	result.finish_kind = "bomb_exploded"
-	result.exploded_cells.assign(exploders)
+	result.exploded_cells.assign(shattered)
 	_finish("bomb_exploded", false)
 
 

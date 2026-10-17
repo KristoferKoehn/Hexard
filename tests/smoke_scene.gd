@@ -12,6 +12,7 @@ extends SceneTree
 const HexGrid := preload("res://src/core/hex_grid.gd")
 const MatchFinder := preload("res://src/core/match_finder.gd")
 const GameScript := preload("res://src/core/game.gd")
+const Pieces := preload("res://src/core/piece.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 
 var _frames := 0
@@ -40,11 +41,6 @@ func _initialize() -> void:
 
 
 func _process(_delta: float) -> bool:
-	# Each stage starts from a settled board, as a player would after waiting;
-	# otherwise the input gate (correctly) swallows synthetic key presses.
-	var smoke_view = _main.get_node_or_null("BoardView")
-	if smoke_view != null:
-		smoke_view.call("sync_from_game")
 	_frames += 1
 	match _frames:
 		3:
@@ -73,9 +69,36 @@ func _process(_delta: float) -> bool:
 			_main.call("start_run", RulesetScript.Mode.MARATHON, "normal", 4321)
 		16:
 			_check(_main.call("screen_name") == "playing", "a new run goes straight back to play")
+		17:
+			_start_bomb_explosion()
+		18:
+			_check_bomb_explosion_defers_the_summary()
 			_report()
 			return true
 	return false
+
+
+## Force a bomb to go off: a one-tick fuse, then any committed spin.
+func _start_bomb_explosion() -> void:
+	var game = _main.get("game")
+	_check(game != null, "a run is active for the bomb test")
+	if game == null:
+		return
+	game.ruleset.rotation_mode = RulesetScript.RotationMode.FREE
+	game.board.set_piece(Vector2i(4, 4), Pieces.bomb(Pieces.GemColor.BLUE, 1))
+	_main.call("play_move", GameScript.CLOCKWISE)
+
+
+## The summary must not cut off the explosion: board first, panel after.
+func _check_bomb_explosion_defers_the_summary() -> void:
+	var game = _main.get("game")
+	_check(game.state == GameScript.State.FINISHED, "the bomb ended the run")
+	_check(_main.call("screen_name") == "playing", "the summary waits for the explosion")
+	var view = _main.get_node("BoardView")
+	_check(not bool(view.call("is_settled")), "the blast is still playing")
+	view.call("finish_now")
+	_main.call("_process", 0.016)
+	_check(_main.call("screen_name") == "result", "and shows once the shockwave finishes")
 
 
 func _check_tutorial_started() -> void:
@@ -158,7 +181,7 @@ func _smoke() -> void:
 	_check(view_effects_are_animating(), "a committed move queued animation steps")
 
 	# While those steps play the board is not settled, so rotation input must be
-	# refused — the core is already final and would run ahead of the screen.
+	# refused â€” the core is already final and would run ahead of the screen.
 	var anim_view = _main.get_node("BoardView")
 	_check(not bool(anim_view.call("is_settled")), "the board is unsettled while tiles fall")
 	var turns_while_falling: int = game.turns
@@ -225,7 +248,7 @@ func _check_mouse_mapped_to_the_right_place() -> void:
 	var used_event := _vertex_touches_cell(injected_cursor, Vector2i(4, 4))
 	if not used_event:
 		_main.call("snap_cursor_to", viewport_point)
-	print("        Â· mouse path: %s" % ("synthetic event" if used_event else "direct snap_cursor_to"))
+	print("        Ã‚Â· mouse path: %s" % ("synthetic event" if used_event else "direct snap_cursor_to"))
 
 	var cursor: int = _main.get("cursor_vertex")
 	var vertices := HexGrid.vertices()
