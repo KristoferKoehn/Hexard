@@ -107,8 +107,8 @@ func _build_status() -> void:
 	_info = _make_rich(Vector2(18, 10), INFO_FONT_SIZE)
 	_banner = _make_label(Vector2(18, 44), 17, NEON_GOOD)
 	_banner.visible = false
-	_message = _make_label(Vector2(18, 626), MESSAGE_FONT_SIZE, NEON_AMBER)
-	_controls = _make_label(Vector2(18, 678), 15, NEON_DIM)
+	_message = _make_label(Vector2(18, 632), MESSAGE_FONT_SIZE, NEON_AMBER)
+	_controls = _make_label(Vector2(18, 684), 15, NEON_DIM)
 	_controls.text = "arrows/WASD  move    ·    Z/X or click  rotate    ·    F  starflower    ·    H  hint    ·    R  new board    ·    T  rotation mode    ·    esc  quit"
 
 
