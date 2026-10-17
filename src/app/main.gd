@@ -1,8 +1,8 @@
-﻿extends Node2D
+extends Node2D
 
 ## Dev controller: owns the Game, moves the cursor, feeds input to the rules
 ## core and hands results to the view. Rules live in src/core (docs/design.md
-## Ã‚Â§10.1); this file is the thin layer that also drives the menu, the clock and
+## Ãƒâ€šÃ‚Â§10.1); this file is the thin layer that also drives the menu, the clock and
 ## the end-of-run screen.
 
 const HexGrid := preload("res://src/core/hex_grid.gd")
@@ -25,6 +25,8 @@ var tutorial: Tutorial = null
 ## Set when the run ended mid-animation (a bomb going off), so the summary panel
 ## waits for the shockwave instead of cutting it off.
 var _pending_result := false
+## What the HUD shows: it lags game.score until each cascade step lands.
+var _displayed_score := 0
 
 
 func _ready() -> void:
@@ -35,6 +37,8 @@ func _ready() -> void:
 	hud.restart_pressed.connect(_on_restart_pressed)
 	hud.menu_pressed.connect(_on_menu_pressed)
 	hud.show_menu(selected_mode, selected_difficulty)
+	# A cleared group landing in the animation rolls the score up step by step.
+	board_view.clear_scored.connect(_on_clear_scored)
 
 
 func _process(delta: float) -> void:
@@ -42,7 +46,11 @@ func _process(delta: float) -> void:
 		return
 	# Only Timed mode consumes time, but the clock display still needs updating.
 	game.tick(delta)
-	hud.update_from_game(game)
+	# The score rolls up clear by clear; once the board has settled, trust the
+	# core again so bonuses outside a clear group (round bonus, buys) land too.
+	if board_view.is_settled() and _displayed_score != game.score:
+		_displayed_score = game.score
+	hud.update_from_game(game, _displayed_score)
 	if game.state == GameScript.State.FINISHED:
 		# A countdown ending has nothing to play out; a bomb does.
 		if _pending_result and board_view.is_settled():
@@ -63,12 +71,12 @@ func start_run(run_mode: int, difficulty: String, run_seed: int = -1) -> void:
 	game = GameScript.new(seed_value, RulesetScript.for_run(run_mode, difficulty))
 	_enter_playing()
 	hud.set_message(
-		"%s Ã‚Â· %s Ã¢â‚¬â€ seed %d%s"
-		% [game.mode_name(), difficulty, seed_value, "  Ã‚Â·  the clock is running" if run_mode == RulesetScript.Mode.TIMED else ""]
+		"%s Ãƒâ€šÃ‚Â· %s ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â seed %d%s"
+		% [game.mode_name(), difficulty, seed_value, "  Ãƒâ€šÃ‚Â·  the clock is running" if run_mode == RulesetScript.Mode.TIMED else ""]
 	)
 
 
-## The scripted tutorial: its own game, its own board rigs (docs/design.md Ã‚Â§7.4).
+## The scripted tutorial: its own game, its own board rigs (docs/design.md Ãƒâ€šÃ‚Â§7.4).
 func start_tutorial() -> void:
 	tutorial = TutorialScript.new()
 	game = tutorial.game
@@ -83,11 +91,11 @@ func _sync_tutorial() -> void:
 	# The tutorial rigs the board in place, so the view has to re-read it.
 	board_view.sync_from_game()
 	if tutorial.complete:
-		hud.set_banner("Tutorial complete Ã¢â‚¬â€ press M for the menu, or R to keep playing this board")
+		hud.set_banner("Tutorial complete ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â press M for the menu, or R to keep playing this board")
 		hud.set_message("you have seen every mechanic")
 		return
 	hud.set_banner(
-		"Tutorial %d/%d Ã‚Â· %s Ã¢â‚¬â€ %s"
+		"Tutorial %d/%d Ãƒâ€šÃ‚Â· %s ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â %s"
 		% [tutorial.step_number(), tutorial.step_count(), tutorial.step_title(), tutorial.instruction()]
 	)
 	var target: int = tutorial.hint_vertex()
@@ -117,6 +125,7 @@ func _enter_playing() -> void:
 	screen = Screen.PLAYING
 	cursor_vertex = 0
 	_pending_result = false
+	_displayed_score = game.score
 	board_view.set_game(game)
 	board_view.hint_vertex = -1
 	board_view.hover_cell = Vector2i(-1, -1)
@@ -124,7 +133,7 @@ func _enter_playing() -> void:
 	if tutorial == null:
 		hud.set_banner("")
 	hud.show_playing()
-	hud.update_from_game(game)
+	hud.update_from_game(game, _displayed_score)
 
 
 func _enter_result() -> void:
@@ -171,6 +180,13 @@ func _on_menu_pressed() -> void:
 	hud.show_menu(selected_mode, selected_difficulty)
 
 
+## A cascade step landed: roll the displayed score forward by what it was worth.
+func _on_clear_scored(amount: int) -> void:
+	_displayed_score += amount
+	if game != null:
+		hud.update_from_game(game, _displayed_score)
+
+
 # --- actions (also the programmatic API the smoke test drives) --------------
 
 func play_move(direction: int) -> void:
@@ -184,7 +200,7 @@ func play_move(direction: int) -> void:
 		board_view.show_result(result)   # a refused spin still turns out and back
 		var guidance := ""
 		if result.rejected_reason.begins_with("no match"):
-			guidance = "  Ã¢â‚¬â€ the cursor is grey here; press H to find a spin that clears"
+			guidance = "  ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the cursor is grey here; press H to find a spin that clears"
 		hud.set_message("%s: %s%s" % [turn, result.rejected_reason, guidance])
 		_refresh_cursor()
 		return
@@ -226,7 +242,7 @@ func play_piece_move(cell: Vector2i, direction: int) -> void:
 func _apply(result: MoveResult, label: String) -> void:
 	board_view.show_result(result)
 	_refresh_cursor()
-	hud.update_from_game(game)
+	hud.update_from_game(game, _displayed_score)
 
 	if game.state == GameScript.State.FINISHED:
 		if board_view.is_animating():
@@ -258,12 +274,12 @@ func _apply(result: MoveResult, label: String) -> void:
 	if result.bombs_ticked.size() > 0:
 		parts.append("bomb ticking")
 	if result.round_ended:
-		parts.append("round %d Ã¢â‚¬â€ +%d" % [result.round_reached, result.round_bonus])
+		parts.append("round %d ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â +%d" % [result.round_reached, result.round_bonus])
 	if result.level_up:
 		parts.append("LEVEL %d" % result.new_level)
 	if result.shuffled:
-		parts.append("board was dead Ã¢â‚¬â€ shuffled")
-	hud.set_message("  Ã‚Â·  ".join(parts))
+		parts.append("board was dead ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â shuffled")
+	hud.set_message("  Ãƒâ€šÃ‚Â·  ".join(parts))
 
 
 func move_cursor(direction: Vector2) -> void:
@@ -299,7 +315,7 @@ func show_hint() -> void:
 		return
 	var legal: Array = game.find_legal_rotations()
 	if legal.is_empty():
-		hud.set_message("no legal rotation exists Ã¢â‚¬â€ the next move will shuffle the board")
+		hud.set_message("no legal rotation exists ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the next move will shuffle the board")
 		return
 	var move: Dictionary = legal[0]
 	select_vertex(int(move["vertex"]))
@@ -316,11 +332,11 @@ func toggle_rotation_mode() -> void:
 	var ruleset: Variant = game.ruleset
 	if int(ruleset.rotation_mode) == int(RulesetScript.RotationMode.FREE):
 		ruleset.rotation_mode = RulesetScript.RotationMode.STRICT
-		hud.set_message("rotation mode: STRICT (reference) Ã¢â‚¬â€ non-clearing spins revert")
+		hud.set_message("rotation mode: STRICT (reference) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â non-clearing spins revert")
 	else:
 		ruleset.rotation_mode = RulesetScript.RotationMode.FREE
-		hud.set_message("rotation mode: FREE Ã¢â‚¬â€ the trio stays where you put it")
-	hud.update_from_game(game)
+		hud.set_message("rotation mode: FREE ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the trio stays where you put it")
+	hud.update_from_game(game, _displayed_score)
 
 
 # --- input ------------------------------------------------------------------

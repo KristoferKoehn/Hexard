@@ -1,4 +1,4 @@
-﻿extends SceneTree
+extends SceneTree
 
 ## View-layer smoke test: loads the real scene, drives it with synthetic input,
 ## and fails loudly if anything errors or the wiring breaks.
@@ -179,9 +179,15 @@ func _smoke() -> void:
 		_main.call("select_vertex", int(legal[0]["vertex"]))
 		_main.call("play_move", int(legal[0]["direction"]))
 	_check(view_effects_are_animating(), "a committed move queued animation steps")
+	# The HUD must not jump to the total: it rolls up as each clear lands.
+	_check(
+		int(_main.get("_displayed_score")) < game.score,
+		"the score lags the board while the cascade plays (%d vs %d)"
+		% [int(_main.get("_displayed_score")), game.score]
+	)
 
 	# While those steps play the board is not settled, so rotation input must be
-	# refused Ã¢â‚¬â€ the core is already final and would run ahead of the screen.
+	# refused - the core is already final and would run ahead of the screen.
 	var anim_view := _main.get_node("BoardView")
 	_check(not bool(anim_view.call("is_settled")), "the board is unsettled while tiles fall")
 	var turns_while_falling: int = game.turns
@@ -196,6 +202,13 @@ func _smoke() -> void:
 
 	anim_view.call("sync_from_game")
 	_check(bool(anim_view.call("is_settled")), "the board settles again once synced")
+	# Once settled the display trusts the core again, so bonuses that are not part
+	# of a clear group (round bonus, time buys) still land.
+	_main.call("_process", 0.016)
+	_check(
+		int(_main.get("_displayed_score")) == game.score,
+		"and the score catches up to the core once the board settles"
+	)
 	# No buffering: the refused presses above must not fire once the board lands.
 	_check(
 		game.turns == turns_while_falling,
@@ -248,7 +261,7 @@ func _check_mouse_mapped_to_the_right_place() -> void:
 	var used_event := _vertex_touches_cell(injected_cursor, Vector2i(4, 4))
 	if not used_event:
 		_main.call("snap_cursor_to", viewport_point)
-	print("        Ãƒâ€šÃ‚Â· mouse path: %s" % ("synthetic event" if used_event else "direct snap_cursor_to"))
+	print("        ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· mouse path: %s" % ("synthetic event" if used_event else "direct snap_cursor_to"))
 
 	var cursor: int = _main.get("cursor_vertex")
 	var vertices := HexGrid.vertices()

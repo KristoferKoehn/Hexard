@@ -1,4 +1,4 @@
-﻿class_name BoardView
+class_name BoardView
 extends Node2D
 
 ## The board, its container, and the move animation (docs/design.md Ã‚Â§7.5, Ã‚Â§8).
@@ -21,6 +21,11 @@ const GEM_COLORS := {
 	Pieces.GemColor.BLUE: Color("3a6fd8"),
 	Pieces.GemColor.VIOLET: Color("9b5de5"),
 }
+
+## Emitted when a clear step lands, carrying what that step was worth. The HUD
+## rolls the score up cascade by cascade with this, instead of jumping straight
+## to the total the rules core already knows.
+signal clear_scored(amount: int)
 
 # --- timing (seconds) -------------------------------------------------------
 const SPIN_TIME := 0.11
@@ -184,7 +189,10 @@ func show_result(result: RefCounted) -> void:
 	for depth: int in _depths(result):
 		var cleared := _cells_at_depth(result, depth)
 		if not cleared.is_empty():
-			_steps.append({"kind": "clear", "cells": cleared, "duration": CLEAR_TIME})
+			_steps.append({
+				"kind": "clear", "cells": cleared, "duration": CLEAR_TIME,
+				"score": _score_at_depth(result, depth),
+			})
 		var falls := _entries_at_depth(result.gravity_moves, depth)
 		if not falls.is_empty():
 			_steps.append({"kind": "fall", "moves": falls, "duration": FALL_TIME})
@@ -239,6 +247,15 @@ func _cells_at_depth(result: MoveResult, depth: int) -> Array[Vector2i]:
 	return out
 
 
+## What one cascade step is worth: the sum of the groups that cleared in it.
+func _score_at_depth(result: MoveResult, depth: int) -> int:
+	var total := 0
+	for group in result.clear_groups:
+		if int(group.cascade_depth) == depth:
+			total += int(group.score)
+	return total
+
+
 func _entries_at_depth(entries: Array, depth: int) -> Array:
 	var out: Array = []
 	for entry: Dictionary in entries:
@@ -290,6 +307,7 @@ func _commit(step: Dictionary) -> void:
 		"clear":
 			for cell: Vector2i in step["cells"]:
 				_display.erase(cell)
+			clear_scored.emit(int(step.get("score", 0)))
 		"fall":
 			# Two phases so pieces cannot consume each other's sources.
 			var placed := {}

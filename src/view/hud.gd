@@ -1,4 +1,4 @@
-﻿class_name Hud
+class_name Hud
 extends CanvasLayer
 
 ## Everything the player sees outside the board: the per-mode status line, the
@@ -149,12 +149,16 @@ func _make_label(position: Vector2, font_size: int, color: Color) -> Label:
 	return label
 
 
-func update_from_game(game: RefCounted) -> void:
+## `displayed_score` lets the view roll the score up as each cascade step lands;
+## -1 means "whatever the rules core says" (used for the result screen and for
+## any caller that is not animating).
+func update_from_game(game: RefCounted, displayed_score: int = -1) -> void:
 	if _info == null or game == null:
 		return
+	var shown: int = displayed_score if displayed_score >= 0 else int(game.score)
 	var mode := "STRICT" if _is_strict(game) else "FREE"
 	var parts := PackedStringArray()
-	parts.append(_stat("SCORE", str(game.score)))
+	parts.append(_stat("SCORE", str(shown)))
 	parts.append(_stat("LEVEL", str(game.level)))
 	parts.append(_stat("COMBOS TO NEXT", str(game.combos_remaining())))
 	if int(game.ruleset.mode) == int(RulesetScript.Mode.TIMED):
