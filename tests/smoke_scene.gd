@@ -146,7 +146,11 @@ func _smoke() -> void:
 	_check(game.tile_count() == 85, "board is still full after moves")
 	_check(game.board.invariant_violations().size() == 0, "no floating pieces after moves")
 	_check(game.score >= 0, "score is sane")
-	_check(view_effects_are_animating(), "a committed move produced animation effects")
+	var legal: Array = game.find_legal_rotations()
+	if not legal.is_empty():
+		_main.call("select_vertex", int(legal[0]["vertex"]))
+		_main.call("play_move", int(legal[0]["direction"]))
+	_check(view_effects_are_animating(), "a committed move queued animation steps")
 
 	var cursor: int = _main.get("cursor_vertex")
 	_check(cursor >= 0 and cursor < HexGrid.vertices().size(), "cursor stayed in range")

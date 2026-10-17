@@ -72,6 +72,8 @@ func _sync_tutorial() -> void:
 	if tutorial == null:
 		hud.set_banner("")
 		return
+	# The tutorial rigs the board in place, so the view has to re-read it.
+	board_view.sync_from_game()
 	if tutorial.complete:
 		hud.set_banner("Tutorial complete — press M for the menu, or R to keep playing this board")
 		hud.set_message("you have seen every mechanic")

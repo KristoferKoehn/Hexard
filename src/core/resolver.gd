@@ -33,9 +33,9 @@ static func resolve(board, ruleset, rng, result, level: int, refill: bool = true
 		if not _resolve_step(board, ruleset, result, level, depth + 1):
 			break
 		depth += 1
-		apply_gravity(board, result)
+		apply_gravity(board, result, depth)
 		if refill:
-			refill_board(board, rng, result, level, ruleset)
+			refill_board(board, rng, result, level, ruleset, depth)
 		if result.finished:
 			break
 	result.cascades = depth
@@ -298,18 +298,18 @@ static func _sorted(cells: Array) -> Array[Vector2i]:
 # --- board upkeep -----------------------------------------------------------
 
 ## Gravity pass; records moves into `result` when one is supplied.
-static func apply_gravity(board, result = null) -> void:
+static func apply_gravity(board, result = null, depth: int = 0) -> void:
 	if result == null:
 		board.apply_gravity()
 		return
-	var moves: Array = board.apply_gravity_moves()
-	for move: Dictionary in moves:
+	for move: Dictionary in board.apply_gravity_moves():
+		move["depth"] = depth
 		result.gravity_moves.append(move)
 
 
 ## New pieces fall in above the top edge to fill the gaps gravity left behind.
 ## From level 2 some of them are bonus stars; from level 3 some are bombs.
-static func refill_board(board, rng, result, level: int, ruleset) -> void:
+static func refill_board(board, rng, result, level: int, ruleset, depth: int = 0) -> void:
 	var colors: Array = Pieces.colors_for_level(level)
 	for column_index in Grid.COLUMNS:
 		for cell: Vector2i in Grid.column(column_index):
@@ -317,7 +317,7 @@ static func refill_board(board, rng, result, level: int, ruleset) -> void:
 				continue
 			var piece := _roll_piece(rng, colors, ruleset, level)
 			board.set_piece(cell, piece)
-			result.spawns.append({"cell": cell, "piece": piece})
+			result.spawns.append({"cell": cell, "piece": piece, "depth": depth})
 
 
 static func _roll_piece(rng, colors: Array, ruleset, level: int) -> int:

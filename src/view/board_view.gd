@@ -1,11 +1,13 @@
 class_name BoardView
 extends Node2D
 
-## Dev-art board renderer (docs/design.md §8 is the polished version of this).
+## The board, its container, and the move animation (docs/design.md §7.5, §8).
 ##
-## Pure drawing: it reads game state and paints hexes, the cursor and clear
-## flashes. It never mutates the rules core — polish (tweens, particles,
-## sounds) is M4 work.
+## The rules core resolves a move instantly, so this view keeps its own
+## presentation board (`_display`) that lags behind. A move is replayed as a
+## queue of steps — spin, then per cascade depth: clear → fall → drop — and the
+## display is committed step by step. When the queue drains, the display is
+## snapped to the core so the two can never drift.
 
 const HexGrid := preload("res://src/core/hex_grid.gd")
 const Pieces := preload("res://src/core/piece.gd")
@@ -20,46 +22,81 @@ const GEM_COLORS := {
 	Pieces.GemColor.VIOLET: Color("9b5de5"),
 }
 
-const SPIN_TIME := 0.12
-const CLEAR_TIME := 0.30
-const FALL_TIME := 0.22
-const BLOOM_TIME := 0.38
+# --- timing (seconds) -------------------------------------------------------
+const SPIN_TIME := 0.11
+const CLEAR_TIME := 0.14
+const FALL_TIME := 0.17
+const DROP_TIME := 0.15
+const STEP_GAP := 0.045
+const BLOOM_TIME := 0.28
+
+# --- neon container ---------------------------------------------------------
+const PLATE_PAD := 26.0
+const PLATE_RADIUS := 46
+const PLATE_FILL := Color("0b101c")
+const PLATE_RIM := Color("35e0f0")
+const SOCKET_FILL := Color("0d1420")
+const SOCKET_LINE := Color("1d3b4d")
 
 @export var cell_size: float = 30.0
 
 var game: RefCounted
 var cursor_vertex := -1
-## False when no spin at the cursor can clear anything (the usual case in STRICT
-## mode) — the cursor dims so the player can see that before spinning.
 var cursor_legal := true
 var hint_vertex := -1
 var hover_cell := Vector2i(-1, -1)
 
 var _origin := Vector2.ZERO
-var _effects: Array = []
+var _display: Dictionary = {}      # cell -> piece, what is actually drawn
+var _steps: Array = []
+var _step_index := 0
+var _step_time := 0.0
+var _playing := false
+var _plate: StyleBoxFlat = null
 
+
+# --- setup ------------------------------------------------------------------
 
 func set_game(new_game: RefCounted) -> void:
 	game = new_game
 	_recenter()
+	sync_from_game()
+
+
+## Copies the core board into the presentation board and cancels playback. Needed
+## wherever the board changes without a MoveResult (new run, tutorial rigging).
+func sync_from_game() -> void:
+	_steps.clear()
+	_step_index = 0
+	_step_time = 0.0
+	_playing = false
+	_display.clear()
+	if game == null:
+		queue_redraw()
+		return
+	for cell: Vector2i in HexGrid.all_cells():
+		var piece: int = game.board.get_piece(cell)
+		if not Pieces.is_empty(piece):
+			_display[cell] = piece
 	queue_redraw()
 
 
 func _recenter() -> void:
 	var bounds := HexGrid.pixel_bounds(cell_size)
 	_origin = -bounds.position - bounds.size * 0.5
+	_plate = null
 
+
+# --- geometry ---------------------------------------------------------------
 
 func cell_center(cell: Vector2i) -> Vector2:
 	return HexGrid.to_pixel(cell, cell_size) + _origin
 
 
-## Local point -> rotation vertex, for mouse picking.
 func vertex_at(local_point: Vector2) -> int:
 	return HexGrid.nearest_vertex(local_point - _origin, cell_size)
 
 
-## Local point -> cell, for picking a special piece directly.
 func cell_at(local_point: Vector2) -> Vector2i:
 	var best := Vector2i(-1, -1)
 	var best_distance := INF
@@ -71,58 +108,140 @@ func cell_at(local_point: Vector2) -> Vector2i:
 	return best
 
 
-## Turns a move into a short animation (docs/design.md §8).
-##
-## The rules core has already reached its final state, so these are transient
-## overlays: a spin, shrinking clear ghosts, falling streaks and a bloom ring.
-## Nothing here blocks input, and nothing mutates game state.
+# --- animation --------------------------------------------------------------
+
+## Number of animation steps still queued (the smoke test uses this).
+func effect_count() -> int:
+	return _steps.size() if _playing else 0
+
+
+func is_animating() -> bool:
+	return _playing
+
+
+## Replays a move: spin, then per cascade depth clear → fall → drop.
 func show_result(result: RefCounted) -> void:
-	_effects.clear()
+	_steps.clear()
+	_step_index = 0
+	_step_time = 0.0
+
 	if result.rotation_cells.size() > 0:
-		_effects.append({
+		_steps.append({
 			"kind": "spin", "cells": result.rotation_cells.duplicate(),
-			"t": 0.0, "duration": SPIN_TIME, "delay": 0.0,
+			"dir": result.direction, "duration": SPIN_TIME,
 		})
-	for group in result.clear_groups:
-		var cells: Array[Vector2i] = []
-		for cell: Vector2i in group.cells:
-			cells.append(cell)
-		_effects.append({
-			"kind": "clear", "cells": cells,
-			"t": 0.0, "duration": CLEAR_TIME, "delay": SPIN_TIME,
+
+	for depth: int in _depths(result):
+		var cleared := _cells_at_depth(result, depth)
+		if not cleared.is_empty():
+			_steps.append({"kind": "clear", "cells": cleared, "duration": CLEAR_TIME})
+		var falls := _entries_at_depth(result.gravity_moves, depth)
+		if not falls.is_empty():
+			_steps.append({"kind": "fall", "moves": falls, "duration": FALL_TIME})
+		var drops := _entries_at_depth(result.spawns, depth)
+		if not drops.is_empty():
+			_steps.append({"kind": "drop", "spawns": drops, "duration": DROP_TIME})
+		_steps.append({"kind": "wait", "duration": STEP_GAP})
+
+	if not result.promotions.is_empty():
+		_steps.append({
+			"kind": "bloom", "promotions": result.promotions.duplicate(),
+			"duration": BLOOM_TIME,
 		})
-	for move: Dictionary in result.gravity_moves:
-		_effects.append({
-			"kind": "fall", "from": move["from"], "to": move["to"],
-			"t": 0.0, "duration": FALL_TIME, "delay": SPIN_TIME + CLEAR_TIME * 0.4,
-		})
-	for promotion: Dictionary in result.promotions:
-		_effects.append({
-			"kind": "bloom", "cell": promotion["cell"],
-			"t": 0.0, "duration": BLOOM_TIME, "delay": SPIN_TIME,
-		})
+
+	_playing = not _steps.is_empty()
 	queue_redraw()
 
 
-## Live effect count, so tests can tell an animated move from a silent one.
-func effect_count() -> int:
-	return _effects.size()
+## Cascade depths present in this move, in order (1, 2, …).
+func _depths(result) -> Array[int]:
+	var seen := {}
+	for group in result.clear_groups:
+		seen[int(group.cascade_depth)] = true
+	if seen.is_empty():
+		seen[1] = true
+	var depths: Array[int] = []
+	for depth: int in seen:
+		depths.append(depth)
+	depths.sort()
+	return depths
+
+
+func _cells_at_depth(result, depth: int) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for group in result.clear_groups:
+		if int(group.cascade_depth) != depth:
+			continue
+		for cell: Vector2i in group.cells:
+			out.append(cell)
+	return out
+
+
+func _entries_at_depth(entries: Array, depth: int) -> Array:
+	var out: Array = []
+	for entry: Dictionary in entries:
+		if int(entry.get("depth", 0)) == depth:
+			out.append(entry)
+	return out
 
 
 func _process(delta: float) -> void:
-	if _effects.is_empty():
+	if not _playing:
 		return
-	var live: Array = []
-	for effect: Dictionary in _effects:
-		if float(effect["delay"]) > 0.0:
-			effect["delay"] = float(effect["delay"]) - delta
-			live.append(effect)
-			continue
-		effect["t"] = float(effect["t"]) + delta
-		if float(effect["t"]) < float(effect["duration"]):
-			live.append(effect)
-	_effects = live
+	var step: Dictionary = _steps[_step_index]
+	_step_time += delta
+	if _step_time >= float(step["duration"]):
+		_commit(step)
+		_step_index += 1
+		_step_time = 0.0
+		if _step_index >= _steps.size():
+			_stop()
 	queue_redraw()
+
+
+func _stop() -> void:
+	_playing = false
+	_steps.clear()
+	_step_index = 0
+	sync_from_game()
+
+
+## Folds one finished step into the presentation board.
+func _commit(step: Dictionary) -> void:
+	match str(step["kind"]):
+		"spin":
+			var cells: Array = step["cells"]
+			var dir: int = int(step["dir"])
+			var n := cells.size()
+			var pieces: Array[int] = []
+			for cell: Vector2i in cells:
+				pieces.append(int(_display.get(cell, Pieces.EMPTY)))
+			for i in n:
+				_display[cells[i]] = pieces[posmod(i - dir, n)]
+		"clear":
+			for cell: Vector2i in step["cells"]:
+				_display.erase(cell)
+		"fall":
+			# Two phases so pieces cannot consume each other's sources.
+			var placed := {}
+			for move: Dictionary in step["moves"]:
+				var from: Vector2i = move["from"]
+				placed[move["to"]] = int(_display.get(from, Pieces.EMPTY))
+			for move: Dictionary in step["moves"]:
+				_display.erase(move["from"])
+			for to: Vector2i in placed:
+				if not Pieces.is_empty(int(placed[to])):
+					_display[to] = placed[to]
+		"drop":
+			for spawn: Dictionary in step["spawns"]:
+				_display[spawn["cell"]] = spawn["piece"]
+		"bloom":
+			for promotion: Dictionary in step["promotions"]:
+				var piece: int = promotion["piece"]
+				if not Pieces.is_empty(piece):
+					_display[promotion["cell"]] = piece
+		_:
+			pass
 
 
 # --- drawing ----------------------------------------------------------------
@@ -130,110 +249,195 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if game == null:
 		return
+	var active := _active_step()
+	var skip := _skipped_cells(active)
+
+	_draw_backdrop()
+	_draw_plate()
 	for cell: Vector2i in HexGrid.all_cells():
-		_draw_cell(cell)
-	_draw_effects()
+		_draw_socket(cell)
+	for cell: Vector2i in _display:
+		if skip.has(cell):
+			continue
+		_draw_piece(cell_center(cell), int(_display[cell]), cell_size * 0.92, 1.0)
+	if not active.is_empty():
+		_draw_step(active)
 	_draw_cursor()
 
 
-func _draw_cell(cell: Vector2i) -> void:
-	var piece: int = game.board.get_piece(cell)
-	var centre := cell_center(cell)
-	if Pieces.is_empty(piece):
-		# Survival-style gap: show a socket so the grid still reads.
-		draw_polyline(_closed(_corners(centre, cell_size * 0.86)), Color(1, 1, 1, 0.10), 1.5)
-		return
+func _active_step() -> Dictionary:
+	if not _playing or _step_index >= _steps.size():
+		return {}
+	var step: Dictionary = _steps[_step_index]
+	if _step_time <= 0.0 and float(step["duration"]) <= 0.0:
+		return {}
+	return step
 
-	var radius := cell_size * 0.92
-	var corners := _corners(centre, radius)
+
+func _step_progress(step: Dictionary) -> float:
+	var duration := float(step["duration"])
+	if duration <= 0.0:
+		return 1.0
+	return clampf(_step_time / duration, 0.0, 1.0)
+
+
+func _skipped_cells(step: Dictionary) -> Dictionary:
+	var skip := {}
+	if step.is_empty():
+		return skip
+	match str(step["kind"]):
+		"spin", "clear":
+			for cell: Vector2i in step["cells"]:
+				skip[cell] = true
+		"fall":
+			for move: Dictionary in step["moves"]:
+				skip[move["from"]] = true
+		"drop":
+			for spawn: Dictionary in step["spawns"]:
+				skip[spawn["cell"]] = true
+	return skip
+
+
+## A few soft rings behind the plate keep the screen from reading as flat black.
+func _draw_backdrop() -> void:
+	if _plate_rect().size == Vector2.ZERO:
+		return
+	var centre := _plate_rect().get_center()
+	for index in 4:
+		var radius := cell_size * (11.0 + float(index) * 3.0)
+		draw_circle(centre, radius, Color(0.12, 0.55, 0.68, 0.035))
+
+
+func _plate_rect() -> Rect2:
+	var bounds := HexGrid.pixel_bounds(cell_size)
+	return Rect2(bounds.position + _origin, bounds.size).grow(PLATE_PAD)
+
+
+func _draw_plate() -> void:
+	if _plate == null:
+		_plate = StyleBoxFlat.new()
+		_plate.bg_color = PLATE_FILL
+		_plate.set_corner_radius_all(PLATE_RADIUS)
+		_plate.set_border_width_all(2)
+		_plate.border_color = PLATE_RIM
+		_plate.shadow_color = Color(0.05, 0.85, 0.95, 0.22)
+		_plate.shadow_size = 18
+		_plate.anti_aliasing = true
+	draw_style_box(_plate, _plate_rect())
+
+
+func _draw_socket(cell: Vector2i) -> void:
+	var corners := _corners(cell_center(cell), cell_size * 0.94)
+	draw_colored_polygon(corners, SOCKET_FILL)
+	draw_polyline(_closed(corners), SOCKET_LINE, 1.0)
+
+
+func _draw_piece(centre: Vector2, piece: int, radius: float, alpha: float) -> void:
+	if Pieces.is_empty(piece) or radius <= 0.5:
+		return
 	var base: Color = GEM_COLORS.get(Pieces.color_of(piece), Color(0.8, 0.8, 0.8))
+	base.a = alpha
+	var corners := _corners(centre, radius)
 
 	match Pieces.kind_of(piece):
 		Pieces.Kind.STARFLOWER:
-			draw_colored_polygon(_star_points(centre, radius * 1.05, radius * 0.45, 6), Color("f4f6fb"))
-			draw_polyline(_closed(_star_points(centre, radius * 0.55, radius * 0.24, 6)), Color(0.55, 0.6, 0.7), 1.0)
+			var star := _star_points(centre, radius * 1.05, radius * 0.45, 6)
+			draw_colored_polygon(star, Color(0.96, 0.97, 1.0, alpha))
+			draw_polyline(_closed(_star_points(centre, radius * 0.55, radius * 0.24, 6)),
+				Color(0.55, 0.6, 0.7, alpha), 1.0)
 		Pieces.Kind.PEARL:
-			draw_circle(centre, radius * 0.82, Color("191c26"))
-			draw_arc(centre, radius * 0.82, 0, TAU, 32, Color(0.55, 0.62, 0.85), 2.0)
-			draw_circle(centre - Vector2(radius * 0.22, radius * 0.22), radius * 0.22, Color(0.75, 0.8, 0.95, 0.85))
+			draw_circle(centre, radius * 0.82, Color(0.10, 0.12, 0.18, alpha))
+			draw_arc(centre, radius * 0.82, 0, TAU, 32, Color(0.58, 0.66, 0.88, alpha), 2.0)
+			draw_circle(centre - Vector2(radius * 0.22, radius * 0.22), radius * 0.22,
+				Color(0.78, 0.84, 0.98, alpha * 0.9))
 		Pieces.Kind.BOMB:
-			draw_colored_polygon(corners, base.darkened(0.25))
-			draw_polyline(_closed(corners), Color("101319"), 2.5)
-			draw_circle(centre, radius * 0.34, Color("101319"))
-			_draw_centered_text(str(Pieces.counter_of(piece)), centre, 20, Color("ffd166"))
+			draw_colored_polygon(corners, base.darkened(0.3))
+			draw_polyline(_closed(corners), Color(0.06, 0.08, 0.11, alpha), 2.5)
+			draw_circle(centre, radius * 0.34, Color(0.06, 0.08, 0.11, alpha))
+			_draw_centered_text(str(Pieces.counter_of(piece)), centre, 19, Color(1.0, 0.82, 0.4, alpha))
 		_:
 			draw_colored_polygon(corners, base)
 			draw_polyline(_closed(corners), base.darkened(0.45), 2.0)
-			# A cheap facet so the gems read as jewels rather than flat tiles.
 			draw_colored_polygon(
 				_corners(centre - Vector2(0.0, radius * 0.24), radius * 0.5),
-				base.lightened(0.30)
+				Color(1, 1, 1, 0.28 * alpha)
 			)
 			if Pieces.is_bonus_star(piece):
-				draw_colored_polygon(_star_points(centre, radius * 0.62, radius * 0.26, 6), Color("fff3c4"))
-				draw_polyline(_closed(_star_points(centre, radius * 0.62, radius * 0.26, 6)), Color("8a6d1f"), 1.0)
-
-	# Starflowers and pearls can be turned on their own: hint that they are grabbable.
-	if Pieces.is_starflower(piece) or Pieces.is_pearl(piece):
-		var hovered := cell == hover_cell
-		var ring_color := Color(1.0, 0.86, 0.45, 0.85 if hovered else 0.45)
-		draw_arc(centre, radius * 0.98, 0, TAU, 28, ring_color, 2.5 if hovered else 1.5)
+				var star := _star_points(centre, radius * 0.62, radius * 0.26, 6)
+				draw_colored_polygon(star, Color(1.0, 0.95, 0.77, alpha))
+				draw_polyline(_closed(star), Color(0.54, 0.43, 0.12, alpha), 1.0)
 
 
-func _draw_effects() -> void:
-	for effect: Dictionary in _effects:
-		if float(effect["delay"]) > 0.0:
-			continue
-		var progress := clampf(float(effect["t"]) / float(effect["duration"]), 0.0, 1.0)
-		match str(effect["kind"]):
-			"spin":
-				_draw_spin(effect, progress)
-			"clear":
-				_draw_clear(effect, progress)
-			"fall":
-				_draw_fall(effect, progress)
-			"bloom":
-				_draw_bloom(effect, progress)
+## Transient visuals for whichever step is playing.
+func _draw_step(step: Dictionary) -> void:
+	var t := _step_progress(step)
+	match str(step["kind"]):
+		"spin":
+			_draw_spin(step, t)
+		"clear":
+			_draw_clear(step, t)
+		"fall":
+			_draw_fall(step, t)
+		"drop":
+			_draw_drop(step, t)
+		"bloom":
+			_draw_bloom(step, t)
 
 
-## The trio visibly turning: three ghost hexes orbit the vertex and fade.
-func _draw_spin(effect: Dictionary, progress: float) -> void:
-	var cells: Array = effect["cells"]
-	if cells.size() != 3:
-		return
+func _draw_spin(step: Dictionary, t: float) -> void:
+	var cells: Array = step["cells"]
+	var n := cells.size()
+	var dir: int = int(step["dir"])
 	var centre := Vector2.ZERO
 	for cell: Vector2i in cells:
 		centre += cell_center(cell)
-	centre /= 3.0
-	var angle := deg_to_rad(60.0) * progress
-	var alpha := 0.30 * (1.0 - progress)
-	for cell: Vector2i in cells:
-		var spun := (cell_center(cell) - centre).rotated(angle)
-		draw_colored_polygon(_corners(centre + spun, cell_size * 0.84), Color(1, 1, 1, alpha))
+	centre /= float(n)
+	for i in n:
+		var source: Vector2i = cells[posmod(i - dir, n)]
+		var piece: int = int(_display.get(source, Pieces.EMPTY))
+		if Pieces.is_empty(piece):
+			continue
+		var from := cell_center(source)
+		var to := cell_center(cells[i])
+		var position := from.lerp(to, t)
+		# Bulge around the vertex so the trio reads as turning, not sliding.
+		position += (position - centre).rotated(PI * 0.5) * sin(t * PI) * 0.25
+		_draw_piece(position, piece, cell_size * 0.90, 1.0)
 
 
-## Cleared gems shrink away.
-func _draw_clear(effect: Dictionary, progress: float) -> void:
-	var radius := cell_size * 0.92 * (1.0 - progress * 0.85)
-	var alpha := 0.85 * (1.0 - progress)
-	for cell: Vector2i in effect["cells"]:
-		draw_colored_polygon(_corners(cell_center(cell), radius), Color(1, 1, 1, alpha))
+func _draw_clear(step: Dictionary, t: float) -> void:
+	var radius := cell_size * 0.92 * (1.0 - t * 0.85)
+	var alpha := 1.0 - t
+	for cell: Vector2i in step["cells"]:
+		_draw_piece(cell_center(cell), int(_display.get(cell, Pieces.EMPTY)), radius, alpha)
 
 
-## A falling gem leaves a warm streak along its path.
-func _draw_fall(effect: Dictionary, progress: float) -> void:
-	var from_pos := cell_center(effect["from"])
-	var to_pos := cell_center(effect["to"])
-	var position := from_pos.lerp(to_pos, progress * progress)
-	var alpha := 0.40 * (1.0 - progress)
-	draw_colored_polygon(_corners(position, cell_size * 0.45), Color(1.0, 0.93, 0.66, alpha))
+func _draw_fall(step: Dictionary, t: float) -> void:
+	var eased := t * t
+	for move: Dictionary in step["moves"]:
+		var piece: int = int(_display.get(move["from"], Pieces.EMPTY))
+		if Pieces.is_empty(piece):
+			continue
+		var position := cell_center(move["from"]).lerp(cell_center(move["to"]), eased)
+		# A little squash as it lands sells the weight.
+		var squash := 1.0 + 0.10 * maxf(0.0, t - 0.75) * 4.0
+		_draw_piece(position, piece, cell_size * 0.92 / squash, 1.0)
 
 
-## A promotion blooms outward from its cell.
-func _draw_bloom(effect: Dictionary, progress: float) -> void:
-	var centre := cell_center(effect["cell"])
-	var radius := cell_size * (0.35 + 1.7 * progress)
-	draw_arc(centre, radius, 0, TAU, 32, Color(1.0, 0.88, 0.42, 0.85 * (1.0 - progress)), 2.5)
+func _draw_drop(step: Dictionary, t: float) -> void:
+	var eased := 1.0 - pow(1.0 - t, 2.0)
+	for spawn: Dictionary in step["spawns"]:
+		var cell: Vector2i = spawn["cell"]
+		var target := cell_center(cell)
+		var start := target - Vector2(0.0, cell_size * 4.0)
+		_draw_piece(start.lerp(target, eased), int(spawn["piece"]), cell_size * 0.92, minf(1.0, t * 2.0))
+
+
+func _draw_bloom(step: Dictionary, t: float) -> void:
+	for promotion: Dictionary in step["promotions"]:
+		var centre := cell_center(promotion["cell"])
+		var radius := cell_size * (0.35 + 1.7 * t)
+		draw_arc(centre, radius, 0, TAU, 32, Color(1.0, 0.88, 0.42, 0.85 * (1.0 - t)), 2.5)
 
 
 func _draw_cursor() -> void:
@@ -253,7 +457,7 @@ func _draw_cursor() -> void:
 	# Green means "spinning here will clear"; dim grey means it would just revert.
 	var dot := Color(0.45, 0.95, 0.55, 0.95) if cursor_legal else Color(0.62, 0.66, 0.74, 0.80)
 	draw_circle(centre, cell_size * 0.16, dot)
-	draw_circle(centre, cell_size * 0.10, Color(0.10, 0.12, 0.16, 0.92))
+	draw_circle(centre, cell_size * 0.10, Color(0.06, 0.08, 0.12, 0.92))
 	if cursor_legal:
 		draw_arc(centre, cell_size * 0.28, 0, TAU, 24, Color(0.45, 0.95, 0.55, 0.55), 1.5)
 

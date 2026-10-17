@@ -7,6 +7,12 @@
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
 
+[node name="Backdrop" type="ColorRect" parent="."]
+offset_right = 1280.0
+offset_bottom = 720.0
+mouse_filter = 2
+color = Color(0.0196078, 0.027451, 0.0470588, 1)
+
 [node name="BoardView" type="Node2D" parent="."]
 position = Vector2(640, 336)
 script = ExtResource("2_board")
