@@ -173,6 +173,11 @@ func _smoke() -> void:
 
 	anim_view.call("sync_from_game")
 	_check(bool(anim_view.call("is_settled")), "the board settles again once synced")
+	# No buffering: the refused presses above must not fire once the board lands.
+	_check(
+		game.turns == turns_while_falling,
+		"no buffered spin fires when the board settles"
+	)
 	_main.call("_play_key", KEY_X)
 	_check(game.turns >= turns_while_falling, "rotation keys are accepted again once settled")
 

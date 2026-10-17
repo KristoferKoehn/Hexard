@@ -56,6 +56,7 @@ var _step_index := 0
 var _step_time := 0.0
 var _playing := false
 var _plate: StyleBoxFlat = null
+var _backdrop: ImageTexture = null
 ## True while steps that actually change the board are playing. A refused-spin
 ## bounce does not count: nothing is in flight, so further spins are safe.
 var _settling := false
@@ -341,14 +342,31 @@ func _skipped_cells(step: Dictionary) -> Dictionary:
 	return skip
 
 
-## A few soft rings behind the plate keep the screen from reading as flat black.
+## A smooth radial glow behind the plate. Drawn as one dithered texture rather
+## than concentric circles: stacked translucent circles band badly in 8-bit.
 func _draw_backdrop() -> void:
-	if _plate_rect().size == Vector2.ZERO:
-		return
+	if _backdrop == null:
+		_build_backdrop()
 	var centre := _plate_rect().get_center()
-	for index in 4:
-		var radius := cell_size * (11.0 + float(index) * 3.0)
-		draw_circle(centre, radius, Color(0.12, 0.55, 0.68, 0.035))
+	var span := cell_size * 34.0
+	draw_texture_rect(_backdrop, Rect2(centre - Vector2(span, span) * 0.5, Vector2(span, span)), false)
+
+
+func _build_backdrop() -> void:
+	const SIDE := 128
+	var image := Image.create(SIDE, SIDE, false, Image.FORMAT_RGBA8)
+	var centre := Vector2(SIDE, SIDE) * 0.5
+	var max_distance := centre.length()
+	var noise := RandomNumberGenerator.new()
+	noise.seed = 4242
+	for y in SIDE:
+		for x in SIDE:
+			var distance := Vector2(x, y).distance_to(centre) / max_distance
+			var falloff := pow(clampf(1.0 - distance, 0.0, 1.0), 2.2)
+			# Dither by a fraction of one step so the falloff cannot stair-step.
+			var alpha := falloff * 0.50 + (noise.randf() - 0.5) / 255.0
+			image.set_pixel(x, y, Color(0.09, 0.60, 0.76, clampf(alpha, 0.0, 1.0)))
+	_backdrop = ImageTexture.create_from_image(image)
 
 
 func _plate_rect() -> Rect2:

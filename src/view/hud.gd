@@ -21,6 +21,15 @@ const Pieces := preload("res://src/core/piece.gd")
 const INFO_FONT_SIZE := 22
 const MESSAGE_FONT_SIZE := 18
 
+# Neon palette, matching the board's container (src/view/board_view.gd).
+const NEON_ACCENT := Color("35e0f0")
+const NEON_TEXT := Color("d9eef9")
+const NEON_DIM := Color("6f8496")
+const NEON_PANEL := Color("0b101c")
+const NEON_BORDER := Color("1d3b4d")
+const NEON_AMBER := Color("ffd166")
+const NEON_GOOD := Color("8ef0a0")
+
 const MODE_LABELS := {
 	RulesetScript.Mode.MARATHON: "Marathon",
 	RulesetScript.Mode.TIMED: "Timed",
@@ -33,7 +42,7 @@ const MODE_BLURBS := {
 }
 const DIFFICULTIES := ["easy", "normal", "hard"]
 
-var _info: Label
+var _info: RichTextLabel
 var _message: Label
 var _controls: Label
 var _banner: Label
@@ -51,17 +60,79 @@ func _ready() -> void:
 	_build_status()
 	_build_menu()
 	_build_result()
+	# Every button we built gets the neon treatment in one place, so new buttons
+	# are themed automatically instead of each builder repeating five overrides.
+	_neonify(self)
+
+
+func _neonify(node: Node) -> void:
+	for child in node.get_children():
+		if child is Button:
+			_apply_neon(child)
+		_neonify(child)
+
+
+func _apply_neon(button: Button) -> void:
+	button.add_theme_color_override("font_color", NEON_TEXT)
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_color_override("font_pressed_color", NEON_ACCENT)
+	button.add_theme_color_override("font_focus_color", NEON_TEXT)
+	button.add_theme_color_override("font_disabled_color", NEON_DIM)
+	button.add_theme_font_size_override("font_size", 18)
+	button.add_theme_stylebox_override("normal", _box(NEON_PANEL, NEON_BORDER))
+	button.add_theme_stylebox_override("hover", _box(Color("102438"), NEON_ACCENT))
+	button.add_theme_stylebox_override("pressed", _box(Color("0d2b3a"), NEON_ACCENT))
+	button.add_theme_stylebox_override("focus", _box(Color(0, 0, 0, 0), Color(NEON_ACCENT, 0.55)))
+
+
+func _box(fill: Color, border: Color) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = fill
+	box.set_border_width_all(1)
+	box.border_color = border
+	box.set_corner_radius_all(10)
+	box.content_margin_left = 16
+	box.content_margin_right = 16
+	box.content_margin_top = 8
+	box.content_margin_bottom = 8
+	box.anti_aliasing = true
+	return box
 
 
 # --- status -----------------------------------------------------------------
 
 func _build_status() -> void:
-	_info = _make_label(Vector2(18, 14), INFO_FONT_SIZE, Color("eef1f7"))
-	_banner = _make_label(Vector2(18, 44), 17, Color("8ef0a0"))
+	# Rich text so the numbers can carry the accent colour while the labels stay
+	# quiet — the fastest way to read a score row is by scanning the figures.
+	_info = _make_rich(Vector2(18, 10), INFO_FONT_SIZE)
+	_banner = _make_label(Vector2(18, 44), 17, NEON_GOOD)
 	_banner.visible = false
-	_message = _make_label(Vector2(18, 626), MESSAGE_FONT_SIZE, Color("ffd166"))
-	_controls = _make_label(Vector2(18, 678), 15, Color(0.75, 0.79, 0.87))
-	_controls.text = "arrows/WASD: move   ·   Z/X or click: rotate   ·   F: turn a starflower/pearl   ·   H: hint   ·   R: new board   ·   T: rotation mode   ·   Esc: quit"
+	_message = _make_label(Vector2(18, 626), MESSAGE_FONT_SIZE, NEON_AMBER)
+	_controls = _make_label(Vector2(18, 678), 15, NEON_DIM)
+	_controls.text = "arrows/WASD  move    ·    Z/X or click  rotate    ·    F  starflower    ·    H  hint    ·    R  new board    ·    T  rotation mode    ·    esc  quit"
+
+
+func _make_rich(position: Vector2, font_size: int) -> RichTextLabel:
+	var label := RichTextLabel.new()
+	label.position = position
+	label.size = Vector2(1244, font_size + 16)
+	label.bbcode_enabled = true
+	label.scroll_active = false
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	# Grow with the text: clipping a score row is much worse than a wide control.
+	label.fit_content = true
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_size_override("normal_font_size", font_size)
+	label.add_theme_color_override("default_color", NEON_TEXT)
+	add_child(label)
+	return label
+
+
+## One labelled figure: quiet label, accented value.
+func _stat(name: String, value: String, accent: Color = NEON_ACCENT) -> String:
+	return "[color=#%s]%s[/color] [color=#%s]%s[/color]" % [
+		NEON_DIM.to_html(false), name, accent.to_html(false), value,
+	]
 
 
 func _make_label(position: Vector2, font_size: int, color: Color) -> Label:
@@ -82,23 +153,26 @@ func update_from_game(game: RefCounted) -> void:
 	if _info == null or game == null:
 		return
 	var mode := "STRICT" if _is_strict(game) else "FREE"
-	var over := "" if int(game.state) == 0 else "   RUN OVER"
 	var parts := PackedStringArray()
-	parts.append("SCORE %d" % game.score)
-	parts.append("LEVEL %d" % game.level)
-	parts.append("COMBOS TO NEXT %d" % game.combos_remaining())
+	parts.append(_stat("SCORE", str(game.score)))
+	parts.append(_stat("LEVEL", str(game.level)))
+	parts.append(_stat("COMBOS TO NEXT", str(game.combos_remaining())))
 	if int(game.ruleset.mode) == int(RulesetScript.Mode.TIMED):
-		parts.append("TIME %s" % _clock_text(game.clock, game.max_clock))
+		parts.append(_stat("TIME", _clock_text(game.clock, game.max_clock)))
 	elif int(game.ruleset.mode) == int(RulesetScript.Mode.SURVIVAL):
-		parts.append("ROUND %d" % game.round)
-		parts.append("FROZEN %d" % game.board.locked_count())
+		parts.append(_stat("ROUND", str(game.round)))
+		parts.append(_stat("FROZEN", str(game.board.locked_count())))
 	else:
-		parts.append("BOMBS %d" % _count(game.board, Pieces.Kind.BOMB))
-	parts.append("PEARLS %d" % _count(game.board, Pieces.Kind.PEARL))
-	parts.append("TURN %d" % game.turns)
-	parts.append("SEED %d" % game.seed_value)
-	parts.append("[%s]%s" % [mode, over])
-	_info.text = "   ".join(parts)
+		parts.append(_stat("BOMBS", str(_count(game.board, Pieces.Kind.BOMB))))
+	parts.append(_stat("PEARLS", str(_count(game.board, Pieces.Kind.PEARL))))
+	parts.append(_stat("TURN", str(game.turns)))
+	parts.append(_stat("SEED", str(game.seed_value), NEON_DIM))
+	var tag_color := NEON_ACCENT if mode == "STRICT" else NEON_AMBER
+	var tail := "[color=#%s][%s][/color]" % [tag_color.to_html(false), mode]
+	if int(game.state) != 0:
+		tail += "  [color=#%s]RUN OVER[/color]" % NEON_AMBER.to_html(false)
+	parts.append(tail)
+	_info.text = "     ".join(parts)
 
 
 func set_message(text: String) -> void:
@@ -200,9 +274,9 @@ func _title(text: String, font_size: int) -> Label:
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", Color("eef1f7"))
-	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	label.add_theme_constant_override("outline_size", 5)
+	label.add_theme_color_override("font_color", NEON_TEXT if font_size <= 20 else NEON_ACCENT)
+	label.add_theme_color_override("font_outline_color", Color(0.09, 0.60, 0.76, 0.85))
+	label.add_theme_constant_override("outline_size", 5 if font_size <= 20 else 9)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return label
 
