@@ -123,11 +123,34 @@ static func _expand(board: Board, seed_cells: Array) -> Array[Vector2i]:
 			visited[neighbour] = true
 			queue.append(neighbour)
 
+	# Hexi HD rule: only tiles touching at least two other same-coloured tiles are
+	# scored and deleted. Expansion above finds the connected cluster; this keeps
+	# its solid core, so a gem hanging off by a single edge stays on the board and
+	# earns nothing. A matching vertex's own three tiles always qualify.
+	var kept: Array[Vector2i] = []
+	for cell: Vector2i in result:
+		if _same_color_neighbours(board, cell, color) >= 2:
+			kept.append(cell)
+	result = kept
+
 	result.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
 		if a.x != b.x:
 			return a.x < b.x
 		return a.y < b.y)
 	return result
+
+
+## How many of this tile's neighbours are matchable and the same colour. This is
+## the counting rule behind a clear: two or more means the tile is part of a solid
+## cluster rather than a tail.
+static func _same_color_neighbours(board: Board, cell: Vector2i, color: int) -> int:
+	var count := 0
+	for neighbour: Vector2i in Grid.neighbours(cell):
+		if not _is_matchable(board, neighbour):
+			continue
+		if Pieces.color_of(board.get_piece(neighbour)) == color:
+			count += 1
+	return count
 
 
 static func group_key(cells: Array) -> String:

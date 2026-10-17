@@ -179,3 +179,35 @@ func test_vertex_neighbour_graph_is_sane() -> void:
 				Grid.vertex_neighbours(other).has(index),
 				"vertex adjacency is symmetric (%d <-> %d)" % [index, other]
 			)
+
+
+## Hexi HD clear rule: a tile must touch two other same-coloured tiles to score or
+## be deleted. A gem attached to a cluster by a single edge is a tail, not part of
+## the cluster, so it stays on the board and earns nothing.
+func test_a_tail_hanging_off_a_cluster_is_spared() -> void:
+	var board := BoardScript.new()
+	_background(board)
+	var triangle: Array[Vector2i] = [Vector2i(4, 4), Vector2i(4, 5), Vector2i(3, 4)]
+	var tail := Vector2i(5, 3)   # touches (4,4) only: one same-coloured neighbour
+	# ORANGE is absent from the match-free background pattern, so the tail's other
+	# neighbours cannot accidentally count as same-coloured.
+	var petals: Array = [triangle[0], triangle[1], triangle[2], tail]
+	_paint(board, petals, Pieces.GemColor.ORANGE)
+
+	var groups := MatchFinder.clear_groups(board)
+	assert_eq(groups.size(), 1, "there is one cluster")
+	var group = groups[0]
+	assert_eq(group.cells.size(), 3, "only the solid core clears")
+	assert_false(group.cells.has(tail), "the single-edge tail is spared")
+	assert_eq(group.gem_color, Pieces.GemColor.ORANGE, "and it is the orange cluster")
+
+
+## A compact four is still a four: every tile in it touches two others.
+func test_a_compact_four_still_clears_four() -> void:
+	var board := BoardScript.new()
+	_background(board)
+	var rhombus: Array = [Vector2i(4, 4), Vector2i(4, 5), Vector2i(3, 4), Vector2i(3, 5)]
+	_paint(board, rhombus, Pieces.GemColor.RED)
+	var groups := MatchFinder.clear_groups(board)
+	assert_eq(groups.size(), 1, "one cluster")
+	assert_eq(groups[0].cells.size(), 4, "a solid rhombus keeps all four")
