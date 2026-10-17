@@ -21,7 +21,12 @@ func run_all() -> Array[Dictionary]:
 	for test_name in names:
 		_current_test = test_name
 		failures = []
+		var before := assertions
 		callv(test_name, [])
+		# A test that dies before asserting anything (a runtime error inside the
+		# code under test aborts the method) must not be reported as a pass.
+		if assertions == before:
+			_record("test made no assertions — it probably failed before running")
 		results.append({"name": test_name, "failures": failures.duplicate()})
 	return results
 

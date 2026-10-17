@@ -10,6 +10,7 @@ extends CanvasLayer
 signal mode_chosen(mode: int)
 signal difficulty_chosen(difficulty: String)
 signal start_pressed
+signal tutorial_pressed
 signal restart_pressed
 signal menu_pressed
 
@@ -35,6 +36,7 @@ const DIFFICULTIES := ["easy", "normal", "hard"]
 var _info: Label
 var _message: Label
 var _controls: Label
+var _banner: Label
 var _menu: Control
 var _menu_blurb: Label
 var _result: Control
@@ -55,6 +57,8 @@ func _ready() -> void:
 
 func _build_status() -> void:
 	_info = _make_label(Vector2(18, 14), INFO_FONT_SIZE, Color("eef1f7"))
+	_banner = _make_label(Vector2(18, 44), 17, Color("8ef0a0"))
+	_banner.visible = false
 	_message = _make_label(Vector2(18, 626), MESSAGE_FONT_SIZE, Color("ffd166"))
 	_controls = _make_label(Vector2(18, 678), 15, Color(0.75, 0.79, 0.87))
 	_controls.text = "arrows/WASD: move   ·   Z/X or click: rotate   ·   F: turn a starflower/pearl   ·   H: hint   ·   R: new board   ·   T: rotation mode   ·   Esc: quit"
@@ -100,6 +104,19 @@ func update_from_game(game: RefCounted) -> void:
 func set_message(text: String) -> void:
 	if _message != null:
 		_message.text = text
+
+
+## The tutorial's instruction banner, above the board.
+func set_banner(text: String) -> void:
+	if _banner == null:
+		return
+	_banner.text = text
+	_banner.visible = text.length() > 0
+
+
+## Current banner text (used by the view smoke test).
+func banner_text() -> String:
+	return _banner.text if _banner != null else ""
 
 
 func _clock_text(clock: float, maximum: float) -> String:
@@ -163,7 +180,17 @@ func _build_menu() -> void:
 	start.text = "Start  (Enter)"
 	start.custom_minimum_size = Vector2(220, 44)
 	start.pressed.connect(func() -> void: start_pressed.emit())
-	column.add_child(start)
+
+	var action_row := HBoxContainer.new()
+	action_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	action_row.add_theme_constant_override("separation", 10)
+	action_row.add_child(start)
+	var tutorial := Button.new()
+	tutorial.text = "Tutorial"
+	tutorial.custom_minimum_size = Vector2(140, 44)
+	tutorial.pressed.connect(func() -> void: tutorial_pressed.emit())
+	action_row.add_child(tutorial)
+	column.add_child(action_row)
 
 	column.add_child(_title("←/→ mode   ·   ↑/↓ difficulty   ·   Enter start", 15))
 
@@ -226,6 +253,8 @@ func _set_status_visible(visible_now: bool) -> void:
 	_info.visible = visible_now
 	_message.visible = visible_now
 	_controls.visible = visible_now
+	if not visible_now:
+		_banner.visible = false
 
 
 # --- result -----------------------------------------------------------------

@@ -62,12 +62,25 @@ func _process(_delta: float) -> bool:
 			_start_timed_run()
 		14:
 			_check_timed_run_ended_on_the_clock()
-			_main.call("start_run", RulesetScript.Mode.MARATHON, "normal", 4321)
+			_main.call("start_tutorial")
 		15:
+			_check_tutorial_started()
+			_main.call("start_run", RulesetScript.Mode.MARATHON, "normal", 4321)
+		16:
 			_check(_main.call("screen_name") == "playing", "a new run goes straight back to play")
 			_report()
 			return true
 	return false
+
+
+func _check_tutorial_started() -> void:
+	_check(_main.call("screen_name") == "playing", "the tutorial starts in play")
+	_check(_main.get("tutorial") != null, "the controller holds a tutorial")
+	var hud = _main.get_node("Hud")
+	var banner := str(hud.call("banner_text"))
+	_check(banner.begins_with("Tutorial 1/"), "the banner introduces step 1 (got '%s')" % banner)
+	var game = _main.get("game")
+	_check(game != null and game.tile_count() == 85, "the tutorial board is ready")
 
 
 # --- mode flow --------------------------------------------------------------
@@ -94,6 +107,12 @@ func _check(condition: bool, message: String) -> void:
 	_checks += 1
 	if not condition:
 		_failures.append(message)
+
+
+## The board view should be mid-animation right after a move.
+func view_effects_are_animating() -> bool:
+	var view = _main.get_node("BoardView")
+	return int(view.call("effect_count")) > 0
 
 
 # --- wiring -----------------------------------------------------------------
@@ -127,6 +146,7 @@ func _smoke() -> void:
 	_check(game.tile_count() == 85, "board is still full after moves")
 	_check(game.board.invariant_violations().size() == 0, "no floating pieces after moves")
 	_check(game.score >= 0, "score is sane")
+	_check(view_effects_are_animating(), "a committed move produced animation effects")
 
 	var cursor: int = _main.get("cursor_vertex")
 	_check(cursor >= 0 and cursor < HexGrid.vertices().size(), "cursor stayed in range")

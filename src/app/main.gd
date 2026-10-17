@@ -9,6 +9,7 @@ const HexGrid := preload("res://src/core/hex_grid.gd")
 const Pieces := preload("res://src/core/piece.gd")
 const GameScript := preload("res://src/core/game.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
+const TutorialScript := preload("res://src/core/tutorial.gd")
 
 const DEFAULT_SEED := 20261016
 
@@ -22,12 +23,14 @@ var cursor_vertex := 0
 var screen: Screen = Screen.MENU
 var selected_mode: int = RulesetScript.Mode.MARATHON
 var selected_difficulty := "normal"
+var tutorial: RefCounted = null
 
 
 func _ready() -> void:
 	hud.mode_chosen.connect(_on_mode_chosen)
 	hud.difficulty_chosen.connect(_on_difficulty_chosen)
 	hud.start_pressed.connect(_on_start_pressed)
+	hud.tutorial_pressed.connect(_on_tutorial_pressed)
 	hud.restart_pressed.connect(_on_restart_pressed)
 	hud.menu_pressed.connect(_on_menu_pressed)
 	hud.show_menu(selected_mode, selected_difficulty)
@@ -49,6 +52,7 @@ func _process(delta: float) -> void:
 func start_run(run_mode: int, difficulty: String, run_seed: int = -1) -> void:
 	selected_mode = run_mode
 	selected_difficulty = difficulty
+	tutorial = null
 	var seed_value := run_seed if run_seed >= 0 else randi()
 	game = GameScript.new(seed_value, RulesetScript.for_run(run_mode, difficulty))
 	_enter_playing()
@@ -58,11 +62,42 @@ func start_run(run_mode: int, difficulty: String, run_seed: int = -1) -> void:
 	)
 
 
+## The scripted tutorial: its own game, its own board rigs (docs/design.md §7.4).
+func start_tutorial() -> void:
+	tutorial = TutorialScript.new()
+	game = tutorial.game
+	_enter_playing()
+	_sync_tutorial()
+
+
+func _sync_tutorial() -> void:
+	if tutorial == null:
+		hud.set_banner("")
+		return
+	if tutorial.complete:
+		hud.set_banner("Tutorial complete — press M for the menu, or R to keep playing this board")
+		hud.set_message("you have seen every mechanic")
+		return
+	hud.set_banner(
+		"Tutorial %d/%d · %s — %s"
+		% [tutorial.step_number(), tutorial.step_count(), tutorial.step_title(), tutorial.instruction()]
+	)
+	var target: int = tutorial.hint_vertex()
+	select_vertex(target)
+	board_view.hint_vertex = target
+	board_view.queue_redraw()
+
+
+func _on_tutorial_pressed() -> void:
+	start_tutorial()
+
+
 ## Restarts the current mode with a new seed (the R key).
 func new_game(seed_value: int) -> void:
 	if game == null:
 		start_run(selected_mode, selected_difficulty, seed_value)
 		return
+	tutorial = null
 	var ruleset := RulesetScript.for_run(int(game.ruleset.mode), game.ruleset.difficulty)
 	ruleset.rotation_mode = int(game.ruleset.rotation_mode)
 	game = GameScript.new(seed_value, ruleset)
@@ -77,6 +112,8 @@ func _enter_playing() -> void:
 	board_view.hint_vertex = -1
 	board_view.hover_cell = Vector2i(-1, -1)
 	_refresh_cursor()
+	if tutorial == null:
+		hud.set_banner("")
 	hud.show_playing()
 	hud.update_from_game(game)
 
@@ -119,7 +156,9 @@ func _on_restart_pressed() -> void:
 func _on_menu_pressed() -> void:
 	screen = Screen.MENU
 	game = null
+	tutorial = null
 	board_view.set_game(null)
+	hud.set_banner("")
 	hud.show_menu(selected_mode, selected_difficulty)
 
 
@@ -179,6 +218,11 @@ func _apply(result, label: String) -> void:
 
 	if game.state == GameScript.State.FINISHED:
 		_enter_result()
+		return
+
+	if tutorial != null:
+		if tutorial.evaluate(result):
+			_sync_tutorial()
 		return
 
 	var parts := PackedStringArray([label])

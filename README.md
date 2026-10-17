@@ -6,8 +6,8 @@ Rotate trios of gems around the points where three hexes meet. Match three or mo
 
 ## Status
 
-**M3 complete** — all three modes are playable end to end: a mode/difficulty menu, the Timed clock, Survival's
-rounds and frozen pieces, and a result screen that says how (and whether) you won.
+**M4 in progress** — the game now teaches itself and moves properly: a scripted five-step tutorial from the
+menu, and every move animates (spin, shrink, fall, bloom).
 
 | Milestone | State |
 |---|---|
@@ -15,7 +15,9 @@ rounds and frozen pieces, and a result screen that says how (and whether) you wo
 | M1 · playable core (rotate → match → gravity → cascade → score) + dev-art scene | ✅ 75 tests, smoke test, 10,000-move soak |
 | M2 · specials (bonus stars, starflowers, black pearls, bombs) | ✅ 101 tests, soak plays specials |
 | M3 · modes (Marathon / Timed / Survival), difficulty, menu, result screen | ✅ 124 tests, soak plays all three modes |
-| M4 · art, audio, tutorial, saves, stats, achievements | next |
+| M4 · tutorial, animations, SFX, saves, stats, achievements | 🔶 tutorial + animation done (133 tests); meta next |
+| M5 · balance, accessibility, exports | planned |
+| M4 · art, audio, tutorial, saves, stats, achievements | 🔶 tutorial + animations done; SFX, saves, stats, achievements next |
 | M5 · balance, accessibility, exports | planned |
 
 ## Documentation

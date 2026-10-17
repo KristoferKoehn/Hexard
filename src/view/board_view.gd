@@ -20,7 +20,10 @@ const GEM_COLORS := {
 	Pieces.GemColor.VIOLET: Color("9b5de5"),
 }
 
-const FLASH_DURATION := 0.32
+const SPIN_TIME := 0.12
+const CLEAR_TIME := 0.30
+const FALL_TIME := 0.22
+const BLOOM_TIME := 0.38
 
 @export var cell_size: float = 30.0
 
@@ -33,8 +36,7 @@ var hint_vertex := -1
 var hover_cell := Vector2i(-1, -1)
 
 var _origin := Vector2.ZERO
-var _flash_cells: Array[Vector2i] = []
-var _flash_time := 0.0
+var _effects: Array = []
 
 
 func set_game(new_game: RefCounted) -> void:
@@ -69,25 +71,58 @@ func cell_at(local_point: Vector2) -> Vector2i:
 	return best
 
 
-## Cells that just cleared: fade them out over a few frames. Promotions flash
-## too, so a bloom into a starflower or pearl reads.
+## Turns a move into a short animation (docs/design.md §8).
+##
+## The rules core has already reached its final state, so these are transient
+## overlays: a spin, shrinking clear ghosts, falling streaks and a bloom ring.
+## Nothing here blocks input, and nothing mutates game state.
 func show_result(result: RefCounted) -> void:
-	_flash_cells.clear()
+	_effects.clear()
+	if result.rotation_cells.size() > 0:
+		_effects.append({
+			"kind": "spin", "cells": result.rotation_cells.duplicate(),
+			"t": 0.0, "duration": SPIN_TIME, "delay": 0.0,
+		})
 	for group in result.clear_groups:
+		var cells: Array[Vector2i] = []
 		for cell: Vector2i in group.cells:
-			_flash_cells.append(cell)
+			cells.append(cell)
+		_effects.append({
+			"kind": "clear", "cells": cells,
+			"t": 0.0, "duration": CLEAR_TIME, "delay": SPIN_TIME,
+		})
+	for move: Dictionary in result.gravity_moves:
+		_effects.append({
+			"kind": "fall", "from": move["from"], "to": move["to"],
+			"t": 0.0, "duration": FALL_TIME, "delay": SPIN_TIME + CLEAR_TIME * 0.4,
+		})
 	for promotion: Dictionary in result.promotions:
-		_flash_cells.append(promotion["cell"])
-	_flash_time = FLASH_DURATION if not _flash_cells.is_empty() else 0.0
+		_effects.append({
+			"kind": "bloom", "cell": promotion["cell"],
+			"t": 0.0, "duration": BLOOM_TIME, "delay": SPIN_TIME,
+		})
 	queue_redraw()
 
 
+## Live effect count, so tests can tell an animated move from a silent one.
+func effect_count() -> int:
+	return _effects.size()
+
+
 func _process(delta: float) -> void:
-	if _flash_time > 0.0:
-		_flash_time = maxf(_flash_time - delta, 0.0)
-		if _flash_time == 0.0:
-			_flash_cells.clear()
-		queue_redraw()
+	if _effects.is_empty():
+		return
+	var live: Array = []
+	for effect: Dictionary in _effects:
+		if float(effect["delay"]) > 0.0:
+			effect["delay"] = float(effect["delay"]) - delta
+			live.append(effect)
+			continue
+		effect["t"] = float(effect["t"]) + delta
+		if float(effect["t"]) < float(effect["duration"]):
+			live.append(effect)
+	_effects = live
+	queue_redraw()
 
 
 # --- drawing ----------------------------------------------------------------
@@ -97,7 +132,7 @@ func _draw() -> void:
 		return
 	for cell: Vector2i in HexGrid.all_cells():
 		_draw_cell(cell)
-	_draw_flash()
+	_draw_effects()
 	_draw_cursor()
 
 
@@ -145,12 +180,60 @@ func _draw_cell(cell: Vector2i) -> void:
 		draw_arc(centre, radius * 0.98, 0, TAU, 28, ring_color, 2.5 if hovered else 1.5)
 
 
-func _draw_flash() -> void:
-	if _flash_cells.is_empty() or _flash_time <= 0.0:
+func _draw_effects() -> void:
+	for effect: Dictionary in _effects:
+		if float(effect["delay"]) > 0.0:
+			continue
+		var progress := clampf(float(effect["t"]) / float(effect["duration"]), 0.0, 1.0)
+		match str(effect["kind"]):
+			"spin":
+				_draw_spin(effect, progress)
+			"clear":
+				_draw_clear(effect, progress)
+			"fall":
+				_draw_fall(effect, progress)
+			"bloom":
+				_draw_bloom(effect, progress)
+
+
+## The trio visibly turning: three ghost hexes orbit the vertex and fade.
+func _draw_spin(effect: Dictionary, progress: float) -> void:
+	var cells: Array = effect["cells"]
+	if cells.size() != 3:
 		return
-	var alpha := _flash_time / FLASH_DURATION
-	for cell: Vector2i in _flash_cells:
-		draw_colored_polygon(_corners(cell_center(cell), cell_size * 0.92), Color(1, 1, 1, 0.65 * alpha))
+	var centre := Vector2.ZERO
+	for cell: Vector2i in cells:
+		centre += cell_center(cell)
+	centre /= 3.0
+	var angle := deg_to_rad(60.0) * progress
+	var alpha := 0.30 * (1.0 - progress)
+	for cell: Vector2i in cells:
+		var spun := (cell_center(cell) - centre).rotated(angle)
+		draw_colored_polygon(_corners(centre + spun, cell_size * 0.84), Color(1, 1, 1, alpha))
+
+
+## Cleared gems shrink away.
+func _draw_clear(effect: Dictionary, progress: float) -> void:
+	var radius := cell_size * 0.92 * (1.0 - progress * 0.85)
+	var alpha := 0.85 * (1.0 - progress)
+	for cell: Vector2i in effect["cells"]:
+		draw_colored_polygon(_corners(cell_center(cell), radius), Color(1, 1, 1, alpha))
+
+
+## A falling gem leaves a warm streak along its path.
+func _draw_fall(effect: Dictionary, progress: float) -> void:
+	var from_pos := cell_center(effect["from"])
+	var to_pos := cell_center(effect["to"])
+	var position := from_pos.lerp(to_pos, progress * progress)
+	var alpha := 0.40 * (1.0 - progress)
+	draw_colored_polygon(_corners(position, cell_size * 0.45), Color(1.0, 0.93, 0.66, alpha))
+
+
+## A promotion blooms outward from its cell.
+func _draw_bloom(effect: Dictionary, progress: float) -> void:
+	var centre := cell_center(effect["cell"])
+	var radius := cell_size * (0.35 + 1.7 * progress)
+	draw_arc(centre, radius, 0, TAU, 32, Color(1.0, 0.88, 0.42, 0.85 * (1.0 - progress)), 2.5)
 
 
 func _draw_cursor() -> void:

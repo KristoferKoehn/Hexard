@@ -344,7 +344,30 @@ Fixed single screen showing the whole 85-cell board, 16:9 safe. No zoom, no pan 
 
 ### 7.4 Tutorial
 
-Six scripted steps on a fixed seed board, each teaching one verb: move cursor → rotate → make a 3-cluster → watch gravity and a cascade → make a flower → use a starflower to build toward a pearl. Skippable, replayable, and the board state is a literal fixture so it can be regression-tested.
+Five scripted steps in a Tutorial mode (its own game, FREE rotation, no bombs, greedy refills), each rigging
+the board so the mechanic is one move away:
+
+| # | Step | Rigged board | Goal |
+|---|---|---|---|
+| 1 | Spin to clear | A triple with a stranger in it, one spin from a match | a committed move that clears |
+| 2 | Bonus stars | Three bonus stars of different colours, ready to go off | a `bonus_star_cluster` clear |
+| 3 | Flowers bloom | Six red gems ringing a blue centre | a `starflower` promotion |
+| 4 | Turning a starflower | A starflower ringed by six different colours | a piece turn (`F`) |
+| 5 | Black pearls | Six starflowers ringing a centre | a `pearl` promotion |
+
+Rigging is legitimate here — the point is to *show* the mechanic — but every setup is a legal board (a match-free
+background plus the formation), and the whole state machine is unit-tested against those rigs. The banner names
+the step and the controller moves the cursor to the vertex that matters.
+
+> The pattern background used for rigging has **no legal rotation at all**, which is why step 1 needs its own
+> setup rather than "any board" — found the hard way when the first version was unwinnable.
+
+### 7.5 Animation
+
+The rules core reaches its final state instantly, so `BoardView` replays the move as **transient overlays** that
+never block input or mutate state: a spinning trio (120 ms), shrinking clear ghosts (300 ms), falling streaks
+(220 ms) and a bloom ring on promotions (380 ms). `show_result()` builds the timeline; `effect_count()` exposes
+it so the smoke test can prove a committed move actually animates.
 
 ---
 
@@ -553,7 +576,7 @@ Mitigations to evaluate in playtesting, in order of preference:
 | **M1** ✅ | Playable core: board, cursor, discrete rotation, match predicate, gravity, refill, cascades, scoring, dev-art scene | **Done:** 75 tests / 0 failed, view smoke test, 10,000-move soak; playable in-editor (`main.tscn`) |
 | **M2** ✅ | Specials: bonus stars (×2 + 3-star area clear), starflowers (flower → piece → ring rotation), black pearls (creation, Y rotation, perfect finish), bombs (tick, defuse, colour wipe) | **Done:** 101 tests / 0 failed incl. every formation; the soak plays 10,000 moves with specials |
 | **M3** ✅ | Progression + modes: 7 levels, combo thresholds, content gating, Marathon/Timed/Survival, difficulty, dead-board shuffle, win/lose flows | **Done:** 124 tests / 0 failed; menu, per-mode HUD, clock, Survival rounds and locking, result screen |
-| **M4** | Presentation + meta: art pass, animations, SFX/music, tutorial, autosave/resume, stats, achievements, local leaderboard | A first-time player can learn the game from the tutorial alone |
+| **M4** 🔶 | Presentation + meta: art pass, animations, SFX, tutorial, autosave/resume, stats, achievements, local leaderboard | **Done:** scripted 5-step tutorial + move animations. **Remaining:** SFX, autosave/resume, stats, achievements, leaderboard |
 | **M5** | Polish + balance: playtest-driven tuning of scoring/RNG/bombs, accessibility pass, replays, exports (Windows + web) | Balance targets met (§13), export builds run at 60 FPS |
 
 ---

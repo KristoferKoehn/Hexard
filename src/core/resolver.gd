@@ -78,7 +78,7 @@ static func _resolve_pearl_rings(board, ruleset, result, level: int, depth: int)
 		for cell: Vector2i in ring:
 			board.remove_piece(cell)
 		board.set_piece(centre, Pieces.pearl())
-		result.promotions.append({"cell": centre, "piece": Pieces.pearl()})
+		result.promotions.append({"cell": centre, "piece": Pieces.pearl(), "kind": "pearl"})
 	return true
 
 
