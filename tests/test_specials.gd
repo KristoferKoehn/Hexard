@@ -384,6 +384,10 @@ func test_strict_accepts_the_last_spin_into_a_flower() -> void:
 		for promotion: Dictionary in result.promotions:
 			if str(promotion.get("kind", "")) == "starflower":
 				promoted = true
+				assert_eq(
+					int(promotion.get("depth", -1)), 1,
+					"the bloom knows its cascade depth, so the view can play it before the ring dies"
+				)
 		break
 	assert_true(accepted, "strict mode accepted the spin that completes the flower")
 	assert_true(promoted, "and the flower bloomed")

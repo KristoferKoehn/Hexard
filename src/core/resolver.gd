@@ -81,9 +81,9 @@ static func _resolve_flowers(board: Board, ruleset: Ruleset, result: MoveResult,
 		if survival:
 			_survival_flourish(board, ruleset, result, level, depth, centre, ring_color)
 		elif Pieces.is_starflower(board.get_piece(centre)):
-			_promote(board, result, centre, Pieces.Kind.PEARL)
+			_promote(board, result, centre, Pieces.Kind.PEARL, depth)
 		else:
-			_promote(board, result, centre, Pieces.Kind.STARFLOWER)
+			_promote(board, result, centre, Pieces.Kind.STARFLOWER, depth)
 	return true
 
 
@@ -103,7 +103,7 @@ static func _resolve_pearl_rings(board: Board, ruleset: Ruleset, result: MoveRes
 			ruleset.scoring.score_for(ScoringScript.PEARL_BASE, level, depth, ruleset.difficulty),
 			["pearl_built"]
 		)
-		_promote(board, result, centre, Pieces.Kind.PEARL)
+		_promote(board, result, centre, Pieces.Kind.PEARL, depth)
 	return true
 
 
@@ -238,10 +238,12 @@ static func _clear(
 
 
 ## The centre of a bloom becomes a new special piece.
-static func _promote(board: Board, result: MoveResult, centre: Vector2i, kind: int) -> void:
+static func _promote(board: Board, result: MoveResult, centre: Vector2i, kind: int, depth: int) -> void:
 	var piece := Pieces.make(kind, Pieces.GemColor.NONE)
 	board.set_piece(centre, piece)
-	result.promotions.append({"cell": centre, "piece": piece, "kind": Pieces.KIND_NAMES[kind]})
+	result.promotions.append({
+		"cell": centre, "piece": piece, "kind": Pieces.KIND_NAMES[kind], "depth": depth,
+	})
 
 
 ## Survival's replacement for blooming: thaw the board, then sweep the colour.
@@ -261,7 +263,7 @@ static func _survival_flourish(
 			["flower_sweep"]
 		)
 	result.promotions.append(
-		{"cell": centre, "piece": Pieces.EMPTY, "kind": "unlock_all", "thawed": thawed}
+		{"cell": centre, "piece": Pieces.EMPTY, "kind": "unlock_all", "thawed": thawed, "depth": depth}
 	)
 
 

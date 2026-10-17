@@ -38,6 +38,8 @@ const FALL_TIME := 0.17
 const DROP_TIME := 0.15
 const STEP_GAP := 0.045
 const BLOOM_TIME := 0.28
+## A promotion lands before its formation is destroyed, so it gets its own beat.
+const PROMOTE_TIME := 0.22
 ## A bomb going off: the flash, then the crater's debris flying outward.
 const BLAST_TIME := 0.42
 const SHATTER_TIME := 0.34
@@ -195,6 +197,15 @@ func show_result(result: RefCounted) -> void:
 		})
 
 	for depth: int in _depths(result):
+		# The centre of a flower becomes the flower BEFORE the ring is destroyed:
+		# same step, but the bloom plays first so the player sees the conversion
+		# land while the gems it grew from are still on the board.
+		var promotes := _entries_at_depth(result.promotions, depth)
+		if not promotes.is_empty():
+			_steps.append({
+				"kind": "bloom", "promotions": promotes,
+				"duration": PROMOTE_TIME * _motion(),
+			})
 		var cleared := _cells_at_depth(result, depth)
 		if not cleared.is_empty():
 			_steps.append({
@@ -210,11 +221,7 @@ func show_result(result: RefCounted) -> void:
 			_steps.append({"kind": "drop", "spawns": drops, "duration": DROP_TIME * _motion()})
 		_steps.append({"kind": "wait", "duration": STEP_GAP * _motion()})
 
-	if not result.promotions.is_empty():
-		_steps.append({
-			"kind": "bloom", "promotions": result.promotions.duplicate(),
-			"duration": BLOOM_TIME * _motion(),
-		})
+	# Promotions are already queued with their cascade step above.
 
 	# A dying bomb takes the board with it: flash, shockwave, debris.
 	if result.bomb_exploded and result.exploded_cells.size() > 0:
@@ -238,6 +245,8 @@ func _depths(result: MoveResult) -> Array[int]:
 	var seen := {}
 	for group in result.clear_groups:
 		seen[int(group.cascade_depth)] = true
+	for promotion: Dictionary in result.promotions:
+		seen[int(promotion.get("depth", 1))] = true
 	if seen.is_empty():
 		seen[1] = true
 	var depths: Array[int] = []
@@ -410,6 +419,9 @@ func _skipped_cells(step: Dictionary) -> Dictionary:
 		"shatter":
 			for cell: Vector2i in step["cells"]:
 				skip[cell] = true
+		"bloom":
+			for promotion: Dictionary in step["promotions"]:
+				skip[promotion["cell"]] = true
 		"fall":
 			for move: Dictionary in step["moves"]:
 				skip[move["from"]] = true
@@ -609,6 +621,10 @@ func _draw_drop(step: Dictionary, t: float) -> void:
 func _draw_bloom(step: Dictionary, t: float) -> void:
 	for promotion: Dictionary in step["promotions"]:
 		var centre := cell_center(promotion["cell"])
+		# The new piece pops in oversized, so the conversion is unmistakable.
+		var piece: int = promotion["piece"]
+		if not Pieces.is_empty(piece):
+			_draw_piece(centre, piece, cell_size * 0.92 * (0.55 + 0.78 * t), minf(1.0, t * 3.0))
 		var radius := cell_size * (0.35 + 1.7 * t)
 		draw_arc(centre, radius, 0, TAU, 32, Color(1.0, 0.88, 0.42, 0.85 * (1.0 - t)), 2.5)
 
