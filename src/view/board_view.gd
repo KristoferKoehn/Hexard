@@ -685,9 +685,11 @@ func _draw_cursor() -> void:
 
 	if cursor_vertex < 0 or cursor_vertex >= vertices.size():
 		return
+	# A white outline around the three tiles that would swap, instead of a wash over
+	# them: the gem colours stay true, which matters when reading a board.
+	var outline := Color(1.0, 1.0, 1.0, 0.95) if cursor_legal else Color(1.0, 1.0, 1.0, 0.40)
 	for cell: Vector2i in vertices[cursor_vertex]:
-		var tint := 0.20 if cursor_legal else 0.08
-		draw_colored_polygon(_corners(cell_center(cell), cell_size * 0.97), Color(1, 1, 1, tint))
+		draw_polyline(_closed(_corners(cell_center(cell), cell_size * 0.96)), outline, 2.5)
 
 	var centre := HexGrid.vertex_centroid(cursor_vertex, cell_size) + _origin
 	# Green means "spinning here will clear"; dim grey means it would just revert.

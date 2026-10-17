@@ -615,3 +615,29 @@ func test_a_pearl_centre_is_not_a_flower() -> void:
 		board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
 	assert_false(MatchFinder.is_flower(board, centre), "a pearl centre does not bloom again")
 
+
+
+# --- multi-colour chime -----------------------------------------------------
+
+func test_cleared_groups_keep_their_colour() -> void:
+	var board := BoardScript.new()
+	_background(board)
+	_paint(board, [Vector2i(2, 3), Vector2i(2, 4), Vector2i(3, 3)], Pieces.GemColor.ORANGE)
+	var result = _resolve(board)
+	assert_ge(result.clear_groups.size(), 1, "the triangle cleared")
+	assert_eq(int(result.clear_groups[0].gem_color), Pieces.GemColor.ORANGE,
+		"a cleared group knows which colour it was")
+	assert_eq(AudioService.distinct_colours(result), 1, "one colour")
+
+
+func test_two_colours_in_one_move_are_counted() -> void:
+	var board := BoardScript.new()
+	_background(board)
+	_paint(board, [Vector2i(2, 3), Vector2i(2, 4), Vector2i(3, 3)], Pieces.GemColor.ORANGE)
+	_paint(board, [Vector2i(7, 3), Vector2i(7, 4), Vector2i(8, 4)], Pieces.GemColor.BLUE)
+	var groups := MatchFinder.clear_groups(board)
+	assert_eq(groups.size(), 2, "two separate triangles were found")
+	var result := MoveResultScript.new()
+	for group in groups:
+		result.clear_groups.append(group)
+	assert_eq(AudioService.distinct_colours(result), 2, "in two different colours")

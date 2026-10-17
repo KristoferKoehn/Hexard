@@ -208,7 +208,7 @@ static func _resolve_colour_clusters(board: Board, ruleset: Ruleset, result: Mov
 			if stars > 0 and _thaw_around(board, clear_cells) > 0:
 				formations.append("thawed")
 
-		var emitted := _clear(board, result, clear_cells, depth, base, score, formations)
+		var emitted := _clear(board, result, clear_cells, depth, base, score, formations, stars, multiplier, int(group.gem_color))
 		emitted.bonus_stars = stars
 		emitted.multiplier = multiplier
 	return true
@@ -220,13 +220,19 @@ static func _resolve_colour_clusters(board: Board, ruleset: Ruleset, result: Mov
 ## Scoring stays with the caller, so every formation can price itself however
 ## the design document says.
 static func _clear(
-	board: Board, result: MoveResult, cells: Array, depth: int, base_score: int, score: int, formations: Array
+	board: Board, result: MoveResult, cells: Array, depth: int, base_score: int, score: int,
+	formations: Array, bonus_stars: int = 0, multiplier: int = 1, gem_color: int = 0
 ) -> RefCounted:
 	var group := ClearGroupScript.new()
 	group.cells = _sorted(cells)
 	group.cascade_depth = depth
 	group.base_score = base_score
 	group.score = score
+	group.bonus_stars = bonus_stars
+	group.multiplier = multiplier
+	# Carried through so callers can tell which colours a move cleared; the
+	# multi-colour chime depends on it. Formation clears leave it at NONE.
+	group.gem_color = gem_color
 	group.set_formations(formations)
 	result.clear_groups.append(group)
 	result.score += score

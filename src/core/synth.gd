@@ -33,7 +33,7 @@ const CUES := {
 	"ui":         {"wave": Wave.SQUARE, "freq": 880.0, "dur": 0.05, "amp": 0.14, "slide": 0.0},
 	# Two or more colours cleared by one spin: a brighter, longer chime so a
 	# multi-colour turn is audibly distinct from the ordinary hiss.
-	"multi":      {"wave": Wave.TRIANGLE, "freq": 1320.0, "dur": 0.42, "amp": 0.26, "slide": 320.0},
+	"multi":      {"wave": Wave.SINE, "freq": 1568.0, "dur": 0.55, "amp": 0.42, "slide": 0.0},
 }
 
 ## Cascades climb in pitch so a chain sounds like it is going somewhere: one
