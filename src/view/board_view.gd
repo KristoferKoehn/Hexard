@@ -693,7 +693,13 @@ func _draw_cluster_outline(cells: Array, color: Color, width: float) -> void:
 			var across := cell_at(probe)
 			if across != cell and members.has(across):
 				continue
-			draw_line(corners[index], corners[(index + 1) % 6], color, width)
+			var a := corners[index]
+			var b := corners[(index + 1) % 6]
+			draw_line(a, b, color, width)
+			# Round the meets: independent segments leave a visible notch at inner
+			# corners, so each endpoint gets a dot of half the line width.
+			draw_circle(a, width * 0.5, color)
+			draw_circle(b, width * 0.5, color)
 
 
 func _draw_cursor() -> void:
@@ -709,7 +715,16 @@ func _draw_cursor() -> void:
 	# tiles: the gem colours stay true, and shared edges are not drawn so it reads
 	# as one cluster rather than three separate cells.
 	var outline := Color(1.0, 1.0, 1.0, 0.95) if cursor_legal else Color(1.0, 1.0, 1.0, 0.40)
-	_draw_cluster_outline(vertices[cursor_vertex], outline, 2.5)
+	# A special turn swaps a different set than the trio: a starflower turns its six
+	# neighbours and a pearl turns three in a Y. Ask the rules, never guess.
+	var swapped: Array[Vector2i] = []
+	for cell: Vector2i in vertices[cursor_vertex]:
+		var special: Array[Vector2i] = game.swapped_cells(cell)
+		if special.size() > 0:
+			swapped = special
+			break
+		swapped.append(cell)
+	_draw_cluster_outline(swapped, outline, 2.5)
 
 	var centre := HexGrid.vertex_centroid(cursor_vertex, cell_size) + _origin
 	# Green means "spinning here will clear"; dim grey means it would just revert.

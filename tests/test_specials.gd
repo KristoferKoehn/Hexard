@@ -658,3 +658,15 @@ func test_the_chime_ignores_cascades() -> void:
 	assert_eq(AudioService.distinct_colours(result), 2, "two colours cleared overall")
 	assert_eq(AudioService.distinct_colours(result, true), 1,
 		"but only one was in the spin's own clear, so no chime")
+
+
+func test_the_swap_set_matches_what_a_special_turn_would_cycle() -> void:
+	var game := GameScript.new(31, RulesetScript.free_rotation())
+	var centre := Vector2i(4, 4)
+	assert_eq(game.swapped_cells(centre).size(), 0, "a plain gem swaps nothing on its own")
+
+	game.board.set_piece(centre, Pieces.starflower())
+	assert_eq(game.swapped_cells(centre).size(), 6, "a starflower turns its six neighbours")
+
+	game.board.set_piece(centre, Pieces.pearl())
+	assert_eq(game.swapped_cells(centre).size(), 3, "a pearl turns a Y of three")

@@ -138,6 +138,21 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE) -> MoveResult:
 ##   starflower -> cycles all six neighbours one step
 ##   black pearl -> cycles three of six neighbours in a Y / inverted-Y
 ## These rotations always persist, match or not, in both rotation modes.
+## Exactly which cells a turn at `cell` would cycle: six for a starflower ring,
+## the three of a pearl's Y, and none for anything that cannot turn on its own.
+## The view outlines this set, so the cursor can never disagree with the rules.
+func swapped_cells(cell: Vector2i) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	if not Grid.has_cell(cell):
+		return out
+	var piece: int = board.get_piece(cell)
+	if Pieces.is_starflower(piece):
+		return Grid.cyclic_order(Grid.neighbours(cell))
+	if Pieces.is_pearl(piece):
+		return _pearl_y_cells(cell)
+	return out
+
+
 func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE) -> MoveResult:
 	var result := MoveResultScript.new()
 	if state != State.PLAYING:
