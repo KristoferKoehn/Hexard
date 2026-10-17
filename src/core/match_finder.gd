@@ -145,8 +145,10 @@ static func _group_before(a, b) -> bool:
 
 # --- special formations (docs/design.md §3.4) -------------------------------
 
-## A flower is six plain gems of one colour ringing a centre piece that is a
-## different colour or a different type. The ring clears; the centre blooms.
+## A flower is six pieces of one colour ringing a centre. The ring may be gems,
+## bonus stars or bombs — anything carrying a colour counts as a petal — and the
+## centre may be a different colour or a different type. A bomb in the middle is
+## consumed by the bloom rather than ticking, so a flower can disarm one.
 static func is_flower(board: Board, centre: Vector2i) -> bool:
 	var centre_piece: int = board.get_piece(centre)
 	if Pieces.is_empty(centre_piece) or Pieces.is_pearl(centre_piece):
@@ -160,7 +162,7 @@ static func is_flower(board: Board, centre: Vector2i) -> bool:
 		if board.is_locked(cell):
 			return false
 		var piece: int = board.get_piece(cell)
-		if Pieces.is_empty(piece) or Pieces.kind_of(piece) != Pieces.Kind.GEM:
+		if Pieces.is_empty(piece) or not Pieces.has_color(piece):
 			return false
 		var color := int(Pieces.color_of(piece))
 		if ring_color == -1:
@@ -168,6 +170,12 @@ static func is_flower(board: Board, centre: Vector2i) -> bool:
 		elif color != ring_color:
 			return false
 
+	# A bomb at the centre is always accepted: it is replaced by the bloom before
+	# anything can tick, which is what makes a flower a way to defuse one. Any
+	# other coloured centre must differ from the ring, so a plain single-colour
+	# blob is never mistaken for a flower.
+	if Pieces.is_bomb(centre_piece):
+		return true
 	if Pieces.has_color(centre_piece) and int(Pieces.color_of(centre_piece)) == ring_color:
 		return false
 	return true

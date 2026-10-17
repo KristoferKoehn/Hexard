@@ -542,3 +542,75 @@ func test_piece_rotations_are_logged_for_replay() -> void:
 # --- helpers ----------------------------------------------------------------
 
 
+
+
+# --- flowers from special pieces --------------------------------------------
+
+## A ring of nine? No: six petals, mixing plain gems with bonus stars.
+func test_bonus_stars_can_be_petals() -> void:
+	var board := _full_board()
+	var centre := Vector2i(4, 4)
+	var ring := Grid.neighbours(centre)
+	board.set_piece(centre, Pieces.gem(Pieces.GemColor.GREEN))
+	for index in ring.size():
+		var petal := Pieces.bonus_star(Pieces.GemColor.RED) if index % 2 == 0 else Pieces.gem(Pieces.GemColor.RED)
+		board.set_piece(ring[index], petal)
+	assert_true(MatchFinder.is_flower(board, centre), "stars and gems of one colour make a flower")
+
+	_resolve(board)
+	# Gravity drops the new starflower into the emptied column, so assert by kind
+	# rather than by cell.
+	assert_eq(_count_kind(board, Pieces.Kind.STARFLOWER), 1, "the centre bloomed")
+	assert_eq(_count_kind(board, Pieces.Kind.BONUS_STAR), 0, "the star petals were consumed")
+
+
+func test_bombs_can_be_petals() -> void:
+	var board := _full_board()
+	var centre := Vector2i(4, 4)
+	var ring := Grid.neighbours(centre)
+	board.set_piece(centre, Pieces.gem(Pieces.GemColor.GREEN))
+	for index in ring.size():
+		var petal := Pieces.bomb(Pieces.GemColor.RED, 3) if index == 0 else Pieces.gem(Pieces.GemColor.RED)
+		board.set_piece(ring[index], petal)
+	assert_true(MatchFinder.is_flower(board, centre), "a bomb is a legal petal")
+
+	_resolve(board)
+	assert_eq(_count_kind(board, Pieces.Kind.STARFLOWER), 1, "the flower still bloomed")
+	assert_eq(_count_kind(board, Pieces.Kind.BOMB), 0, "and the petal bomb is gone")
+
+
+func test_a_bomb_in_the_middle_is_fully_converted() -> void:
+	var board := _full_board()
+	var centre := Vector2i(4, 4)
+	board.set_piece(centre, Pieces.bomb(Pieces.GemColor.GREEN, 3))
+	for cell: Vector2i in Grid.neighbours(centre):
+		board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
+	# The bomb's colour differs from the ring here, which the rule requires.
+	assert_true(MatchFinder.is_flower(board, centre), "a bomb centre is a flower centre")
+
+	_resolve(board)
+	assert_eq(_count_kind(board, Pieces.Kind.STARFLOWER), 1, "the bomb became a starflower")
+	assert_eq(_count_kind(board, Pieces.Kind.BOMB), 0, "and no bomb is left to tick")
+
+
+func test_a_bomb_centre_blooms_even_in_the_ring_colour() -> void:
+	var board := _full_board()
+	var centre := Vector2i(4, 4)
+	board.set_piece(centre, Pieces.bomb(Pieces.GemColor.RED, 3))
+	for cell: Vector2i in Grid.neighbours(centre):
+		board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
+	# Same colour as the ring would be a plain blob for any normal centre, but a
+	# bomb is being consumed, so the flower stands and disarms it.
+	assert_true(MatchFinder.is_flower(board, centre), "the bomb centre is still accepted")
+	_resolve(board)
+	assert_eq(_count_kind(board, Pieces.Kind.STARFLOWER), 1, "and it is converted")
+	assert_eq(_count_kind(board, Pieces.Kind.BOMB), 0, "with no bomb left to tick")
+
+
+func test_a_pearl_centre_is_not_a_flower() -> void:
+	var board := _full_board()
+	var centre := Vector2i(4, 4)
+	board.set_piece(centre, Pieces.pearl())
+	for cell: Vector2i in Grid.neighbours(centre):
+		board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
+	assert_false(MatchFinder.is_flower(board, centre), "a pearl centre does not bloom again")

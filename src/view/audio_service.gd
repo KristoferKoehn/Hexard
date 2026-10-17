@@ -68,7 +68,8 @@ func play_move(result: MoveResult) -> void:
 			play_cue("refuse")
 		return
 	if result.bomb_exploded:
-		play_cue("explosion")
+		# The blast cue is played by the blast animation step; doing it here as
+		# well fired the explosion twice.
 		return
 	play_cue("rotate")
 	if result.bombs_defused > 0:
