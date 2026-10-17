@@ -33,9 +33,9 @@ func _initialize() -> void:
 
 	print("Hexard soak: %d random moves across 3 configurations" % _total)
 	var share := int(_total / 3.0)
-	_run_configuration("marathon-free", share, RulesetScript.RotationMode.FREE, true)
-	_run_configuration("marathon-strict", share, RulesetScript.RotationMode.STRICT, true)
-	_run_configuration("survival-like", _total - share * 2, RulesetScript.RotationMode.FREE, false)
+	_run_configuration("marathon-free", share, RulesetScript.RotationMode.FREE, RulesetScript.Mode.MARATHON)
+	_run_configuration("marathon-strict", share, RulesetScript.RotationMode.STRICT, RulesetScript.Mode.MARATHON)
+	_run_configuration("survival", _total - share * 2, RulesetScript.RotationMode.FREE, RulesetScript.Mode.SURVIVAL)
 
 	for line: String in _report:
 		print("  ", line)
@@ -53,10 +53,11 @@ func _process(_delta: float) -> bool:
 	return true
 
 
-func _run_configuration(label: String, moves: int, mode: int, refills: bool) -> void:
+func _run_configuration(label: String, moves: int, rotation: int, run_mode: int) -> void:
 	var ruleset := RulesetScript.new()
-	ruleset.rotation_mode = mode
-	ruleset.refills_board = refills
+	ruleset.rotation_mode = rotation
+	ruleset.mode = run_mode
+	var refills := run_mode != RulesetScript.Mode.SURVIVAL
 
 	var run_seed := 9001 + moves
 	var game := GameScript.new(run_seed, ruleset)
@@ -67,7 +68,7 @@ func _run_configuration(label: String, moves: int, mode: int, refills: bool) -> 
 	var cleared := 0
 	var best_level := 1
 	var runs := 1
-	var finishes := 0
+	var endings := {}
 	var explosions := 0
 	var special_moves := 0
 
@@ -93,11 +94,10 @@ func _run_configuration(label: String, moves: int, mode: int, refills: bool) -> 
 		if result.committed:
 			committed += 1
 			cleared += result.cleared_count
-		if result.finished:
+		if result.finished and game.state == GameScript.State.FINISHED:
 			if result.bomb_exploded:
 				explosions += 1
-			else:
-				finishes += 1
+			endings[game.finish_reason] = int(endings.get(game.finish_reason, 0)) + 1
 		best_level = maxi(best_level, game.level)
 
 		if game.board.invariant_violations().size() > 0:
@@ -117,10 +117,10 @@ func _run_configuration(label: String, moves: int, mode: int, refills: bool) -> 
 			break
 
 	_report.append(
-		"%s: %d moves, %d committed (%d special turns), %d gems cleared, %d shuffles, %d runs, %d pearl finishes, %d explosions, level %d"
+		"%s: %d moves, %d committed (%d special turns), %d gems cleared, %d shuffles, %d runs, %d explosions, endings %s, level %d"
 		% [
 			label, moves, committed, special_moves, cleared, game.shuffle_count,
-			runs, finishes, explosions, best_level,
+			runs, explosions, str(endings), best_level,
 		]
 	)
 

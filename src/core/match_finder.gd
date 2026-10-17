@@ -10,11 +10,15 @@ extends RefCounted
 ## When a vertex matches, the clear set is the maximal 6-connected group of
 ## same-coloured cells containing it, so 3, 4, 5 and 6+ clears all fall out of
 ## the same rule.
+##
+## Locked pieces (Survival) are inert: they never form or extend a formation.
 
 const Grid := preload("res://src/core/hex_grid.gd")
 const Pieces := preload("res://src/core/piece.gd")
 const ClearGroupScript := preload("res://src/core/clear_group.gd")
 
+
+# --- the predicate ----------------------------------------------------------
 
 ## True when the three cells around this vertex are all the same gem colour.
 static func vertex_is_match_at(board, vertex_index: int) -> bool:
@@ -25,19 +29,25 @@ static func vertex_is_match_at(board, vertex_index: int) -> bool:
 
 
 static func _cells_are_monochrome(board, cells: Array) -> bool:
-	var first: int = board.get_piece(cells[0])
-	if not Pieces.has_color(first):
+	if not _is_matchable(board, cells[0]):
 		return false
-	var color := Pieces.color_of(first)
-	if color == Pieces.GemColor.NONE:
-		return false
+	var color := Pieces.color_of(board.get_piece(cells[0]))
 	for index in range(1, cells.size()):
-		var piece: int = board.get_piece(cells[index])
-		if not Pieces.has_color(piece):
+		if not _is_matchable(board, cells[index]):
 			return false
-		if Pieces.color_of(piece) != color:
+		if Pieces.color_of(board.get_piece(cells[index])) != color:
 			return false
 	return true
+
+
+## Can this cell take part in a formation? Present, unlocked, and coloured.
+static func _is_matchable(board, cell: Vector2i) -> bool:
+	if board.is_locked(cell):
+		return false
+	var piece: int = board.get_piece(cell)
+	if not Pieces.has_color(piece):
+		return false
+	return Pieces.color_of(piece) != Pieces.GemColor.NONE
 
 
 ## Full-board scan. Used after gravity/refill steps where many cells moved.
@@ -66,6 +76,8 @@ static func matching_vertices(board) -> Array[int]:
 			out.append(index)
 	return out
 
+
+# --- groups -----------------------------------------------------------------
 
 ## All clear groups in resolution order: bigger groups first, then by their
 ## top-left cell, so resolution is deterministic for replays.
@@ -104,8 +116,9 @@ static func _expand(board, seed_cells: Array) -> Array[Vector2i]:
 		for neighbour: Vector2i in Grid.neighbours(cell):
 			if visited.has(neighbour):
 				continue
-			var piece: int = board.get_piece(neighbour)
-			if not Pieces.has_color(piece) or Pieces.color_of(piece) != color:
+			if not _is_matchable(board, neighbour):
+				continue
+			if Pieces.color_of(board.get_piece(neighbour)) != color:
 				continue
 			visited[neighbour] = true
 			queue.append(neighbour)
@@ -144,6 +157,8 @@ static func is_flower(board, centre: Vector2i) -> bool:
 
 	var ring_color := -1
 	for cell: Vector2i in ring:
+		if board.is_locked(cell):
+			return false
 		var piece: int = board.get_piece(cell)
 		if Pieces.is_empty(piece) or Pieces.kind_of(piece) != Pieces.Kind.GEM:
 			return false
@@ -211,7 +226,7 @@ static func pearl_finish(board) -> Dictionary:
 
 
 ## Cells removed by a bonus-star cluster: the three stars plus every tile each
-## star touches (docs/design.md §3.4).
+## star touches (docs/design.md §3.4). Locked tiles stay put.
 static func star_cluster_cells(board) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	var seen := {}
@@ -237,18 +252,21 @@ static func starflower_cluster_cells(board) -> Array[Vector2i]:
 	return out
 
 
-## Every cell holding a piece of this gem colour (for the bomb colour wipe).
+## Every playable cell holding a piece of this gem colour (bomb colour wipe).
 static func cells_with_color(board, gem_color: int) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	for cell: Vector2i in Grid.all_cells():
-		var piece: int = board.get_piece(cell)
-		if Pieces.has_color(piece) and int(Pieces.color_of(piece)) == gem_color:
+		if not _is_matchable(board, cell):
+			continue
+		if int(Pieces.color_of(board.get_piece(cell))) == gem_color:
 			out.append(cell)
 	return out
 
 
 static func _cells_all_kind(board, cells: Array, kind: int) -> bool:
 	for cell: Vector2i in cells:
+		if board.is_locked(cell):
+			return false
 		var piece: int = board.get_piece(cell)
 		if Pieces.is_empty(piece) or int(Pieces.kind_of(piece)) != kind:
 			return false
@@ -262,7 +280,7 @@ static func _add_cell_and_neighbours(board, cell: Vector2i, seen: Dictionary, ou
 	for neighbour: Vector2i in Grid.neighbours(cell):
 		if seen.has(neighbour):
 			continue
-		if Pieces.is_empty(board.get_piece(neighbour)):
+		if board.is_locked(neighbour) or Pieces.is_empty(board.get_piece(neighbour)):
 			continue
 		seen[neighbour] = true
 		out.append(neighbour)

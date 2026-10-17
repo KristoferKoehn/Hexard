@@ -37,6 +37,13 @@ var level_up := false
 var new_level := 1
 var dead_board := false
 var shuffled := false
+
+## Survival round bookkeeping (docs/design.md §6.3).
+var round_ended := false
+var round_reached := 1
+var round_bonus := 0
+
+var bombs_defused := 0
 ## The run ended: a pearl finish (win) or a bomb (loss).
 var finished := false
 var finish_kind := ""

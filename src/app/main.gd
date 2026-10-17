@@ -1,8 +1,9 @@
 extends Node2D
 
 ## Dev controller: owns the Game, moves the cursor, feeds input to the rules
-## core and hands results to the view. Everything here is deliberately thin —
-## rules live in src/core (docs/design.md §10.1).
+## core and hands results to the view. Rules live in src/core (docs/design.md
+## §10.1); this file is the thin layer that also drives the menu, the clock and
+## the end-of-run screen.
 
 const HexGrid := preload("res://src/core/hex_grid.gd")
 const Pieces := preload("res://src/core/piece.gd")
@@ -10,34 +11,122 @@ const GameScript := preload("res://src/core/game.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 
 const DEFAULT_SEED := 20261016
-## Diagonal directions are supported too, so the cursor is not restricted to a
-## plus-shaped walk.
+
+enum Screen { MENU, PLAYING, RESULT }
 
 @onready var board_view: BoardView = $BoardView
 @onready var hud: Hud = $Hud
 
 var game: RefCounted
 var cursor_vertex := 0
+var screen: Screen = Screen.MENU
+var selected_mode: int = RulesetScript.Mode.MARATHON
+var selected_difficulty := "normal"
 
 
 func _ready() -> void:
-	new_game(DEFAULT_SEED)
+	hud.mode_chosen.connect(_on_mode_chosen)
+	hud.difficulty_chosen.connect(_on_difficulty_chosen)
+	hud.start_pressed.connect(_on_start_pressed)
+	hud.restart_pressed.connect(_on_restart_pressed)
+	hud.menu_pressed.connect(_on_menu_pressed)
+	hud.show_menu(selected_mode, selected_difficulty)
 
 
+func _process(delta: float) -> void:
+	if screen != Screen.PLAYING or game == null:
+		return
+	# Only Timed mode consumes time, but the clock display still needs updating.
+	game.tick(delta)
+	hud.update_from_game(game)
+	if game.state == GameScript.State.FINISHED:
+		_enter_result()
+
+
+# --- run lifecycle ----------------------------------------------------------
+
+## Starts a run. A negative seed picks a fresh random one.
+func start_run(run_mode: int, difficulty: String, run_seed: int = -1) -> void:
+	selected_mode = run_mode
+	selected_difficulty = difficulty
+	var seed_value := run_seed if run_seed >= 0 else randi()
+	game = GameScript.new(seed_value, RulesetScript.for_run(run_mode, difficulty))
+	_enter_playing()
+	hud.set_message(
+		"%s · %s — seed %d%s"
+		% [game.mode_name(), difficulty, seed_value, "  ·  the clock is running" if run_mode == RulesetScript.Mode.TIMED else ""]
+	)
+
+
+## Restarts the current mode with a new seed (the R key).
 func new_game(seed_value: int) -> void:
-	game = GameScript.new(seed_value)
+	if game == null:
+		start_run(selected_mode, selected_difficulty, seed_value)
+		return
+	var ruleset := RulesetScript.for_run(int(game.ruleset.mode), game.ruleset.difficulty)
+	ruleset.rotation_mode = int(game.ruleset.rotation_mode)
+	game = GameScript.new(seed_value, ruleset)
+	_enter_playing()
+	hud.set_message("new board, seed %d" % seed_value)
+
+
+func _enter_playing() -> void:
+	screen = Screen.PLAYING
 	cursor_vertex = 0
 	board_view.set_game(game)
 	board_view.hint_vertex = -1
+	board_view.hover_cell = Vector2i(-1, -1)
 	_refresh_cursor()
+	hud.show_playing()
 	hud.update_from_game(game)
-	hud.set_message("new board, seed %d — build toward a pearl ring" % seed_value)
+
+
+func _enter_result() -> void:
+	screen = Screen.RESULT
+	board_view.hint_vertex = -1
+	hud.show_result(game.summary())
+
+
+## Which screen is up, as a string (used by the view smoke test).
+func screen_name() -> String:
+	match screen:
+		Screen.MENU:
+			return "menu"
+		Screen.RESULT:
+			return "result"
+		_:
+			return "playing"
+
+
+func _on_mode_chosen(mode: int) -> void:
+	selected_mode = mode
+	hud.highlight_menu(selected_mode, selected_difficulty)
+
+
+func _on_difficulty_chosen(difficulty: String) -> void:
+	selected_difficulty = difficulty
+	hud.highlight_menu(selected_mode, selected_difficulty)
+
+
+func _on_start_pressed() -> void:
+	start_run(selected_mode, selected_difficulty)
+
+
+func _on_restart_pressed() -> void:
+	start_run(selected_mode, selected_difficulty)
+
+
+func _on_menu_pressed() -> void:
+	screen = Screen.MENU
+	game = null
+	board_view.set_game(null)
+	hud.show_menu(selected_mode, selected_difficulty)
 
 
 # --- actions (also the programmatic API the smoke test drives) --------------
 
 func play_move(direction: int) -> void:
-	if game == null:
+	if game == null or screen != Screen.PLAYING:
 		return
 	board_view.hint_vertex = -1
 	var result = game.rotate(cursor_vertex, direction)
@@ -56,7 +145,7 @@ func play_move(direction: int) -> void:
 
 ## Turns the starflower or pearl under the cursor, if there is one.
 func use_special(direction: int = GameScript.CLOCKWISE) -> void:
-	if game == null:
+	if game == null or screen != Screen.PLAYING:
 		return
 	var cells: Array = HexGrid.vertices()[cursor_vertex]
 	var target := Vector2i(-1, -1)
@@ -72,7 +161,7 @@ func use_special(direction: int = GameScript.CLOCKWISE) -> void:
 
 
 func play_piece_move(cell: Vector2i, direction: int) -> void:
-	if game == null:
+	if game == null or screen != Screen.PLAYING:
 		return
 	board_view.hint_vertex = -1
 	var result = game.rotate_piece(cell, direction)
@@ -88,11 +177,8 @@ func _apply(result, label: String) -> void:
 	_refresh_cursor()
 	hud.update_from_game(game)
 
-	if result.bomb_exploded:
-		hud.set_message("BOOM — a bomb went off. Press R for a new board.")
-		return
-	if result.finished:
-		hud.set_message("PERFECT FINISH (%s) for %d points!" % [result.finish_kind, result.score])
+	if game.state == GameScript.State.FINISHED:
+		_enter_result()
 		return
 
 	var parts := PackedStringArray([label])
@@ -106,8 +192,12 @@ func _apply(result, label: String) -> void:
 		parts.append("no clear (position kept)")
 	if result.promotions.size() > 0:
 		parts.append("promoted x%d" % result.promotions.size())
+	if result.bombs_defused > 0:
+		parts.append("bomb defused x%d" % result.bombs_defused)
 	if result.bombs_ticked.size() > 0:
 		parts.append("bomb ticking")
+	if result.round_ended:
+		parts.append("round %d — +%d" % [result.round_reached, result.round_bonus])
 	if result.level_up:
 		parts.append("LEVEL %d" % result.new_level)
 	if result.shuffled:
@@ -144,7 +234,7 @@ func _refresh_cursor() -> void:
 
 
 func show_hint() -> void:
-	if game == null:
+	if game == null or screen != Screen.PLAYING:
 		return
 	var legal: Array = game.find_legal_rotations()
 	if legal.is_empty():
@@ -179,7 +269,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		var key := event as InputEventKey
 		if key.pressed and not key.echo:
 			_handle_key(_key_code(key))
-	elif event is InputEventMouseMotion:
+		return
+	if screen != Screen.PLAYING or game == null:
+		return
+	if event is InputEventMouseMotion:
 		_mouse_moved((event as InputEventMouseMotion).position)
 	elif event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
@@ -195,33 +288,48 @@ func _key_code(key: InputEventKey) -> int:
 	return int(key.keycode)
 
 
-func _mouse_moved(viewport_point: Vector2) -> void:
-	var local := board_view.to_local(viewport_point)
-	var cell := board_view.cell_at(local)
-	# Hovering a special piece is more useful than hovering its vertex.
-	if Pieces.is_starflower(game.board.get_piece(cell)) or Pieces.is_pearl(game.board.get_piece(cell)):
-		board_view.hover_cell = cell
-		board_view.queue_redraw()
-		return
-	board_view.hover_cell = Vector2i(-1, -1)
-	snap_cursor_to(viewport_point)
+func _handle_key(code: int) -> void:
+	match screen:
+		Screen.MENU:
+			_menu_key(code)
+		Screen.RESULT:
+			_result_key(code)
+		_:
+			_play_key(code)
 
 
-func _mouse_clicked(viewport_point: Vector2, button_index: int) -> void:
-	var direction := GameScript.CLOCKWISE if button_index == MOUSE_BUTTON_LEFT else GameScript.COUNTER_CLOCKWISE
-	if button_index != MOUSE_BUTTON_LEFT and button_index != MOUSE_BUTTON_RIGHT:
-		return
-	var local := board_view.to_local(viewport_point)
-	var cell := board_view.cell_at(local)
-	if Pieces.is_starflower(game.board.get_piece(cell)) or Pieces.is_pearl(game.board.get_piece(cell)):
-		play_piece_move(cell, direction)
-		return
-	snap_cursor_to(viewport_point)
-	play_move(direction)
+func _menu_key(code: int) -> void:
+	var modes := [RulesetScript.Mode.MARATHON, RulesetScript.Mode.TIMED, RulesetScript.Mode.SURVIVAL]
+	match code:
+		KEY_LEFT, KEY_A, KEY_RIGHT, KEY_D:
+			var step := -1 if code == KEY_LEFT or code == KEY_A else 1
+			var next := modes.find(selected_mode) + step
+			selected_mode = modes[posmod(next, modes.size())]
+			hud.highlight_menu(selected_mode, selected_difficulty)
+		KEY_UP, KEY_W, KEY_DOWN, KEY_S:
+			var difficulties := ["easy", "normal", "hard"]
+			var step := -1 if code == KEY_UP or code == KEY_W else 1
+			var next := difficulties.find(selected_difficulty) + step
+			selected_difficulty = difficulties[posmod(next, difficulties.size())]
+			hud.highlight_menu(selected_mode, selected_difficulty)
+		KEY_ENTER, KEY_SPACE, KEY_KP_ENTER:
+			start_run(selected_mode, selected_difficulty)
+		KEY_ESCAPE:
+			get_tree().quit()
 
 
-func _handle_key(keycode: int) -> void:
-	match keycode:
+func _result_key(code: int) -> void:
+	match code:
+		KEY_R:
+			start_run(selected_mode, selected_difficulty)
+		KEY_M:
+			_on_menu_pressed()
+		KEY_ESCAPE:
+			get_tree().quit()
+
+
+func _play_key(code: int) -> void:
+	match code:
 		KEY_LEFT, KEY_A:
 			move_cursor(Vector2.LEFT)
 		KEY_RIGHT, KEY_D:
@@ -244,3 +352,28 @@ func _handle_key(keycode: int) -> void:
 			toggle_rotation_mode()
 		KEY_ESCAPE:
 			get_tree().quit()
+
+
+func _mouse_moved(viewport_point: Vector2) -> void:
+	var local := board_view.to_local(viewport_point)
+	var cell := board_view.cell_at(local)
+	# Hovering a special piece is more useful than hovering its vertex.
+	if Pieces.is_starflower(game.board.get_piece(cell)) or Pieces.is_pearl(game.board.get_piece(cell)):
+		board_view.hover_cell = cell
+		board_view.queue_redraw()
+		return
+	board_view.hover_cell = Vector2i(-1, -1)
+	snap_cursor_to(viewport_point)
+
+
+func _mouse_clicked(viewport_point: Vector2, button_index: int) -> void:
+	if button_index != MOUSE_BUTTON_LEFT and button_index != MOUSE_BUTTON_RIGHT:
+		return
+	var direction := GameScript.CLOCKWISE if button_index == MOUSE_BUTTON_LEFT else GameScript.COUNTER_CLOCKWISE
+	var local := board_view.to_local(viewport_point)
+	var cell := board_view.cell_at(local)
+	if Pieces.is_starflower(game.board.get_piece(cell)) or Pieces.is_pearl(game.board.get_piece(cell)):
+		play_piece_move(cell, direction)
+		return
+	snap_cursor_to(viewport_point)
+	play_move(direction)

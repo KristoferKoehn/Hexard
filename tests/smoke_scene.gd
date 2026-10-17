@@ -12,6 +12,7 @@ extends SceneTree
 const HexGrid := preload("res://src/core/hex_grid.gd")
 const MatchFinder := preload("res://src/core/match_finder.gd")
 const GameScript := preload("res://src/core/game.gd")
+const RulesetScript := preload("res://src/core/ruleset.gd")
 
 var _frames := 0
 var _main: Node = null
@@ -58,9 +59,35 @@ func _process(_delta: float) -> bool:
 			_inject_rotation_key()
 		12:
 			_check_illegal_spin_rejected()
+			_start_timed_run()
+		14:
+			_check_timed_run_ended_on_the_clock()
+			_main.call("start_run", RulesetScript.Mode.MARATHON, "normal", 4321)
+		15:
+			_check(_main.call("screen_name") == "playing", "a new run goes straight back to play")
 			_report()
 			return true
 	return false
+
+
+# --- mode flow --------------------------------------------------------------
+
+func _start_timed_run() -> void:
+	_main.call("start_run", RulesetScript.Mode.TIMED, "normal", 777)
+	var game = _main.get("game")
+	_check(game != null, "a Timed run was created")
+	if game == null:
+		return
+	_check(game.max_clock > 0.0, "Timed mode starts with a clock")
+	# Run the clock out; the controller's _process notices on the next frame.
+	game.tick(999.0)
+
+
+func _check_timed_run_ended_on_the_clock() -> void:
+	_check(_main.call("screen_name") == "result", "the clock running out shows the result screen")
+	var summary: Dictionary = _main.get("game").summary()
+	_check(str(summary["reason"]) == "time_out", "the summary says why")
+	_check(bool(summary["won"]) == false, "and that it was a loss")
 
 
 func _check(condition: bool, message: String) -> void:
@@ -74,6 +101,11 @@ func _check(condition: bool, message: String) -> void:
 func _smoke() -> void:
 	_check(_main.get_node_or_null("BoardView") != null, "scene has a BoardView node")
 	_check(_main.get_node_or_null("Hud") != null, "scene has a Hud node")
+	_check(_main.call("screen_name") == "menu", "the app opens on the mode menu")
+
+	# Start a run, then exercise the board through the controller.
+	_main.call("start_run", RulesetScript.Mode.MARATHON, "normal", 12345)
+	_check(_main.call("screen_name") == "playing", "starting a run switches to play")
 
 	var game = _main.get("game")
 	_check(game != null, "controller created a game")

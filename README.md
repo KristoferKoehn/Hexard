@@ -6,16 +6,16 @@ Rotate trios of gems around the points where three hexes meet. Match three or mo
 
 ## Status
 
-**M2 complete** — the whole special-piece economy is in and playable: bonus stars, starflowers, black pearls,
-the pearl finish, and bombs.
+**M3 complete** — all three modes are playable end to end: a mode/difficulty menu, the Timed clock, Survival's
+rounds and frozen pieces, and a result screen that says how (and whether) you won.
 
 | Milestone | State |
 |---|---|
 | M0 · repo, design doc, pinned engine, geometry core | ✅ 85 cells, 135 vertices, 17×5 half-rows verified |
 | M1 · playable core (rotate → match → gravity → cascade → score) + dev-art scene | ✅ 75 tests, smoke test, 10,000-move soak |
 | M2 · specials (bonus stars, starflowers, black pearls, bombs) | ✅ 101 tests, soak plays specials |
-| M3 · modes (Marathon / Timed / Survival), rounds, difficulty, win/lose flows | next |
-| M4 · art, audio, HUD, tutorial, saves, meta | planned |
+| M3 · modes (Marathon / Timed / Survival), difficulty, menu, result screen | ✅ 124 tests, soak plays all three modes |
+| M4 · art, audio, tutorial, saves, stats, achievements | next |
 | M5 · balance, accessibility, exports | planned |
 
 ## Documentation
@@ -35,12 +35,14 @@ Then play it: `tools\godot\Godot_v4.7.2-stable_win64.exe --path .` (or open `pro
 
 | Action | Keys |
 |---|---|
+| Menu: pick mode / difficulty | ←/→ mode, ↑/↓ difficulty, `Enter` start (or click) |
 | Move cursor | Arrows / WASD, or hover with the mouse |
 | Rotate trio | `Z` CCW / `X` CW, or right/left click |
 | Turn a starflower or pearl under the cursor | `F` (or click the piece) |
 | Hint | `H` |
 | New board | `R` |
 | Toggle STRICT / FREE rotation | `T` |
+| Result screen: play again / menu | `R` / `M` |
 | Quit | `Esc` |
 
 The cursor dot is **green** when a spin there will clear and **grey** when it would just revert —
@@ -74,7 +76,11 @@ Rules and geometry are validated by the test suite, not by assumption:
   6 same-coloured gems ringing a centre bloom into a starflower; a starflower then turns its whole ring;
   6 starflowers ring into a black pearl; **3 pearls, or 6 in a ring, end the run**; bombs tick once per move,
   are defused by a colour cluster, and a same-coloured bonus star wipes that colour off the board.
-- A dead board is detected and shuffled back to life.
+- **Modes** (M3): Marathon (endless), Timed (clock that only clears refill, starflowers buy 10s and raise the
+  cap to 120s) and Survival (no refills; leftover pieces freeze and pile up, thawed only by flowers and star
+  blasts; win by clearing the board or surviving 50 rounds). Difficulty moves score, bomb pressure and the
+  starting clock.
+- A dead board is detected and shuffled back to life (Survival ends the round instead).
 - Seed + command log reproduces a run exactly (the base for replays and regression tests).
 
 Four real bugs were found by this suite during bring-up, including an empty cell decoding as a matchable

@@ -3,11 +3,16 @@ extends RefCounted
 
 ## Cell storage for the 85-cell board plus the gravity compaction pass.
 ## Values are packed piece ids (see Piece); Piece.EMPTY means no gem.
+##
+## Survival mode can also **lock** a piece (docs/design.md §6.3): a locked piece
+## is frozen — it does not fall, cannot be rotated, and is inert to matching. It
+## only comes back to life when a flower or a bonus star unlocks it.
 
 const HexGridScript := preload("res://src/core/hex_grid.gd")
 const PieceScript := preload("res://src/core/piece.gd")
 
 var _cells: Dictionary = {}
+var _locked: Dictionary = {}
 
 
 func _init() -> void:
@@ -17,6 +22,7 @@ func _init() -> void:
 func clear() -> void:
 	for cell: Vector2i in HexGridScript.all_cells():
 		_cells[cell] = PieceScript.EMPTY
+	_locked.clear()
 
 
 func get_piece(cell: Vector2i) -> int:
@@ -29,10 +35,67 @@ func set_piece(cell: Vector2i, piece: int) -> void:
 
 func remove_piece(cell: Vector2i) -> void:
 	_cells[cell] = PieceScript.EMPTY
+	_locked.erase(cell)
 
 
 func is_empty(cell: Vector2i) -> bool:
 	return get_piece(cell) == PieceScript.EMPTY
+
+
+# --- locking ----------------------------------------------------------------
+
+func lock(cell: Vector2i) -> void:
+	if not is_empty(cell):
+		_locked[cell] = true
+
+
+func unlock(cell: Vector2i) -> void:
+	_locked.erase(cell)
+
+
+func is_locked(cell: Vector2i) -> bool:
+	return _locked.has(cell)
+
+
+## A piece the rules can actually act on: present and not frozen.
+func is_playable(cell: Vector2i) -> bool:
+	return not is_empty(cell) and not is_locked(cell)
+
+
+func locked_cells() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for cell: Vector2i in Grid_ordered_cells():
+		if is_locked(cell):
+			out.append(cell)
+	return out
+
+
+func locked_count() -> int:
+	return _locked.size()
+
+
+func unlock_all() -> int:
+	var count := _locked.size()
+	_locked.clear()
+	return count
+
+
+## Clears every lock without touching the pieces (used when a board is refilled).
+func clear_locks() -> void:
+	_locked.clear()
+
+
+func lock_all_remaining() -> int:
+	var count := 0
+	for cell: Vector2i in HexGridScript.all_cells():
+		if not is_empty(cell) and not is_locked(cell):
+			_locked[cell] = true
+			count += 1
+	return count
+
+
+func Grid_ordered_cells() -> Array[Vector2i]:
+	return HexGridScript.all_cells()
 
 
 func filled_count() -> int:
@@ -58,19 +121,25 @@ func apply_gravity() -> int:
 
 
 ## Same pass, but reports each piece's movement so the view can animate falls.
+## Locked pieces are floors: nothing falls through them and they never move.
 func apply_gravity_moves() -> Array:
 	var moves: Array = []
 	for column_index in HexGridScript.COLUMNS:
 		var chain: Array[Vector2i] = HexGridScript.column(column_index)
 		var write := chain.size() - 1
 		for read in range(chain.size() - 1, -1, -1):
-			var piece := get_piece(chain[read])
+			var cell: Vector2i = chain[read]
+			if is_locked(cell):
+				# Frozen in place; the segment above restacks on top of it.
+				write = read - 1
+				continue
+			var piece := get_piece(cell)
 			if piece == PieceScript.EMPTY:
 				continue
 			if write != read:
 				set_piece(chain[write], piece)
-				remove_piece(chain[read])
-				moves.append({"from": chain[read], "to": chain[write]})
+				remove_piece(cell)
+				moves.append({"from": cell, "to": chain[write]})
 			write -= 1
 	return moves
 
@@ -86,9 +155,10 @@ func first_empty_from_top(column_index: int) -> Variant:
 ## Structural invariants that must hold after every rules step.
 ## Returns a list of violations; empty means healthy.
 ##
-## Scan runs bottom-to-top: an empty cell with a filled cell above it means
-## that piece is floating (it should have fallen). Empty cells *above* a
-## resting piece are normal after gravity.
+## Scan runs bottom-to-top: an empty cell with a filled cell above it means that
+## piece is floating (it should have fallen). Empty cells *above* a resting piece
+## are normal after gravity. A **locked** piece is a floor: it is allowed to hang
+## with gaps beneath it, and anything above it rests on its top.
 func invariant_violations() -> Array[String]:
 	var problems: Array[String] = []
 	for column_index in HexGridScript.COLUMNS:
@@ -96,6 +166,9 @@ func invariant_violations() -> Array[String]:
 		var seen_empty := false
 		for index in range(chain.size() - 1, -1, -1):
 			var cell: Vector2i = chain[index]
+			if is_locked(cell):
+				seen_empty = false
+				continue
 			if is_empty(cell):
 				seen_empty = true
 			elif seen_empty:

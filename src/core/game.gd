@@ -36,6 +36,21 @@ var seed_value := 0
 var turns := 0
 var shuffle_count := 0
 
+## Timed mode (docs/design.md §6.2).
+var clock := 0.0
+var max_clock := 0.0
+var elapsed := 0.0
+
+## Survival mode (docs/design.md §6.3).
+var round := 1
+var rounds_cleared := 0
+var bombs_defused := 0
+
+## How the run ended, and whether that counts as a win.
+var finish_reason := ""
+var victory := false
+
+var _round_cleared := 0
 var _rng_refill
 var _commands: Array = []
 
@@ -45,6 +60,9 @@ func _init(run_seed: int = 1, rules: Variant = null) -> void:
 	ruleset = rules if rules != null else RulesetScript.new()
 	board = BoardScript.new()
 	_rng_refill = RngScript.new(run_seed).child("refill")
+	if ruleset.mode == RulesetScript.Mode.TIMED:
+		max_clock = ruleset.timed_start_seconds()
+		clock = max_clock
 	fill_board()
 
 
@@ -85,6 +103,13 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE):
 		return _reject(result, "vertex out of range")
 
 	var cells: Array = vertices[vertex_index]
+	for cell: Vector2i in cells:
+		if board.is_locked(cell):
+			# Not a move — but a board where everything is frozen has to be able
+			# to close the round, or the player is stuck forever.
+			var rejected = _reject(result, "a frozen piece cannot be turned")
+			settle(rejected)
+			return rejected
 	result.rotation_vertex = vertex_index
 	result.rotation_cells.assign(cells)
 	result.direction = direction
@@ -127,6 +152,10 @@ func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE):
 		return _reject(result, "cell out of range")
 
 	var piece: int = board.get_piece(cell)
+	if board.is_locked(cell):
+		var rejected = _reject(result, "that piece is frozen")
+		settle(rejected)
+		return rejected
 	var cells: Array[Vector2i] = []
 	if Pieces.is_starflower(piece):
 		# Cyclic (angular) order, so the ring visibly turns one step.
@@ -139,6 +168,11 @@ func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE):
 			return _reject(result, "a pearl needs six neighbours to turn")
 	else:
 		return _reject(result, "that piece cannot be rotated on its own")
+	for neighbour: Vector2i in cells:
+		if board.is_locked(neighbour):
+			var rejected = _reject(result, "a frozen neighbour cannot be turned")
+			settle(rejected)
+			return rejected
 
 	_cycle(cells, direction)
 	result.piece_cell = cell
@@ -221,6 +255,7 @@ func has_any_legal_rotation() -> bool:
 ## Fills every cell with a gem, avoiding immediate matches. Used for a new run
 ## and for the dead-board shuffle.
 func fill_board() -> void:
+	board.clear_locks()
 	var palette: Array = colors()
 	for cell: Vector2i in Grid.all_cells():
 		var candidates: Array = palette.duplicate()
@@ -288,17 +323,45 @@ func _award(result) -> void:
 	result.new_level = level
 
 
-## Shared tail of every committed move: bank the score, age the bombs, and check
-## whether the board is still playable.
+## Shared tail of every committed move: bank the score, pay out mode-specific
+## rewards, age the bombs, and check whether the board is still playable.
 func _finish_move(result) -> void:
 	_award(result)
+	if ruleset.mode == RulesetScript.Mode.SURVIVAL:
+		_round_cleared += result.cleared_count
+	bombs_defused += result.bombs_defused
+	_reward_clock(result)
+
 	if result.finished:
-		state = State.FINISHED
+		# The resolver ended the run itself (a pearl finish).
+		_finish(result.finish_kind, true)
 		result.game_over = false
 		settle(result)
 		return
+
 	_tick_bombs(result)
 	settle(result)
+
+
+## Timed mode: clears buy seconds back; a starflower refills and raises the cap
+## (docs/design.md §6.2).
+func _reward_clock(result) -> void:
+	if ruleset.mode != RulesetScript.Mode.TIMED:
+		return
+	clock += float(result.cleared_count) * RulesetScript.TIMED_PER_GEM
+	clock += float(result.combos) * RulesetScript.TIMED_PER_COMBO
+
+	var bloomed := false
+	for promotion: Dictionary in result.promotions:
+		if int(promotion["piece"]) == Pieces.starflower():
+			bloomed = true
+	if bloomed:
+		max_clock = minf(max_clock + RulesetScript.TIMED_STARFLOWER_BONUS, RulesetScript.TIMED_CAP)
+		clock = max_clock
+	elif result.level_up:
+		clock = max_clock
+	else:
+		clock = minf(clock, max_clock)
 
 
 ## Every bomb loses one move. Reaching zero detonates it and ends the run.
@@ -323,12 +386,16 @@ func _tick_bombs(result) -> void:
 	result.finished = true
 	result.finish_kind = "bomb_exploded"
 	result.exploded_cells.assign(exploders)
-	state = State.FINISHED
+	_finish("bomb_exploded", false)
 
 
-## After every move: is the board still playable? (docs/design.md §5.3)
+## After every move: is the board still playable? (docs/design.md §5.3, §6.3)
 func settle(result) -> void:
 	if state == State.FINISHED or result.finished:
+		result.new_level = level
+		return
+	if ruleset.mode == RulesetScript.Mode.SURVIVAL:
+		_settle_survival(result)
 		result.new_level = level
 		return
 	if not MatchFinderScript.has_any_match(board) and not has_any_legal_rotation():
@@ -337,6 +404,96 @@ func settle(result) -> void:
 		result.shuffled = true
 		shuffle_count += 1
 	result.new_level = level
+
+
+## Survival never reshuffles: when nothing can be cleared the round is over —
+## the leftovers freeze, the gaps refill, and the next round begins.
+func _settle_survival(result) -> void:
+	if board.filled_count() == 0:
+		_finish("board_cleared", true)
+		result.finished = true
+		result.finish_kind = finish_reason
+		return
+	if has_any_legal_rotation():
+		return
+
+	# Round complete: pay the round bonus, then freeze what is left.
+	var bonus := _round_cleared * RulesetScript.SURVIVAL_ROUND_BONUS_PER_GEM
+	score += bonus
+	result.score += bonus
+	result.round_bonus = bonus
+	_round_cleared = 0
+	round += 1
+	rounds_cleared += 1
+	result.round_ended = true
+	result.round_reached = round
+
+	board.lock_all_remaining()
+	if board.empty_cells().is_empty():
+		# Everything on the board froze: there is nowhere left to play.
+		_finish("all_locked", false)
+		result.finished = true
+		result.finish_kind = finish_reason
+		return
+
+	ResolverScript.refill_board(board, _rng_refill, result, level, ruleset)
+	# Fresh pieces can land straight into a match; settle them so the new round
+	# starts stable (this is the only refill that happens outside a resolve loop).
+	ResolverScript.resolve(board, ruleset, _rng_refill, result, level, ruleset.refills_board)
+
+	if rounds_cleared >= RulesetScript.SURVIVAL_ROUNDS_TO_WIN:
+		_finish("rounds_survived", true)
+		result.finished = true
+		result.finish_kind = finish_reason
+
+
+# --- run lifecycle ----------------------------------------------------------
+
+func _finish(reason: String, did_win: bool) -> void:
+	if state == State.FINISHED:
+		return
+	state = State.FINISHED
+	finish_reason = reason
+	victory = did_win
+
+
+func did_win() -> bool:
+	return victory
+
+
+## Advances real time. Only Timed mode cares; the view calls this each frame.
+func tick(delta: float) -> void:
+	if state != State.PLAYING or ruleset.mode != RulesetScript.Mode.TIMED:
+		return
+	elapsed += delta
+	clock = maxf(clock - delta, 0.0)
+	if clock <= 0.0:
+		_finish("time_out", false)
+
+
+func mode_name() -> String:
+	match ruleset.mode:
+		RulesetScript.Mode.TIMED:
+			return "Timed"
+		RulesetScript.Mode.SURVIVAL:
+			return "Survival"
+		_:
+			return "Marathon"
+
+
+func summary() -> Dictionary:
+	return {
+		"mode": mode_name(),
+		"difficulty": ruleset.difficulty,
+		"score": score,
+		"level": level,
+		"combos": total_combos,
+		"turns": turns,
+		"rounds": rounds_cleared,
+		"reason": finish_reason,
+		"won": victory,
+		"elapsed": elapsed,
+	}
 
 
 ## Redistributes the existing gems; if no arrangement is playable (or the board

@@ -262,7 +262,7 @@ func test_gravity_re_settles_after_every_move_on_a_gappy_board() -> void:
 	# an empty cell. Gravity has to run after every committed move, not just
 	# after clears, or pieces are left floating.
 	var ruleset := RulesetScript.new()
-	ruleset.refills_board = false
+	ruleset.mode = RulesetScript.Mode.SURVIVAL
 	var game := GameScript.new(31, ruleset)
 	for cell: Vector2i in Grid.all_cells():
 		if cell.y < Grid.column_height(cell.x) - 3:

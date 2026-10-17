@@ -26,6 +26,7 @@ const DEFAULTS := {
 	"pearl_ring_base": 250000,      # perfect finish: a ring of six pearls
 	"bomb_defuse_base": 200,
 	"bomb_colour_wipe_base": 500,
+	"flower_sweep_base": 500,       # Survival: flower sweeps a whole colour
 }
 
 ## Keys that hold fractional values; everything else is a whole point value.

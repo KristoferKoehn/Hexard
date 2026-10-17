@@ -282,12 +282,36 @@ Marathon plus a countdown. Reference behaviour, expressed as config:
 
 Clear the board with no refills.
 
-- No new gems fall during a round. Cleared cells stay empty (cursor can still sit on empty vertices — the reference allows this).
-- When no match remains, the **round ends**: leftover gems **lock** (cannot be rotated) and empty cells are refilled over/around them; pay a round-end bonus per gem cleared this round.
-- Clearing a cluster containing a bonus star **unlocks** locked gems it touches.
-- Forming a flower **unlocks the whole board and clears every gem matching the flower centre's colour** (no starflower is created in this mode).
-- Bombs and black pearls do not appear in Survival.
-- **Win:** clear the entire board, or survive 50 rounds. **Lose:** every gem on the board is locked.
+- No new gems fall during a round. Cleared cells stay empty.
+- When no match remains, the **round ends**: leftover gems **freeze** and the empty cells are refilled; a round bonus of **10 points per gem cleared in the round** is paid.
+- **Locked pieces are inert** (our M3 decision): they do not fall, cannot be part of a trio or a special-piece turn, and do not participate in any match. They are effectively stone until thawed.
+- A **flower** unlocks the whole board and sweeps every gem of its ring colour (no starflower is created here).
+- A **bonus star** blast thaws the frozen tiles it touched.
+- Bombs, starflowers and pearls do not appear in Survival at all.
+- **Win:** clear the entire board, or survive 50 rounds. **Lose:** every piece on the board is frozen.
+
+> Two consequences worth knowing, both found by the soak: the round-end refill has to be *settled* (fresh pieces can land in a match that nobody would ever clear), and a move rejected because of a frozen cell still has to run the round-end check, otherwise a fully frozen board soft-locks the player.
+
+### 6.4 Difficulty (all modes)
+
+| Knob | Easy | Normal | Hard |
+|---|---|---|---|
+| Score multiplier | ×0.5 | ×1 | ×2 |
+| Bomb spawn chance | ×0.6 | ×1 | ×1.4 |
+| Bomb fuse length | +2 moves | reference | −1 move |
+| Timed start clock | 60 s | 50 s | 40 s |
+
+### 6.5 End-of-run summary
+
+Every run ends with a reason and a win/loss verdict, shown on the result screen (`Game.summary()`):
+
+| Reason | Mode | Win? |
+|---|---|---|
+| `pearl_cluster` / `pearl_ring` | Marathon, Timed | ✅ |
+| `board_cleared` / `rounds_survived` | Survival | ✅ |
+| `bomb_exploded` | Marathon, Timed | ❌ |
+| `time_out` | Timed | ❌ |
+| `all_locked` | Survival | ❌ |
 
 ---
 
@@ -404,7 +428,7 @@ because a test plugin changed.
 > with it relaxed. A parse error in any suite is reported as a failure (never a silent pass) via
 > `can_instantiate()`.
 
-**Current results — 101 tests, 0 failed, ~21.9k assertions (5s), plus the smoke test and soak:**
+**Current results — 124 tests, 0 failed, ~23.2k assertions (6s), plus the smoke test and soak:**
 
 *Geometry (M0)*
 
@@ -460,8 +484,21 @@ a gappy board *lifting* a piece with nothing to re-settle it; a typed-array assi
 resolver silently no-op; and `is_pearl_ring` being reused for two different rings (starflowers *make* a pearl,
 pearls *finish* the run). All six would have been near-impossible to find by eye.
 
-**Still to build (M3+):** Marathon/Timed/Survival as first-class modes (rounds, locking, the timer), difficulty
-settings, and the full win/lose flows (summary screen, restart, stats).
+*Modes and lifecycle (M3)*
+
+- Marathon is the default, refills, spawns specials and has no clock; ticking it does nothing.
+- Survival disables refills and every special spawn at every level.
+- Difficulty moves bomb chance, fuse length and the Timed start clock in the right directions.
+- Timed: starts full, counts down, stops at zero and ends the run as `time_out`; clears buy time back
+  without exceeding the maximum; a starflower refills the clock *and* raises the cap by 10 s, which caps at 120 s.
+- Survival: locked pieces are skipped by rotations, special turns, matching and gravity (a locked piece is a
+  floor that may legitimately hang over a gap); a round closes when nothing can clear, freezing the leftovers,
+  refilling and settling; the run is won by clearing the board or surviving 50 rounds, and lost when everything
+  freezes; a flower thaws the board and sweeps its colour; a bonus-star blast thaws what it touched.
+- The summary reports mode, difficulty, score, level, combos, rounds, reason and verdict.
+
+**Still to build (M4+):** the art pass and animation, audio, the interactive tutorial, autosave/resume, stats,
+achievements and leaderboards.
 
 **Fixtures:** the tutorial board plus 3–5 transcribable reference boards (the fan project `hectic-hexagons`
 transcribes real frames — useful cross-checking) as golden tests for match sets.
@@ -515,8 +552,8 @@ Mitigations to evaluate in playtesting, in order of preference:
 | **M0** ✅ | Repo + this doc + Godot 4.7.2 toolchain + `hex_grid.gd`, `board.gd`, `piece.gd`, `rng.gd` + headless suite | **Done:** 37 tests / 0 failed, including 85 cells, **135 vertices**, 17×5 half-rows, gravity invariants |
 | **M1** ✅ | Playable core: board, cursor, discrete rotation, match predicate, gravity, refill, cascades, scoring, dev-art scene | **Done:** 75 tests / 0 failed, view smoke test, 10,000-move soak; playable in-editor (`main.tscn`) |
 | **M2** ✅ | Specials: bonus stars (×2 + 3-star area clear), starflowers (flower → piece → ring rotation), black pearls (creation, Y rotation, perfect finish), bombs (tick, defuse, colour wipe) | **Done:** 101 tests / 0 failed incl. every formation; the soak plays 10,000 moves with specials |
-| **M3** | Progression + modes: 7 levels, combo thresholds, content gating, Marathon/Timed/Survival, difficulty, dead-board shuffle, win/lose flows | Each mode playable to its conclusion with correct game-over/win paths |
-| **M4** | Presentation + meta: art pass, animations, SFX/music, HUD, menus, options, tutorial, autosave/resume, stats, achievements, local leaderboard | A first-time player can learn the game from the tutorial alone |
+| **M3** ✅ | Progression + modes: 7 levels, combo thresholds, content gating, Marathon/Timed/Survival, difficulty, dead-board shuffle, win/lose flows | **Done:** 124 tests / 0 failed; menu, per-mode HUD, clock, Survival rounds and locking, result screen |
+| **M4** | Presentation + meta: art pass, animations, SFX/music, tutorial, autosave/resume, stats, achievements, local leaderboard | A first-time player can learn the game from the tutorial alone |
 | **M5** | Polish + balance: playtest-driven tuning of scoring/RNG/bombs, accessibility pass, replays, exports (Windows + web) | Balance targets met (§13), export builds run at 60 FPS |
 
 ---

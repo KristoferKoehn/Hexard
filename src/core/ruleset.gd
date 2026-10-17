@@ -1,7 +1,7 @@
 class_name Ruleset
 extends RefCounted
 
-## Tunable rules for a run (docs/design.md §3.1, §5, §11).
+## Tunable rules for a run (docs/design.md §3.1, §5, §6, §11).
 
 const ScoringRulesScript := preload("res://src/core/scoring_rules.gd")
 const Pieces := preload("res://src/core/piece.gd")
@@ -16,6 +16,16 @@ enum RotationMode {
 	FREE,
 }
 
+enum Mode {
+	## Endless: always refills, bombs and specials escalate with level.
+	MARATHON,
+	## Marathon plus a countdown that clears and starflowers buy back.
+	TIMED,
+	## No refills during a round; locked leftovers pile up until you clear the
+	## board or suffocate.
+	SURVIVAL,
+}
+
 const MAX_LEVEL := 7
 ## Combos needed to leave levels 1..6 (docs/design.md §5.1). A var so tests and
 ## future difficulty settings can rescale progression.
@@ -28,16 +38,37 @@ const DEFAULT_BONUS_STAR_CHANCE := [0.0, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
 const DEFAULT_BOMB_CHANCE := [0.0, 0.0, 0.05, 0.05, 0.06, 0.06, 0.06]
 const DEFAULT_BOMB_COUNTER := [0, 0, 9, 8, 7, 6, 5]
 
+# --- Timed mode (docs/design.md §6.2) ---------------------------------------
+const TIMED_CAP := 120.0
+const TIMED_STARFLOWER_BONUS := 10.0
+const TIMED_PER_GEM := 0.25
+const TIMED_PER_COMBO := 1.0
+const TIMED_START := {"easy": 60.0, "normal": 50.0, "hard": 40.0}
+
+# --- Survival mode (docs/design.md §6.3) ------------------------------------
+const SURVIVAL_ROUNDS_TO_WIN := 50
+## Points per gem cleared in a Survival round, paid when the round ends.
+const SURVIVAL_ROUND_BONUS_PER_GEM := 10
+
 var rotation_mode: RotationMode = RotationMode.STRICT
+var mode: Mode = Mode.MARATHON
 var difficulty := "normal"
 var level_combo_thresholds: Array[int] = []
 var scoring: ScoringRules
-## Marathon/Timed refill the board from the top; Survival does not.
-var refills_board := true
 
 var bonus_star_chance: Array[float] = []
 var bomb_chance: Array[float] = []
 var bomb_start_counters: Array[int] = []
+
+## Survival and Timed do not refill mid-round; Marathon always does.
+var refills_board: bool:
+	get:
+		return mode != Mode.SURVIVAL
+
+## Survival has no bonus stars, starflowers or pearls (docs/design.md §6.3).
+var spawns_specials: bool:
+	get:
+		return mode != Mode.SURVIVAL
 
 
 func _init() -> void:
@@ -74,12 +105,19 @@ static func free_rotation() -> Ruleset:
 
 
 ## A ruleset with no specials spawning at all: every refill is a plain gem.
-## Used by tests that are about something else, and handy as a calm practice mode.
 static func gems_only() -> Ruleset:
 	var ruleset := Ruleset.new()
 	for index in ruleset.bonus_star_chance.size():
 		ruleset.bonus_star_chance[index] = 0.0
 		ruleset.bomb_chance[index] = 0.0
+	return ruleset
+
+
+## A configured run: mode plus difficulty, the two knobs a player picks.
+static func for_run(run_mode: Mode, run_difficulty: String = "normal") -> Ruleset:
+	var ruleset := Ruleset.new()
+	ruleset.mode = run_mode
+	ruleset.difficulty = run_difficulty
 	return ruleset
 
 
@@ -109,12 +147,35 @@ func _table_entry(table: Array, level: int, fallback: Variant) -> Variant:
 
 
 func bonus_star_chance_at(level: int) -> float:
+	if not spawns_specials:
+		return 0.0
 	return float(_table_entry(bonus_star_chance, level, 0.0))
 
 
 func bomb_chance_at(level: int) -> float:
-	return float(_table_entry(bomb_chance, level, 0.0))
+	if mode == Mode.SURVIVAL:
+		return 0.0
+	var base := float(_table_entry(bomb_chance, level, 0.0))
+	match difficulty:
+		"easy":
+			return base * 0.6
+		"hard":
+			return base * 1.4
+	return base
 
 
 func bomb_counter_at(level: int) -> int:
-	return int(_table_entry(bomb_start_counters, level, 0))
+	var base := int(_table_entry(bomb_start_counters, level, 0))
+	if base <= 0:
+		return 0
+	match difficulty:
+		"easy":
+			return base + 2
+		"hard":
+			return maxi(base - 1, 2)
+	return base
+
+
+## Seconds on the clock when a Timed run starts.
+func timed_start_seconds() -> float:
+	return float(TIMED_START.get(difficulty, TIMED_START["normal"]))
