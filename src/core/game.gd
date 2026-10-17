@@ -94,7 +94,11 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE):
 		if ruleset.rotation_mode == RulesetScript.RotationMode.STRICT:
 			# Reference behaviour: a spin that clears nothing is not a move.
 			_cycle(cells, -direction)
-			return _reject(result, "no match (strict mode reverts)")
+			var rejected = _reject(result, "no match (strict mode reverts)")
+			# Still check the dead-board rule: if no spin at all can clear, the
+			# player is stuck and the board must be reshuffled.
+			settle(rejected)
+			return rejected
 		# FREE mode: the trio stays where the player left it. Still resolve, so
 		# gravity re-settles anything the rotation lifted and any match the fall
 		# creates is cleared (this is what makes Survival-style gaps safe).
@@ -111,7 +115,11 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE):
 
 
 ## Replays a logged command list on a fresh game with the same seed.
-static func replay(run_seed: int, command_log: Array, rules: Variant = null) -> Game:
+##
+## `rules` is required: a replay must use the exact same ruleset as the run it
+## replays (rotation mode changes what gets recorded), so this cannot default.
+static func replay(run_seed: int, command_log: Array, rules: Variant) -> Game:
+	assert(rules != null, "Game.replay needs the ruleset the run was played with")
 	var game := Game.new(run_seed, rules)
 	for command: Array in command_log:
 		game.rotate(int(command[0]), int(command[1]))

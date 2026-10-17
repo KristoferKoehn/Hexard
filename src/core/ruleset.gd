@@ -7,12 +7,13 @@ const ScoringRulesScript := preload("res://src/core/scoring_rules.gd")
 const Pieces := preload("res://src/core/piece.gd")
 
 enum RotationMode {
-	## One 60-degree step per press; a non-matching position persists.
-	## This is Hexard's default (a deliberate deviation from the reference).
-	FREE,
 	## Reference behaviour: spin until a match or revert; no move is consumed
-	## when nothing clears.
+	## when nothing clears. This is the default — clearing is what moves the
+	## board, which is what makes flowers and pearls an achievement.
 	STRICT,
+	## One 60-degree step per press; a non-matching position persists.
+	## Friendlier, and a deliberate deviation from the reference.
+	FREE,
 }
 
 const MAX_LEVEL := 7
@@ -20,7 +21,7 @@ const MAX_LEVEL := 7
 ## future difficulty settings can rescale progression.
 const DEFAULT_COMBO_THRESHOLDS := [50, 60, 70, 80, 90, 100]
 
-var rotation_mode: RotationMode = RotationMode.FREE
+var rotation_mode: RotationMode = RotationMode.STRICT
 var difficulty := "normal"
 var level_combo_thresholds: Array[int] = []
 var scoring: ScoringRules
@@ -39,9 +40,16 @@ func _init() -> void:
 	scoring = ScoringRulesScript.load_default()
 
 
-static func strict() -> Ruleset:
+static func strict_rotation() -> Ruleset:
 	var ruleset := Ruleset.new()
 	ruleset.rotation_mode = RotationMode.STRICT
+	return ruleset
+
+
+## Opt-in, friendlier rotation: non-clearing spins keep their position.
+static func free_rotation() -> Ruleset:
+	var ruleset := Ruleset.new()
+	ruleset.rotation_mode = RotationMode.FREE
 	return ruleset
 
 

@@ -55,6 +55,15 @@ func test_new_run_starts_full_match_free_and_at_zero() -> void:
 		assert_true(game.has_any_legal_rotation(), "at least one move exists")
 
 
+func test_default_ruleset_is_strict() -> void:
+	# The reference spins until a match or reverts, and that is what makes the
+	# board move only when you clear something. FREE is the opt-in.
+	var ruleset := RulesetScript.new()
+	assert_eq(ruleset.rotation_mode, RulesetScript.RotationMode.STRICT, "default is STRICT")
+	assert_eq(RulesetScript.free_rotation().rotation_mode, RulesetScript.RotationMode.FREE, "free() opts out")
+	assert_eq(RulesetScript.strict_rotation().rotation_mode, RulesetScript.RotationMode.STRICT, "strict() is explicit")
+
+
 func test_level_one_board_uses_only_base_colours() -> void:
 	var game := GameScript.new(6)
 	var palette := {}
@@ -82,7 +91,7 @@ func test_invalid_moves_are_rejected_without_side_effects() -> void:
 # --- rotation modes ---------------------------------------------------------
 
 func test_free_mode_keeps_a_non_matching_rotation() -> void:
-	var game := GameScript.new(3)
+	var game := GameScript.new(3, RulesetScript.free_rotation())
 	var move := _illegal_rotation(game)
 	assert_true(move.size() > 0, "a non-matching rotation exists")
 	var before := game.signature()
@@ -96,7 +105,7 @@ func test_free_mode_keeps_a_non_matching_rotation() -> void:
 
 
 func test_strict_mode_reverts_a_non_matching_rotation() -> void:
-	var game := GameScript.new(3, RulesetScript.strict())
+	var game := GameScript.new(3, RulesetScript.strict_rotation())
 	var move := _illegal_rotation(game)
 	var before := game.signature()
 	var result = game.rotate(move["vertex"], move["direction"])
@@ -107,7 +116,7 @@ func test_strict_mode_reverts_a_non_matching_rotation() -> void:
 
 
 func test_a_spin_and_its_inverse_cancel_out() -> void:
-	var game := GameScript.new(21)
+	var game := GameScript.new(21, RulesetScript.free_rotation())
 	var move := _illegal_rotation(game)
 	var before := game.signature()
 	game.rotate(move["vertex"], move["direction"])
@@ -274,14 +283,15 @@ func test_gravity_re_settles_after_every_move_on_a_gappy_board() -> void:
 # --- determinism and stability ---------------------------------------------
 
 func test_replay_reproduces_the_whole_run() -> void:
-	var game := GameScript.new(4242)
+	var ruleset := RulesetScript.free_rotation()
+	var game := GameScript.new(4242, ruleset)
 	var rng := RngScript.new(777)
 	var vertices := Grid.vertices()
 	for step in 40:
 		game.rotate(rng.next_int(vertices.size()), 1 if rng.next_int(2) == 0 else -1)
 	assert_gt(game.turns, 0, "the scripted run made moves")
 
-	var replayed := GameScript.replay(4242, game.commands())
+	var replayed := GameScript.replay(4242, game.commands(), ruleset)
 	assert_eq(replayed.signature(), game.signature(), "replay lands on the same board")
 	assert_eq(replayed.score, game.score, "same score")
 	assert_eq(replayed.total_combos, game.total_combos, "same combos")
@@ -289,11 +299,31 @@ func test_replay_reproduces_the_whole_run() -> void:
 	assert_eq(replayed.shuffle_count, game.shuffle_count, "same shuffles")
 
 
+func test_replay_needs_the_same_ruleset() -> void:
+	# Regression: replaying a FREE-mode log against the default STRICT ruleset
+	# used to diverge wildly, because the mode decides what gets recorded.
+	var free := RulesetScript.free_rotation()
+	var game := GameScript.new(4242, free)
+	var rng := RngScript.new(777)
+	var vertices := Grid.vertices()
+	for step in 20:
+		game.rotate(rng.next_int(vertices.size()), 1 if rng.next_int(2) == 0 else -1)
+
+	var same := GameScript.replay(4242, game.commands(), free)
+	assert_eq(same.signature(), game.signature(), "same ruleset reproduces the run")
+
+	var different := GameScript.replay(4242, game.commands(), RulesetScript.strict_rotation())
+	assert_ne(
+		different.signature(), game.signature(),
+		"a different rotation mode must not pretend to reproduce the run"
+	)
+
+
 func test_random_playouts_keep_every_invariant() -> void:
 	# ~1,200 random moves in the default suite; the 10,000-move soak lives in
 	# tests/soak.gd (run_tests.ps1 -Soak).
 	for run_seed in [1, 7, 13]:
-		var game := GameScript.new(run_seed)
+		var game := GameScript.new(run_seed, RulesetScript.free_rotation())
 		var rng := RngScript.new(run_seed * 31 + 5)
 		var vertices := Grid.vertices()
 		var committed := 0

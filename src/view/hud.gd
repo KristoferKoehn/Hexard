@@ -4,6 +4,8 @@ extends CanvasLayer
 ## Dev HUD: score, level, combos to the next level, seeds/turns, and one status
 ## line. Labels are created in code so the scene file stays trivial.
 
+const RulesetScript := preload("res://src/core/ruleset.gd")
+
 const INFO_FONT_SIZE := 22
 const MESSAGE_FONT_SIZE := 18
 
@@ -47,7 +49,5 @@ func set_message(text: String) -> void:
 
 
 func _is_strict(game: RefCounted) -> bool:
-	# Compare against the enum through the script instance's own class to avoid
-	# depending on the global class cache in the view layer.
 	var ruleset: Variant = game.ruleset
-	return int(ruleset.rotation_mode) != 0
+	return int(ruleset.rotation_mode) == int(RulesetScript.RotationMode.STRICT)

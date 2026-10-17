@@ -12,8 +12,8 @@ config_version=5
 
 config/name="Hexard"
 config/description="Hexagonal rotation match-3 puzzle game."
-config/features=PackedStringArray("4.7", "GL Compatibility")
 run/main_scene="res://src/app/main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [debug]
 
