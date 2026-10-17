@@ -1,11 +1,11 @@
-class_name BoardView
+﻿class_name BoardView
 extends Node2D
 
-## The board, its container, and the move animation (docs/design.md §7.5, §8).
+## The board, its container, and the move animation (docs/design.md Â§7.5, Â§8).
 ##
 ## The rules core resolves a move instantly, so this view keeps its own
 ## presentation board (`_display`) that lags behind. A move is replayed as a
-## queue of steps — spin, then per cascade depth: clear → fall → drop — and the
+## queue of steps â€” spin, then per cascade depth: clear â†’ fall â†’ drop â€” and the
 ## display is committed step by step. When the queue drains, the display is
 ## snapped to the core so the two can never drift.
 
@@ -56,6 +56,9 @@ var _step_index := 0
 var _step_time := 0.0
 var _playing := false
 var _plate: StyleBoxFlat = null
+## True while steps that actually change the board are playing. A refused-spin
+## bounce does not count: nothing is in flight, so further spins are safe.
+var _settling := false
 
 
 # --- setup ------------------------------------------------------------------
@@ -122,8 +125,29 @@ func is_animating() -> bool:
 	return _playing
 
 
-## Replays a move: spin, then per cascade depth clear → fall → drop.
+## False while pieces are still moving or clearing. The controller refuses spins
+## during this window: the rules core resolves instantly, so letting a new move
+## in would advance it past what is on screen and drop the animation in flight.
+func is_settled() -> bool:
+	return not _settling
+
+
+## Commits whatever is left of the current timeline without waiting. Used when a
+## new result arrives mid-playback, so no step is ever silently discarded.
+func finish_now() -> void:
+	while _playing:
+		_commit(_steps[_step_index])
+		_step_index += 1
+		if _step_index >= _steps.size():
+			_stop(false)
+
+
+## Replays a move: spin, then per cascade depth clear â†’ fall â†’ drop.
 func show_result(result: RefCounted) -> void:
+	# A new result while the previous one is still playing: finish it first so
+	# nothing is dropped mid-flight, then play this one from that state.
+	if _playing:
+		finish_now()
 	_steps.clear()
 	_step_index = 0
 	_step_time = 0.0
@@ -136,6 +160,7 @@ func show_result(result: RefCounted) -> void:
 				"dir": result.direction, "duration": BOUNCE_TIME,
 			})
 			_playing = true
+			_settling = false
 			queue_redraw()
 		return
 
@@ -164,10 +189,11 @@ func show_result(result: RefCounted) -> void:
 		})
 
 	_playing = not _steps.is_empty()
+	_settling = _playing
 	queue_redraw()
 
 
-## Cascade depths present in this move, in order (1, 2, …).
+## Cascade depths present in this move, in order (1, 2, â€¦).
 func _depths(result) -> Array[int]:
 	var seen := {}
 	for group in result.clear_groups:
@@ -213,11 +239,13 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-func _stop() -> void:
+func _stop(sync: bool = true) -> void:
 	_playing = false
+	_settling = false
 	_steps.clear()
 	_step_index = 0
-	sync_from_game()
+	if sync:
+		sync_from_game()
 
 
 ## Folds one finished step into the presentation board.

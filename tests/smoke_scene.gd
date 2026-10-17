@@ -40,6 +40,11 @@ func _initialize() -> void:
 
 
 func _process(_delta: float) -> bool:
+	# Each stage starts from a settled board, as a player would after waiting;
+	# otherwise the input gate (correctly) swallows synthetic key presses.
+	var smoke_view = _main.get_node_or_null("BoardView")
+	if smoke_view != null:
+		smoke_view.call("sync_from_game")
 	_frames += 1
 	match _frames:
 		3:
