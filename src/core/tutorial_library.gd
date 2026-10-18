@@ -110,22 +110,16 @@ static func make_game(id: String) -> Game:
 		"bombs":
 			_rig_bombs(game)
 		"pearl_bloom":
-			game.board.set_piece(CENTRE, Pieces.starflower())
-			for cell: Vector2i in Grid.neighbours(CENTRE):
-				game.board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
+			# Ring of five reds around a starflower: the sixth is rotated in, and blooming a
+			# flower whose centre is already a starflower makes a pearl.
+			_rig_ring(game, Pieces.gem(Pieces.GemColor.RED), Pieces.starflower())
 		"colour_wipe":
-			var wipe_trio: Array = Grid.vertices()[_vertex_near(CENTRE)]
-			game.board.set_piece(wipe_trio[0], Pieces.bomb(Pieces.GemColor.RED, 3))
-			game.board.set_piece(wipe_trio[1], Pieces.bonus_star(Pieces.GemColor.RED))
-			game.board.set_piece(wipe_trio[2], Pieces.gem(Pieces.GemColor.RED))
+			_rig_triangle(game, Pieces.bomb(Pieces.GemColor.RED, 3),
+				Pieces.bonus_star(Pieces.GemColor.RED), Pieces.gem(Pieces.GemColor.RED))
 		"flower_cluster":
-			var flower_trio: Array = Grid.vertices()[_vertex_near(CENTRE)]
-			for index in 3:
-				game.board.set_piece(flower_trio[index], Pieces.starflower())
+			_rig_triangle(game, Pieces.starflower(), Pieces.starflower(), Pieces.starflower())
 		"pearl_finish":
-			var pearl_trio: Array = Grid.vertices()[_vertex_near(CENTRE)]
-			for index in 3:
-				game.board.set_piece(pearl_trio[index], Pieces.pearl())
+			_rig_triangle(game, Pieces.pearl(), Pieces.pearl(), Pieces.pearl())
 	return game
 
 
@@ -134,6 +128,8 @@ static func slot_cell(id: String) -> Vector2i:
 	match id:
 		"stars":
 			return _star_triangle()[2]
+		"colour_wipe", "flower_cluster", "pearl_finish":
+			return Grid.vertices()[_vertex_near(CENTRE)][2]
 		"turn":
 			return CENTRE
 		_:
@@ -144,15 +140,16 @@ static func slot_cell(id: String) -> Vector2i:
 ## the rig is a fixture, so searching it at runtime was ~950ms of blocked frames on the
 ## first visit for an answer that never changes.
 const BOMB_CELL := Vector2i(4, 4)
-## A corner vertex, used when a clip's formation is already complete and the shown rotation
-## only needs to trigger a resolve somewhere harmless.
-const FAR_VERTEX := 0
 
 const DEMO_MOVES := {
 	"clear": {"vertex": 38, "direction": 1},
 	"stars": {"vertex": 37, "direction": 1},
 	"flower": {"vertex": 35, "direction": 1},
 	"pearl": {"vertex": 35, "direction": 1},
+	"pearl_bloom": {"vertex": 35, "direction": 1},
+	"colour_wipe": {"vertex": 37, "direction": 1},
+	"flower_cluster": {"vertex": 37, "direction": 1},
+	"pearl_finish": {"vertex": 37, "direction": 1},
 }
 
 
@@ -164,10 +161,6 @@ static func play(game: Game, id: String) -> MoveResult:
 		# The bomb's own triangle is already monochrome, so turning that trio demonstrates
 		# the defuse without needing a completing move at all.
 		return game.rotate(_vertex_near(BOMB_CELL), GameScript.CLOCKWISE)
-	if id in ["pearl_bloom", "colour_wipe", "flower_cluster", "pearl_finish"]:
-		# These rigs are already complete, so the demonstration move must not disturb them:
-		# a turn at a far corner resolves the board while the formation stays intact.
-		return game.rotate(FAR_VERTEX, GameScript.CLOCKWISE)
 	if DEMO_MOVES.has(id):
 		var move: Dictionary = DEMO_MOVES[id]
 		return game.rotate(int(move["vertex"]), int(move["direction"]))
@@ -175,6 +168,22 @@ static func play(game: Game, id: String) -> MoveResult:
 	if rotations.is_empty():
 		return game.rotate(0, GameScript.CLOCKWISE)
 	return game.rotate(int(rotations[0]["vertex"]), int(rotations[0]["direction"]))
+
+
+## The rotation that completes this clip's rig. Only trios containing the missing slot can
+## do it, so this is twelve candidates rather than the whole board; callers cache the answer.
+static func find_completing_move(id: String) -> Dictionary:
+	var slot := slot_cell(id)
+	var vertices := Grid.vertices()
+	for vertex_index in vertices.size():
+		if not (vertices[vertex_index] as Array).has(slot):
+			continue
+		for direction in [GameScript.CLOCKWISE, GameScript.COUNTER_CLOCKWISE]:
+			var probe := make_game(id)
+			var result := probe.rotate(vertex_index, direction)
+			if result.committed and _goal_met(id, result):
+				return {"vertex": vertex_index, "direction": direction}
+	return {}
 
 
 ## Did this move produce the thing the clip is about? Pure, so the tests can use it.
@@ -228,7 +237,7 @@ static func subject_cells(id: String) -> Array[Vector2i]:
 	match id:
 		"pearl_bloom":
 			return Grid.neighbours(CENTRE)
-		"colour_wipe", "flower_cluster", "pearl_finish", "bombs":
+		"bombs":
 			for cell: Vector2i in Grid.vertices()[_vertex_near(CENTRE)]:
 				out.append(cell)
 	return out
@@ -279,12 +288,24 @@ static func _rig_stars(game: Game) -> void:
 
 ## Five ring cells of `ring_piece`, an odd cell at the slot, and `arriving` placed one
 ## rotation away in a trio that shares the slot.
-static func _rig_ring(game: Game, _ring_color: int, ring_piece: int) -> void:
+static func _rig_ring(game: Game, ring_piece: int, centre_piece: int = -1) -> void:
 	var ring := Grid.cyclic_order(Grid.neighbours(CENTRE))
-	game.board.set_piece(CENTRE, Pieces.gem(Pieces.GemColor.BLUE))
+	if centre_piece < 0:
+		centre_piece = Pieces.gem(Pieces.GemColor.BLUE)
+	game.board.set_piece(CENTRE, centre_piece)
 	for index in ring.size():
 		game.board.set_piece(ring[index], ring_piece if index > 0 else Pieces.gem(Pieces.GemColor.BLUE))
 	_place_arriving_piece(game, ring[0], ring, ring_piece)
+
+
+## Two members of a vertex triangle in place, the third slot empty of the target kind, and
+## one copy of it sitting in a trio that shares that slot: one rotation completes the shape.
+static func _rig_triangle(game: Game, first: int, second: int, arriving: int) -> void:
+	var trio: Array = Grid.vertices()[_vertex_near(CENTRE)]
+	game.board.set_piece(trio[0], first)
+	game.board.set_piece(trio[1], second)
+	game.board.set_piece(trio[2], Pieces.gem(Pieces.GemColor.BLUE))
+	_place_arriving_piece(game, trio[2], trio, arriving)
 
 
 ## Puts a copy of `piece` in a trio that shares `slot` and does not already hold it, so one
