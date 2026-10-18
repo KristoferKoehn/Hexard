@@ -68,6 +68,46 @@ const LIST := [
 		"hint": "Play 150 turns in one run.",
 	},
 	{
+		"id": "bomb_rustler",
+		"title": "Bomb Rustler",
+		"hint": "Defuse five bombs in one run.",
+	},
+	{
+		"id": "florist",
+		"title": "Florist",
+		"hint": "Grow three starflowers in one run.",
+	},
+	{
+		"id": "pearl_diver",
+		"title": "Pearl Diver",
+		"hint": "Make three pearls in one run.",
+	},
+	{
+		"id": "level_ten",
+		"title": "Deep Water",
+		"hint": "Reach level 10.",
+	},
+	{
+		"id": "combo_ten",
+		"title": "Avalanche",
+		"hint": "Reach a 10-combo in one run.",
+	},
+	{
+		"id": "twenty_thousand",
+		"title": "Twenty Thousand",
+		"hint": "Score 20,000 in a single run.",
+	},
+	{
+		"id": "survival_ten",
+		"title": "Hard Winter",
+		"hint": "Clear ten rounds in Survival.",
+	},
+	{
+		"id": "century",
+		"title": "Century",
+		"hint": "Finish 100 runs.",
+	},
+	{
 		"id": "veteran",
 		"title": "Veteran",
 		"hint": "Finish 25 runs.",
@@ -118,6 +158,22 @@ static func meets(id: String, summary: RunSummary, totals: Dictionary) -> bool:
 			return summary.won and summary.mode == "Survival"
 		"long_haul":
 			return summary.turns >= 150
+		"bomb_rustler":
+			return summary.bombs_defused >= 5
+		"florist":
+			return summary.starflowers >= 3
+		"pearl_diver":
+			return summary.pearls >= 3
+		"level_ten":
+			return summary.level >= 10
+		"combo_ten":
+			return summary.combos >= 10
+		"twenty_thousand":
+			return summary.score >= 20000
+		"survival_ten":
+			return summary.rounds >= 10
+		"century":
+			return games >= 100
 		"veteran":
 			return games >= 25
 		_:

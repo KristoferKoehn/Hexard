@@ -144,3 +144,28 @@ func test_the_achievement_cue_exists_and_is_audible() -> void:
 	for index in 400:
 		energy += absf(Synth.sample(voice, 22050.0))
 	assert_gt(energy, 0.0, "it renders sound rather than silence")
+
+
+func test_every_achievement_can_be_earned() -> void:
+	# A maximally good run plus a full history must earn the lot. This catches a predicate
+	# with a typo in its match arm, which would otherwise be an achievement nobody can get.
+	var best := _summary()
+	best.mode = "Survival"
+	best.score = 1000000
+	best.level = 20
+	best.combos = 20
+	best.turns = 1000
+	best.rounds = 50
+	best.cleared = 500
+	best.pearls = 10
+	best.starflowers = 10
+	best.bombs_defused = 10
+	best.won = true
+	best.reason = "pearl_ring"
+	var totals := {"games": 500, "cleared": 50000}
+	var missing: Array[String] = []
+	for entry: Dictionary in Achievements.LIST:
+		var id := str(entry["id"])
+		if not Achievements.meets(id, best, totals):
+			missing.append(id)
+	assert_eq(missing, [], "every achievement can be earned")
