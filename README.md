@@ -35,14 +35,18 @@ tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path . \
     --export-release "Windows Desktop" build/hexard.exe
 tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path . \
     --export-release "Web" build/web/index.html
+tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path . \
+    --export-release "Linux" build/linux/hexard.x86_64
 ```
 
 The output directory has to exist first - the exporter will not create it. Both presets use
 `export_filter="all_resources"` with `exclude_filter="tests/*, docs/*, tools/*"`, so test
 scripts and research notes stay out of the build.
 
-Verified artifacts: `build/hexard.exe` (104 MB, single file with the pck embedded) and
-`build/web/` (index.html, index.js, index.wasm 37.9 MB, index.pck 226 KB).
+Verified artifacts: `build/hexard.exe` (104 MB), `build/linux/hexard.x86_64` (70 MB) and
+`build/web/` (index.wasm 37.9 MB, index.pck ~210 KB). All three embed the pck, so each is a
+single file. The Linux template ships without its execute bit on a Windows host - `chmod +x` it
+before running.
 
 ### Running the web build
 
