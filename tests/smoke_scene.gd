@@ -655,6 +655,18 @@ func _check_pause_menu() -> void:
 	(panel as Node).call("request_quit")
 	_main.call("_handle_key", KEY_ESCAPE)
 	_check(_main.call("screen_name") == "paused", "escape cancels the question, not the pause")
+	# Restart is equally destructive, so it asks the same question.
+	(panel as Node).call("request_restart")
+	_check(bool((panel as Node).call("is_confirming")), "restart asks before replacing the board")
+	_check(str((panel as Node).call("pending")) == "restart", "and knows which question it is")
+	(panel as Node).call("cancel_confirm")
+	_check(_main.call("screen_name") == "paused", "cancel leaves the run alone")
+	_main.call("_handle_key", KEY_R)
+	_check(bool((panel as Node).call("is_confirming")), "the R shortcut asks too")
+	_main.call("_handle_key", KEY_Y)
+	_check(_main.call("screen_name") == "playing", "confirming restarts the run")
+
+	_main.call("_handle_key", KEY_ESCAPE)
 	(panel as Node).call("request_quit")
 	_main.call("_handle_key", KEY_Y)
 	_check(_main.call("screen_name") == "menu", "confirming leaves the run")

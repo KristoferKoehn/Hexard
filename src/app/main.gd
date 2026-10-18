@@ -593,7 +593,7 @@ func _pause_key(code: int) -> void:
 	if pause_panel != null and pause_panel.is_confirming():
 		match code:
 			KEY_Y, KEY_ENTER, KEY_KP_ENTER:
-				pause_panel.confirm_quit()
+				pause_panel.confirm()
 			KEY_N, KEY_ESCAPE, KEY_P:
 				pause_panel.cancel_confirm()
 		return
@@ -604,7 +604,9 @@ func _pause_key(code: int) -> void:
 			if pause_panel != null:
 				pause_panel.request_quit()
 		KEY_R:
-			start_run(selected)
+			# Restart asks too: it replaces the board just as surely as quitting does.
+			if pause_panel != null:
+				pause_panel.request_restart()
 
 
 func _result_key(code: int) -> void:

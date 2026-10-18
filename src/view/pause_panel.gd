@@ -8,17 +8,23 @@ extends CanvasLayer
 ## allowed to finish settling underneath. Freezing an animation mid-fall under a menu
 ## looks like a bug, and the rules core is already final by the time it plays.
 ##
-## Leaving the run asks first. "Main menu" throws away the board, the score and the
-## clock, and it sat one click away from Resume - so it is a two-step choice now.
+## Both destructive choices ask first. Main menu and Restart each throw away the board,
+## the score and the clock, and both sat one click from Resume.
 
 signal resume_pressed
 signal settings_pressed
 signal restart_pressed
 signal menu_pressed
 
+const PENDING_MENU := "menu"
+const PENDING_RESTART := "restart"
+
 var _root: Control
 var _list: VBoxContainer
 var _confirm: VBoxContainer
+var _question: Label
+var _warning: Label
+var _pending := ""
 
 
 func _ready() -> void:
@@ -57,20 +63,21 @@ func _ready() -> void:
 	column.add_child(_list)
 	_list.add_child(_button("Resume  (Esc)", func() -> void: resume_pressed.emit()))
 	_list.add_child(_button("Settings", func() -> void: settings_pressed.emit()))
-	_list.add_child(_button("Restart  (R)", func() -> void: restart_pressed.emit()))
+	_list.add_child(_button("Restart  (R)", request_restart))
 	_list.add_child(_button("Main menu  (M)", request_quit))
 
-	# The same panel, asked a different question.
+	# One question box for both destructive choices: the answer decides which signal
+	# leaves, so there is a single place that can bypass a confirmation, and it does not.
 	_confirm = VBoxContainer.new()
 	_confirm.add_theme_constant_override("separation", 10)
 	column.add_child(_confirm)
-	var question := NeonStyle.label("Quit to the main menu?", 24, NeonStyle.AMBER)
-	question.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_confirm.add_child(question)
-	var warning := NeonStyle.label("This run will be lost.", 17, NeonStyle.DIM)
-	warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_confirm.add_child(warning)
-	_confirm.add_child(_button("Yes, quit  (Y)", confirm_quit))
+	_question = NeonStyle.label("", 24, NeonStyle.AMBER)
+	_question.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_confirm.add_child(_question)
+	_warning = NeonStyle.label("", 17, NeonStyle.DIM)
+	_warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_confirm.add_child(_warning)
+	_confirm.add_child(_button("Yes  (Y)", confirm))
 	_confirm.add_child(_button("Keep playing  (N)", cancel_confirm))
 	_confirm.visible = false
 
@@ -87,26 +94,47 @@ func close() -> void:
 	visible = false
 
 
-## Asks before abandoning the run.
+## Asks before abandoning the run for the menu.
 func request_quit() -> void:
-	_list.visible = false
-	_confirm.visible = true
+	_ask(PENDING_MENU, "Quit to the main menu?", "This run will be lost.")
+
+
+## Asks before replacing the board with a fresh run.
+func request_restart() -> void:
+	_ask(PENDING_RESTART, "Restart this run?", "The current board will be replaced.")
+
+
+func confirm() -> void:
+	var pending := _pending
+	_show_list()
+	if pending == PENDING_MENU:
+		menu_pressed.emit()
+	elif pending == PENDING_RESTART:
+		restart_pressed.emit()
 
 
 func cancel_confirm() -> void:
 	_show_list()
 
 
-func confirm_quit() -> void:
-	_show_list()
-	menu_pressed.emit()
-
-
 func is_confirming() -> bool:
 	return _confirm != null and _confirm.visible
 
 
+func pending() -> String:
+	return _pending if is_confirming() else ""
+
+
+func _ask(kind: String, question: String, warning: String) -> void:
+	_pending = kind
+	_question.text = question
+	_warning.text = warning
+	_list.visible = false
+	_confirm.visible = true
+
+
 func _show_list() -> void:
+	_pending = ""
 	if _list != null:
 		_list.visible = true
 	if _confirm != null:
