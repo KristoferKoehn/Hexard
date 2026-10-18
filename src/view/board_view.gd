@@ -96,7 +96,9 @@ func _ensure_gem_atlas() -> void:
 	var layer := BoardStaticLayer.new()
 	layer.painter = Callable(self, "paint_gem_atlas")
 	_gem_view.add_child(layer)
-	_gem_view.render_target_update_mode = SubViewport.UPDATE_ONCE
+	# UPDATE_ALWAYS rather than ONCE: a single update can land before the layer's first _draw,
+	# which leaves a blank sheet. It is switched off as soon as the slices are taken.
+	_gem_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 
 
 func paint_gem_atlas(canvas: CanvasItem) -> void:
@@ -115,6 +117,10 @@ func paint_gem_atlas(canvas: CanvasItem) -> void:
 func _harvest_gem_textures() -> void:
 	if _gem_ready or _gem_view == null:
 		return
+	# Requires the viewport to have been through a couple of frames, otherwise the texture is
+	# still blank and the slices would be empty for the life of the process.
+	if _gem_age < 2:
+		return
 	var sheet: Texture2D = _gem_view.get_texture()
 	if sheet == null:
 		return
@@ -129,6 +135,7 @@ func _harvest_gem_textures() -> void:
 	_gem_ready = true
 	# Parked rather than freed: freeing the viewport frees the texture the slices point at.
 	_gem_view.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	queue_redraw()
 
 
 ## Bakes backdrop, plate and sockets into a SubViewport, once per size. The texture is blitted
@@ -150,7 +157,7 @@ func _ensure_static_layer() -> void:
 		return
 	_static_rect = rect
 	_static_view = SubViewport.new()
-	_static_view.size = Vector2i(size)
+	_static_view.size = Vector2i(int(ceil(size.x)), int(ceil(size.y)))
 	_static_view.transparent_bg = true
 	_static_view.disable_3d = true
 	add_child(_static_view)
@@ -196,6 +203,7 @@ const GEM_ATLAS_COLS := 7
 var _gem_view: SubViewport = null
 var _gem_textures: Dictionary = {}
 var _gem_ready := false
+var _gem_age := 0
 ## Cells to outline instead of asking the board. Empty means the normal rule: the trio
 ## under the cursor, or a selected special's own swap set. The tutorial's clips set this,
 ## because they replay a cached result and their board is back at its pre-move state.
@@ -318,6 +326,9 @@ func show_result(result: MoveResult) -> void:
 		_shake_clock = 0.0
 	queue_redraw()
 func _process(delta: float) -> void:
+	if _gem_view != null and not _gem_ready:
+		_gem_age += 1
+		_harvest_gem_textures()
 	if _playing and _step_index != _announced_step:
 		_announced_step = _step_index
 		step_began.emit(str(_steps[_step_index]["kind"]), _steps[_step_index])
@@ -609,7 +620,6 @@ func _draw_piece(centre: Vector2, piece: int, radius: float, alpha: float) -> vo
 			var colour := int(Pieces.color_of(piece))
 			var glyphs := _patterns_allowed()
 			_ensure_gem_atlas()
-			_harvest_gem_textures()
 			var key := "%d:%d" % [colour, 0 if glyphs else 1]
 			if _gem_textures.has(key):
 				# The atlas cell includes the shadow margin, so the destination is scaled by

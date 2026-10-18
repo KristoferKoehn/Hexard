@@ -84,6 +84,21 @@ a plain page but not when embedded in a COEP page.
 - 📄 **[Game design document](docs/design.md)** — vision, rules spec, board geometry, pieces, modes, scoring, UX, architecture, milestones, deviations from the original.
 - 🔍 **[Research evidence ledger](docs/research/sources.md)** — every claim with a source URL and confidence rating, including what the original game *doesn't* do (no Hypercube, gravity is real, no combo timer).
 
+## Verifying the visual caches
+
+`tests/verify_bake.gd` reads the baked textures back and checks they contain what they claim: the
+static layer covers its plate rect, all fourteen gem slices exist, and the glyph and plain rows
+actually differ. It needs a renderer, so it runs windowed rather than in the suite:
+
+```
+tools\godot\Godot_v4.7.2-stable_win64_console.exe --path . --rendering-driver opengl3 \
+    --script res://tests/verify_bake.gd
+```
+
+Exit code 0 and `VISUAL CACHE: OK` means pass. This exists because both caches can be empty or
+mis-sized while every headless test stays green - the first version of the gem atlas was blank
+and only a pixel readback caught it.
+
 ## Performance overlay
 
 Press **F3** in game for frame rate, script time, draw calls and object count. It exists because
