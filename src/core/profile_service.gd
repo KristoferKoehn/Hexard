@@ -148,15 +148,10 @@ func to_dictionary() -> Dictionary:
 ## A missing or corrupt file leaves a fresh profile in place rather than failing:
 ## losing a leaderboard is bad, refusing to start is worse.
 func load_from(path: String = DEFAULT_PATH) -> bool:
-	if not FileAccess.file_exists(path):
+	var data := JsonStore.read(path)
+	if data.is_empty():
 		return false
-	var text := FileAccess.get_file_as_string(path)
-	if text.is_empty():
-		return false
-	var parsed: Variant = JSON.parse_string(text)
-	if typeof(parsed) != TYPE_DICTIONARY:
-		return false
-	apply_dictionary(parsed)
+	apply_dictionary(data)
 	return true
 
 
@@ -198,10 +193,4 @@ func apply_dictionary(data: Dictionary) -> void:
 
 
 func save_to(path: String = DEFAULT_PATH) -> bool:
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		push_warning("ProfileService: cannot write %s" % path)
-		return false
-	file.store_string(JSON.stringify(to_dictionary(), "  "))
-	file.close()
-	return true
+	return JsonStore.write(path, to_dictionary())

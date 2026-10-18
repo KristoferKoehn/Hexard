@@ -22,14 +22,6 @@ const Pieces := preload("res://src/core/piece.gd")
 const INFO_FONT_SIZE := 22
 const MESSAGE_FONT_SIZE := 18
 
-# Neon palette, matching the board's container (src/view/board_view.gd).
-const NEON_ACCENT := Color("35e0f0")
-const NEON_TEXT := Color("d9eef9")
-const NEON_DIM := Color("6f8496")
-const NEON_PANEL := Color("0b101c")
-const NEON_BORDER := Color("1d3b4d")
-const NEON_AMBER := Color("ffd166")
-const NEON_GOOD := Color("8ef0a0")
 
 const MODE_LABELS := {
 	RulesetScript.Mode.MARATHON: "Marathon",
@@ -77,30 +69,11 @@ func _neonify(node: Node) -> void:
 
 
 func _apply_neon(button: Button) -> void:
-	button.add_theme_color_override("font_color", NEON_TEXT)
-	button.add_theme_color_override("font_hover_color", Color.WHITE)
-	button.add_theme_color_override("font_pressed_color", NEON_ACCENT)
-	button.add_theme_color_override("font_focus_color", NEON_TEXT)
-	button.add_theme_color_override("font_disabled_color", NEON_DIM)
-	button.add_theme_font_size_override("font_size", 18)
-	button.add_theme_stylebox_override("normal", _box(NEON_PANEL, NEON_BORDER))
-	button.add_theme_stylebox_override("hover", _box(Color("102438"), NEON_ACCENT))
-	button.add_theme_stylebox_override("pressed", _box(Color("0d2b3a"), NEON_ACCENT))
-	button.add_theme_stylebox_override("focus", _box(Color(0, 0, 0, 0), Color(NEON_ACCENT, 0.55)))
+	NeonStyle.style_button(button)
 
 
-func _box(fill: Color, border: Color) -> StyleBoxFlat:
-	var box := StyleBoxFlat.new()
-	box.bg_color = fill
-	box.set_border_width_all(1)
-	box.border_color = border
-	box.set_corner_radius_all(10)
-	box.content_margin_left = 16
-	box.content_margin_right = 16
-	box.content_margin_top = 8
-	box.content_margin_bottom = 8
-	box.anti_aliasing = true
-	return box
+
+
 
 
 # --- status -----------------------------------------------------------------
@@ -109,10 +82,10 @@ func _build_status() -> void:
 	# Rich text so the numbers can carry the accent colour while the labels stay
 	# quiet — the fastest way to read a score row is by scanning the figures.
 	_info = _make_rich(Vector2(18, 10), INFO_FONT_SIZE)
-	_banner = _make_label(Vector2(18, 44), 17, NEON_GOOD)
+	_banner = _make_label(Vector2(18, 44), 17, NeonStyle.GOOD)
 	_banner.visible = false
-	_message = _make_label(Vector2(18, 632), MESSAGE_FONT_SIZE, NEON_AMBER)
-	_controls = _make_label(Vector2(18, 684), 15, NEON_DIM)
+	_message = _make_label(Vector2(18, 632), MESSAGE_FONT_SIZE, NeonStyle.AMBER)
+	_controls = _make_label(Vector2(18, 684), 15, NeonStyle.DIM)
 	_controls.text = "arrows/WASD  move    ·    Z/X or click  rotate    ·    F/Space  select special    ·    H  hint    ·    R  new board    ·    T  rotation mode    ·    esc  quit"
 
 
@@ -127,15 +100,15 @@ func _make_rich(position: Vector2, font_size: int) -> RichTextLabel:
 	label.fit_content = true
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.add_theme_font_size_override("normal_font_size", font_size)
-	label.add_theme_color_override("default_color", NEON_TEXT)
+	label.add_theme_color_override("default_color", NeonStyle.TEXT)
 	add_child(label)
 	return label
 
 
 ## One labelled figure: quiet label, accented value.
-static func _stat(name: String, value: String, accent: Color = NEON_ACCENT) -> String:
+static func _stat(name: String, value: String, accent: Color = NeonStyle.ACCENT) -> String:
 	return "[color=#%s]%s[/color] [color=#%s]%s[/color]" % [
-		NEON_DIM.to_html(false), name, accent.to_html(false), value,
+		NeonStyle.DIM.to_html(false), name, accent.to_html(false), value,
 	]
 
 
@@ -181,11 +154,11 @@ static func format_status(model: HudModel) -> String:
 		parts.append(_stat("BOMBS", str(model.bombs)))
 	parts.append(_stat("PEARLS", str(model.pearls)))
 	parts.append(_stat("TURN", str(model.turn)))
-	parts.append(_stat("SEED", str(model.seed_value), NEON_DIM))
-	var tag_color := NEON_ACCENT if model.strict else NEON_AMBER
+	parts.append(_stat("SEED", str(model.seed_value), NeonStyle.DIM))
+	var tag_color := NeonStyle.ACCENT if model.strict else NeonStyle.AMBER
 	var tail := "[color=#%s][%s][/color]" % [tag_color.to_html(false), "STRICT" if model.strict else "FREE"]
 	if model.finished:
-		tail += "  [color=#%s]RUN OVER[/color]" % NEON_AMBER.to_html(false)
+		tail += "  [color=#%s]RUN OVER[/color]" % NeonStyle.AMBER.to_html(false)
 	parts.append(tail)
 	return "     ".join(parts)
 
@@ -277,7 +250,7 @@ func _title(text: String, font_size: int) -> Label:
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", NEON_TEXT if font_size <= 20 else NEON_ACCENT)
+	label.add_theme_color_override("font_color", NeonStyle.TEXT if font_size <= 20 else NeonStyle.ACCENT)
 	label.add_theme_color_override("font_outline_color", Color(0.09, 0.60, 0.76, 0.85))
 	label.add_theme_constant_override("outline_size", 5 if font_size <= 20 else 9)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
