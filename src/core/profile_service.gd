@@ -127,6 +127,14 @@ func top_scores(mode: String, difficulty: String, limit: int = 5) -> Array:
 
 
 ## Every mode/difficulty pair that has at least one recorded run.
+## Top scores for a run configuration, so a caller holding a RunConfig does not have to
+## take it apart into a mode name and a difficulty again.
+func top_scores_for(config: RunConfig, limit: int = LEADERBOARD_SIZE) -> Array:
+	if config == null:
+		return []
+	return top_scores(config.mode_name(), config.difficulty, limit)
+
+
 func played_tables() -> Array[String]:
 	var keys: Array[String] = []
 	for key: String in boards:

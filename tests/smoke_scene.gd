@@ -76,6 +76,7 @@ func _process(_delta: float) -> bool:
 			_check_bomb_explosion_defers_the_summary()
 			_check_settings_layout()
 			_check_achievements_panel()
+			_check_leaderboard_panel()
 			_report()
 			return true
 	return false
@@ -524,3 +525,19 @@ func _check_achievements_panel() -> void:
 		_check(reset.text == "Sure?", "one press arms it rather than wiping the record")
 	panel.emit_signal("closed")
 	_check(not panel.visible, "and it closes again")
+
+
+## The leaderboard: reachable, populated with a header even when empty, and leaveable.
+func _check_leaderboard_panel() -> void:
+	_main.call("_open_leaderboard_for_selection")
+	var panel: Node = _main.get("leaderboard_panel")
+	_check(panel != null and panel.visible, "the leaderboard opens")
+	if panel == null:
+		return
+	var grid := _find_of_class(panel, "GridContainer") as GridContainer
+	_check(grid != null, "the board is a table")
+	if grid != null:
+		_check(grid.get_child_count() >= LeaderboardPanel.COLUMNS.size(),
+			"with a header row even on an empty table (%d cells)" % grid.get_child_count())
+	panel.emit_signal("closed")
+	_check(not panel.visible, "and it closes")

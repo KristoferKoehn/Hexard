@@ -14,6 +14,7 @@ signal tutorial_pressed
 signal settings_pressed
 signal restart_pressed
 signal menu_pressed
+signal leaderboard_pressed
 
 const RulesetScript := preload("res://src/core/ruleset.gd")
 const Grid := preload("res://src/core/hex_grid.gd")
@@ -333,6 +334,11 @@ func _build_result() -> void:
 	again.custom_minimum_size = Vector2(170, 42)
 	again.pressed.connect(func() -> void: restart_pressed.emit())
 	buttons.add_child(again)
+	var board := Button.new()
+	board.text = "Leaderboard"
+	board.custom_minimum_size = Vector2(160, 42)
+	board.pressed.connect(func() -> void: leaderboard_pressed.emit())
+	buttons.add_child(board)
 	var menu_button := Button.new()
 	menu_button.text = "Menu  (M)"
 	menu_button.custom_minimum_size = Vector2(150, 42)

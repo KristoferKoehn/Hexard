@@ -244,3 +244,15 @@ func test_a_broken_profile_file_starts_a_fresh_one() -> void:
 	assert_false(profile.load_from(SCRATCH), "a non-object file is rejected")
 	assert_eq(profile.games_played(), 0, "and the profile is clean")
 	_clean_scratch()
+
+
+func test_top_scores_for_a_configuration() -> void:
+	var profile := ProfileScript.new()
+	profile.record_run(_summary(1000, 2), "a")
+	profile.record_run(_summary(4000, 5, true), "b")
+	var rows := profile.top_scores_for(RunConfig.from_name("Marathon", "normal"), 10)
+	assert_eq(rows.size(), 2, "both runs are on the board")
+	assert_eq(int(rows[0]["score"]), 4000, "highest score first")
+	assert_eq(int(profile.top_scores_for(null).size()), 0, "no configuration, no board")
+	assert_eq(int(profile.top_scores_for(RunConfig.from_name("Timed", "hard"), 10).size()), 0,
+		"an unplayed table is empty rather than borrowing another's scores")

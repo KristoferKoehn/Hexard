@@ -36,6 +36,7 @@ var profile: ProfileService
 var audio: AudioService
 var settings_panel: SettingsPanel
 var achievements_panel: AchievementsPanel
+var leaderboard_panel: LeaderboardPanel
 var toast: AchievementToast
 
 
@@ -68,6 +69,12 @@ func _ready() -> void:
 	add_child(achievements_panel)
 	achievements_panel.closed.connect(_close_achievements)
 	achievements_panel.reset_pressed.connect(_on_achievements_reset)
+	leaderboard_panel = LeaderboardPanel.new()
+	leaderboard_panel.profile = profile
+	add_child(leaderboard_panel)
+	leaderboard_panel.closed.connect(_close_leaderboard)
+	hud.leaderboard_pressed.connect(_open_leaderboard_for_run)
+	settings_panel.leaderboard_pressed.connect(_open_leaderboard_for_selection)
 	toast = AchievementToast.new()
 	add_child(toast)
 	hud.settings_pressed.connect(_open_settings)
@@ -622,6 +629,29 @@ func _close_settings() -> void:
 	hud.visible = true
 	screen = Screen.MENU
 	hud.show_menu(selected)
+
+
+## From the result screen: the table the run that just ended belongs to.
+func _open_leaderboard_for_run() -> void:
+	var config: RunConfig = RunConfig.from_ruleset(game.ruleset) if game != null else selected
+	_open_leaderboard(config)
+
+
+## From the settings screen: whichever table is currently selected in the menu.
+func _open_leaderboard_for_selection() -> void:
+	_open_leaderboard(selected)
+
+
+func _open_leaderboard(config: RunConfig) -> void:
+	if leaderboard_panel == null:
+		return
+	leaderboard_panel.profile = profile
+	leaderboard_panel.open(config)
+
+
+func _close_leaderboard() -> void:
+	if leaderboard_panel != null:
+		leaderboard_panel.close()
 
 
 func _open_achievements() -> void:

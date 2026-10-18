@@ -8,6 +8,7 @@ extends CanvasLayer
 signal closed
 signal changed
 signal achievements_pressed
+signal leaderboard_pressed
 
 const SettingsScript := preload("res://src/core/settings.gd")
 const ProfileScript := preload("res://src/core/profile_service.gd")
@@ -113,6 +114,9 @@ func _build() -> void:
 	var achievements := _button("Achievements", Vector2(170, 36))
 	achievements.pressed.connect(func() -> void: achievements_pressed.emit())
 	actions.add_child(achievements)
+	var board := _button("Leaderboard", Vector2(160, 36))
+	board.pressed.connect(func() -> void: leaderboard_pressed.emit())
+	actions.add_child(board)
 	var reset := _button("Reset controls", Vector2(180, 36))
 	reset.pressed.connect(_on_reset_controls)
 	actions.add_child(reset)
