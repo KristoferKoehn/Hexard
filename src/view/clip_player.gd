@@ -103,6 +103,10 @@ func _apply_zoom() -> void:
 	if _sub == null or _view == null:
 		return
 	var centre := _view.cell_center(Library.focus_cell(clip_id))
+	# Only this viewport culls, and it says exactly what it can see: the clip's own zoom
+	# crop, plus a couple of cells so nothing pops in at the edge.
+	var half := CLIP_SIZE * 0.5 / ZOOM
+	_view.cull_rect = Rect2(centre - half, half * 2.0).grow(_view.cell_size * 2.0)
 	_sub.canvas_transform = Transform2D(
 		Vector2(ZOOM, 0.0), Vector2(0.0, ZOOM),
 		CLIP_SIZE * 0.5 - centre * ZOOM
