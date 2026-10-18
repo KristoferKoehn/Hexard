@@ -69,6 +69,7 @@ func _process(_delta: float) -> bool:
 			_main.call("start_run", RulesetScript.Mode.MARATHON, "normal", 4321)
 		16:
 			_check(_main.call("screen_name") == "playing", "a new run goes straight back to play")
+			_check_special_snap()
 		17:
 			_start_bomb_explosion()
 		18:
@@ -361,3 +362,26 @@ func _report() -> void:
 		print("        - %s" % message)
 	print("SMOKE RESULT: FAILED")
 	quit(1)
+
+
+## Snapping must work for both specials, and the outline is driven by the same
+## cursor_special the rotate keys consult.
+func _check_special_snap() -> void:
+	var game: GameScript = _main.get("game")
+	var view = _main.get_node("BoardView")
+	if game == null:
+		return
+	var cell := Vector2i(4, 4)
+	var vertex: int = view.call("vertex_at", view.call("cell_center", cell))
+
+	game.board.set_piece(cell, Pieces.starflower())
+	view.call("sync_from_game")
+	_main.call("select_vertex", vertex)
+	_check(_main.get("cursor_special") == cell,
+		"the cursor snaps onto a starflower (vertex %d, cursor_special %s)" % [vertex, str(_main.get("cursor_special"))])
+	_check(game.swapped_cells(cell).size() == 6, "a starflower swaps six neighbours")
+
+	game.board.set_piece(cell, Pieces.pearl())
+	_main.call("select_vertex", vertex)
+	_check(_main.get("cursor_special") == cell, "the cursor snaps onto a pearl")
+	_check(game.swapped_cells(cell).size() == 3, "a pearl swaps three")

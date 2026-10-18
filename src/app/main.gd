@@ -221,9 +221,12 @@ func _on_clear_scored(amount: int) -> void:
 func play_move(direction: int) -> void:
 	if game == null or screen != Screen.PLAYING:
 		return
-	# Snapped onto a special: the rotate keys turn that piece instead of the trio.
-	if cursor_special != HexGrid.NO_CELL:
-		play_piece_move(cursor_special, direction)
+	# A starflower or pearl anywhere in the trio means the spin turns that piece
+	# instead of the three tiles. Re-derived from the board here rather than read
+	# from the cursor, so a piece that changed under the cursor cannot act stale.
+	var special := _special_at_cursor()
+	if special != HexGrid.NO_CELL:
+		play_piece_move(special, direction)
 		return
 	board_view.hint_vertex = -1
 	var result := game.rotate(cursor_vertex, direction)
@@ -341,7 +344,7 @@ func snap_cursor_to(viewport_point: Vector2) -> void:
 ## Keeps the view in sync, including whether a spin at the cursor can clear.
 func _refresh_cursor() -> void:
 	board_view.cursor_vertex = cursor_vertex
-	cursor_special = _special_owned_by_cursor()
+	cursor_special = _special_at_cursor()
 	board_view.cursor_special = cursor_special
 	if cursor_special != HexGrid.NO_CELL:
 		# Snapped onto a special: a rotate turns the piece, not the trio.
@@ -351,21 +354,12 @@ func _refresh_cursor() -> void:
 	board_view.queue_redraw()
 
 
-## The starflower or pearl that owns this cursor position. Each special is snapped
-## to by exactly one vertex - the one nearest its centre - so every other vertex on
-## the board keeps rotating its trio as normal.
-func _special_owned_by_cursor() -> Vector2i:
-	if game == null or board_view == null:
-		return HexGrid.NO_CELL
-	for cell: Vector2i in HexGrid.all_cells():
-		var piece: int = game.board.get_piece(cell)
-		if not (Pieces.is_starflower(piece) or Pieces.is_pearl(piece)):
-			continue
-		# cell_center() is in board space including the view's origin offset, so go
-		# through vertex_at(), which converts back. Calling HexGrid.nearest_vertex()
-		# directly fed it a shifted point and gave a bogus owning vertex.
-		var owner: int = board_view.vertex_at(board_view.cell_center(cell))
-		if owner == cursor_vertex:
+## The starflower or pearl the cursor is pointing at: any of the trio's cells that
+## holds a special. Every vertex touching a special therefore switches to piece mode,
+## which matches how the cursor's outline is drawn.
+func _special_at_cursor() -> Vector2i:
+	for cell: Vector2i in HexGrid.vertices()[cursor_vertex]:
+		if _special_at(cell) != HexGrid.NO_CELL:
 			return cell
 	return HexGrid.NO_CELL
 
