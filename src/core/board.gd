@@ -14,12 +14,18 @@ const PieceScript := preload("res://src/core/piece.gd")
 var _cells: Dictionary = {}
 var _locked: Dictionary = {}
 
+## Bumped whenever a piece or a lock changes. Caches that answer questions about the whole
+## board (does this spin do anything?) key on this instead of on a signature: the cursor asks
+## on every keystroke, and the answer can only change when this does.
+var version := 0
+
 
 func _init() -> void:
 	clear()
 
 
 func clear() -> void:
+	version += 1
 	for cell: Vector2i in HexGridScript.all_cells():
 		_cells[cell] = PieceScript.EMPTY
 	_locked.clear()
@@ -30,10 +36,12 @@ func get_piece(cell: Vector2i) -> int:
 
 
 func set_piece(cell: Vector2i, piece: int) -> void:
+	version += 1
 	_cells[cell] = piece
 
 
 func remove_piece(cell: Vector2i) -> void:
+	version += 1
 	_cells[cell] = PieceScript.EMPTY
 	_locked.erase(cell)
 
@@ -45,11 +53,13 @@ func is_empty(cell: Vector2i) -> bool:
 # --- locking ----------------------------------------------------------------
 
 func lock(cell: Vector2i) -> void:
+	version += 1
 	if not is_empty(cell):
 		_locked[cell] = true
 
 
 func unlock(cell: Vector2i) -> void:
+	version += 1
 	_locked.erase(cell)
 
 
@@ -68,6 +78,7 @@ func locked_count() -> int:
 
 
 func unlock_all() -> int:
+	version += 1
 	var count := _locked.size()
 	_locked.clear()
 	return count
@@ -75,10 +86,12 @@ func unlock_all() -> int:
 
 ## Clears every lock without touching the pieces (used when a board is refilled).
 func clear_locks() -> void:
+	version += 1
 	_locked.clear()
 
 
 func lock_all_remaining() -> int:
+	version += 1
 	var count := 0
 	for cell: Vector2i in HexGridScript.all_cells():
 		if not is_empty(cell) and not is_locked(cell):

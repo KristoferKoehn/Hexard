@@ -111,7 +111,25 @@ static func is_legal_rotation(board: Board, vertex_index: int, direction: int) -
 
 
 ## True when either direction does something here — what the cursor highlight shows.
+## Cached per board version. The cursor asks this on every move, it costs about 0.2ms, and the
+## answer can only change when a piece or lock does - so the cache is dropped the moment the
+## board's version moves on. Sound by construction rather than by convention.
+static var _probe_cache := {}
+static var _probe_version := -1
+
+
 static func has_legal_spin(board: Board, vertex_index: int) -> bool:
+	if board.version != _probe_version:
+		_probe_cache.clear()
+		_probe_version = board.version
+	if _probe_cache.has(vertex_index):
+		return bool(_probe_cache[vertex_index])
+	var answer := _has_legal_spin_uncached(board, vertex_index)
+	_probe_cache[vertex_index] = answer
+	return answer
+
+
+static func _has_legal_spin_uncached(board: Board, vertex_index: int) -> bool:
 	return is_legal_rotation(board, vertex_index, CLOCKWISE) \
 		or is_legal_rotation(board, vertex_index, COUNTER_CLOCKWISE)
 

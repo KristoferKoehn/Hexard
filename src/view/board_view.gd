@@ -421,12 +421,15 @@ func _draw() -> void:
 	var active := _active_step()
 	var skip := _skipped_cells(active)
 
+	# The gradient is drawn directly rather than baked. It spans far beyond the plate, so
+	# baking it made the cache's size depend on the window; as its own quad it is one draw and
+	# cannot be cropped by a viewport-texture size mismatch.
+	paint_backdrop(self)
 	_ensure_static_layer()
 	if _static_texture != null:
 		draw_texture_rect(_static_texture, _static_rect, false)
 	else:
 		# Headless: no renderer, so no viewport texture. Same calls, drawn directly.
-		_draw_backdrop()
 		_draw_plate()
 		for cell: Vector2i in HexGrid.all_cells():
 			if _visible(cell_center(cell)):
@@ -505,7 +508,10 @@ func paint_backdrop(canvas: CanvasItem) -> void:
 	var centre := _plate_rect().get_center()
 	# Sized from the viewport diagonal rather than a fixed 34-cell square: the texture ends
 	# at the rect edge, so a fixed square left a visible seam where the gradient stopped.
-	var span := get_viewport_rect().size.length() * 1.15
+	# Sized from the board, not the viewport. Every device-specific artefact in this view has
+	# come from a value that described the window rather than the board; the gradient is not
+	# going to be the exception.
+	var span := HexGrid.pixel_bounds(cell_size).size.length() * 1.6
 	canvas.draw_texture_rect(_backdrop, Rect2(centre - Vector2(span, span) * 0.5, Vector2(span, span)), false)
 
 
@@ -562,7 +568,6 @@ func paint_socket(canvas: CanvasItem, cell: Vector2i) -> void:
 ## blitted afterwards, because it was ~170 draw calls per frame and WebGL2 pays real per-call
 ## overhead. One implementation serves both the bake and the headless fallback.
 func paint_static(canvas: CanvasItem) -> void:
-	paint_backdrop(canvas)
 	paint_plate(canvas)
 	for cell: Vector2i in HexGrid.all_cells():
 		paint_socket(canvas, cell)

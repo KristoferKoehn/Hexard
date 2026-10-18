@@ -1,4 +1,8 @@
 extends "res://tests/test_case.gd"
+const ProbeRules := preload("res://src/core/turn_rules.gd")
+const ProbeGrid := preload("res://src/core/hex_grid.gd")
+const ProbeGame := preload("res://src/core/game.gd")
+const ProbeRuleset := preload("res://src/core/ruleset.gd")
 
 ## Board storage, gravity and invariants (docs/design.md §2.2, §3.3).
 
@@ -167,3 +171,33 @@ func test_color_palette_ramps_with_level() -> void:
 	assert_eq(Pieces.colors_for_level(5).size(), 7, "the full palette by level 5")
 	assert_eq(Pieces.colors_for_level(7).size(), 7, "no extra colours beyond seven")
 	assert_eq(Pieces.colors_for_level(1).size(), Pieces.BASE_COLORS.size(), "level 1 uses BASE_COLORS")
+
+
+## The cursor probe caches by board version, which is only sound if every mutator bumps it.
+## Rather than trust the list, this compares the cached answer against an uncached one for every
+## vertex after each kind of mutation: a missing bump shows up as a disagreement.
+func test_the_legality_probe_cache_matches_an_uncached_call() -> void:
+	var game: Object = ProbeGame.new(91, ProbeRuleset.new())
+	var board: Object = game.board
+	var vertex_count: int = ProbeGrid.vertices().size()
+	for vertex in vertex_count:
+		ProbeRules.has_legal_spin(board, vertex)
+
+	var cells: Array = ProbeGrid.all_cells()
+	var mutations := {
+		"set_piece": func() -> void: board.set_piece(cells[3], 1),
+		"remove_piece": func() -> void: board.remove_piece(cells[3]),
+		"lock": func() -> void: board.lock(cells[5]),
+		"unlock": func() -> void: board.unlock(cells[5]),
+		"unlock_all": func() -> void: board.unlock_all(),
+		"lock_all_remaining": func() -> void: board.lock_all_remaining(),
+		"clear_locks": func() -> void: board.clear_locks(),
+		"clear": func() -> void: board.clear(),
+	}
+	for name: String in mutations:
+		(mutations[name] as Callable).call()
+		for vertex in vertex_count:
+			var cached: bool = ProbeRules.has_legal_spin(board, vertex)
+			var fresh: bool = ProbeRules._has_legal_spin_uncached(board, vertex)
+			assert_true(cached == fresh,
+				"after %s, vertex %d answered %s but should be %s" % [name, vertex, str(cached), str(fresh)])

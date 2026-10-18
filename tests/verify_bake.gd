@@ -67,7 +67,8 @@ func _check_static() -> void:
 	var sampled := (image.get_width() / 4 + 1) * (image.get_height() / 4 + 1)
 	var ratio := float(painted) / float(sampled)
 	print("static bake coverage: %.1f%% of sampled pixels are opaque" % (ratio * 100.0))
-	if ratio < 0.3:
+	# The plate and sockets only: the backdrop is drawn directly now, so this is not near-full.
+	if ratio < 0.15:
 		_failures.append("static bake looks empty: only %.1f%% painted" % (ratio * 100.0))
 
 
