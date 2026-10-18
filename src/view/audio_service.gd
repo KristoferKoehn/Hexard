@@ -1,55 +1,64 @@
 class_name AudioService
 extends Node
 
-## Drives the procedural synth (src/core/synth.gd) into an
-## AudioStreamGenerator, and turns game events into cues (docs/design.md §8).
+## Turns game events into cues (docs/design.md §8) by playing pre-rendered streams.
 ##
-## Headless has no audio device, so everything degrades to a no-op: the node still
-## exists and receives cues, it just never gets a playback to push into.
+## This used to drive an AudioStreamGenerator and mix every sample in GDScript: for each
+## frame the generator asked for, it looped the frames, looped the live voices and called
+## Synth.sample() once per sample per voice. At 22050 Hz that is a few thousand interpreted
+## calls every frame whenever a cue was still sounding - which is always, during play - and
+## on the web build (GDScript compiled to wasm) it was a steady several-millisecond cost
+## per frame. Rendering each cue once at startup removes it completely: playback is then
+## the audio server's job, and there is no per-frame work here at all.
+##
+## Depth is a playback pitch multiplier rather than a re-rendered stream, so the cascade
+## ladder still climbs and costs nothing.
 
 const SynthScript := preload("res://src/core/synth.gd")
 
-const MIX_RATE := 22050.0
-const BUFFER_SECONDS := 0.15
-## Voices overlapping this many at once start to smear; oldest are dropped.
+const MIX_RATE := 22050
 const MAX_VOICES := 12
-## Master trim so a pile-up of cues cannot clip before the soft limiter.
+## Trim so a pile-up of cues cannot clip before the mixer does.
 const HEADROOM := 0.45
+## Tail after the recipe's own duration, so the decay is not cut off.
+const TAIL := 0.08
 
 var settings: Settings
 
-var _player: AudioStreamPlayer
-var _playback: AudioStreamGeneratorPlayback
-var _voices: Array = []
+var _players: Array[AudioStreamPlayer] = []
+var _streams: Dictionary = {}
+var _next := 0
 
 
 func _ready() -> void:
-	var generator := AudioStreamGenerator.new()
-	generator.mix_rate = MIX_RATE
-	generator.buffer_length = BUFFER_SECONDS
-	_player = AudioStreamPlayer.new()
-	_player.stream = generator
-	_player.bus = "Master"
-	add_child(_player)
-	_player.play()
-	# Null in headless (no audio driver): every cue then quietly does nothing.
-	_playback = _player.get_stream_playback() as AudioStreamGeneratorPlayback
+	for index in MAX_VOICES:
+		var player := AudioStreamPlayer.new()
+		player.bus = "Master"
+		add_child(player)
+		_players.append(player)
+	for cue: String in SynthScript.CUES:
+		_streams[cue] = _render(cue)
 
 
 func is_available() -> bool:
-	return _playback != null
+	return not _players.is_empty()
 
 
-## Plays one cue. `depth` is the cascade step for clear cues; other cues ignore it.
+## Plays one cue. `depth` is the cascade step for clear cues and anything else ignores it.
 func play_cue(cue: String, depth: int = 1) -> void:
-	if _gain() <= 0.0:
+	if _players.is_empty() or not _streams.has(cue):
 		return
-	var voice := SynthScript.voice_for(cue, depth)
-	if voice.is_empty():
-		return
-	if _voices.size() >= MAX_VOICES:
-		_voices.pop_front()
-	_voices.append(voice)
+	var player := _players[_next]
+	_next = (_next + 1) % _players.size()
+	player.stream = _streams[cue]
+	# The ladder was previously a per-sample frequency multiplier; on a rendered stream the
+	# same thing is a playback rate.
+	if cue == "clear" and depth > 1:
+		player.pitch_scale = pow(SynthScript.DEPTH_STEP, float(depth - 1))
+	else:
+		player.pitch_scale = 1.0
+	player.volume_db = linear_to_db(maxf(HEADROOM * _gain(), 0.0001))
+	player.play()
 
 
 func _gain() -> float:
@@ -58,8 +67,29 @@ func _gain() -> float:
 	return settings.sfx_gain()
 
 
-## Maps a completed move onto its cues. Kept here rather than in the controller so
-## the rules core stays free of presentation concerns.
+## Renders one recipe into a 16-bit mono stream. Done once per cue at startup: a dozen cues
+## at well under a second each is far cheaper than mixing every frame forever.
+func _render(cue: String) -> AudioStreamWAV:
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = MIX_RATE
+	stream.stereo = false
+	var voice := SynthScript.voice_for(cue)
+	if voice.is_empty():
+		stream.data = PackedByteArray()
+		return stream
+	var frames := int((float(voice.get("dur", 0.2)) + TAIL) * float(MIX_RATE))
+	var data := PackedByteArray()
+	data.resize(frames * 2)
+	for index in frames:
+		var value := clampf(SynthScript.sample(voice, float(MIX_RATE)), -1.0, 1.0)
+		data.encode_s16(index * 2, int(value * 32767.0))
+	stream.data = data
+	return stream
+
+
+## Maps a completed move onto its cues. Kept here rather than in the controller so the rules
+## core stays free of presentation concerns.
 func play_move(result: MoveResult) -> void:
 	if result == null:
 		return
@@ -68,12 +98,11 @@ func play_move(result: MoveResult) -> void:
 			play_cue("refuse")
 		return
 	if result.bomb_exploded:
-		# The blast cue is played by the blast animation step; doing it here as
-		# well fired the explosion twice.
+		# The blast cue belongs to the animation step; playing it here too fired it twice.
 		return
 	play_cue("rotate")
-	# Only the spin's own clear counts. A cascade clearing a second colour is a
-	# cascade, not a multi-colour play, so it must not earn the chime.
+	# Only the spin's own clear counts. A cascade clearing a second colour is a cascade, not
+	# a multi-colour play, so it must not earn the chime.
 	if distinct_colours(result, true) >= 2:
 		play_cue("multi")
 	if result.bombs_defused > 0:
@@ -81,13 +110,9 @@ func play_move(result: MoveResult) -> void:
 	elif result.bombs_ticked.size() > 0:
 		play_cue("bomb_tick")
 
-	# Clears are deliberately NOT played here: they belong to the animation steps,
-	# so a cascade sounds as it lands instead of all at once on the turn.
 
-
-
-## Called as each animation step begins. Cascade depth drives the pitch, so the
-## ladder climbs through a chain and resets when the board settles.
+## Called as each animation step begins. Cascade depth drives the pitch, so the ladder
+## climbs through a chain and resets when the board settles.
 func on_step(kind: String, step: Dictionary) -> void:
 	if kind == "clear":
 		if settings != null and settings.muted:
@@ -101,10 +126,8 @@ func on_step(kind: String, step: Dictionary) -> void:
 
 ## Distinct gem colours this move cleared. Two or more earns the chime.
 ##
-## `first_clear_only` restricts the count to the clear the spin itself made
-## (cascade depth 0 or 1), which is what the chime is for: a chain that later
-## touches a second colour is a cascade, not a multi-colour play. Static so it can
-## be tested without an audio device.
+## `first_clear_only` restricts the count to the clear the spin itself made (cascade depth 0
+## or 1), which is what the chime is for. Static so it can be tested without an audio device.
 static func distinct_colours(result: MoveResult, first_clear_only: bool = false) -> int:
 	var seen := {}
 	for group in result.clear_groups:
@@ -134,34 +157,3 @@ func _cue_for(group) -> String:
 	if group.has_formation("pearl_built"):
 		return "pearl"
 	return "clear"
-
-
-
-func _process(_delta: float) -> void:
-	if _playback == null:
-		return
-	var frames := _playback.get_frames_available()
-	if frames <= 0:
-		return
-	var gain := _gain()
-	var buffer := PackedVector2Array()
-	buffer.resize(frames)
-	for index in frames:
-		var mixed := 0.0
-		for voice: Dictionary in _voices:
-			mixed += SynthScript.sample(voice, MIX_RATE)
-		mixed = _soft_clip(mixed * HEADROOM * gain)
-		var frame := Vector2(mixed, mixed)
-		buffer[index] = frame
-	# Retire finished voices after mixing this block.
-	var live: Array = []
-	for voice: Dictionary in _voices:
-		if not SynthScript.is_finished(voice):
-			live.append(voice)
-	_voices = live
-	_playback.push_buffer(buffer)
-
-
-## Rounded saturation: keeps a stack of cues from turning into clipping crackle.
-static func _soft_clip(value: float) -> float:
-	return value / (1.0 + absf(value))
