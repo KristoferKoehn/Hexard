@@ -48,8 +48,10 @@ func draw(
 	var outline := OUTLINE_LEGAL if legal else OUTLINE_ILLEGAL
 	_draw_cluster_outline(canvas, swapped, outline, OUTLINE_WIDTH)
 
-	# A snapped special has no vertex position, so the vertex dot goes away entirely.
-	if special != HexGridScript.NO_CELL:
+	# A snapped special has no vertex position, so the usual vertex dot goes away - but
+	# only when its own outline was actually drawn. Before a starflower exists there is no
+	# swap set, and the cursor would otherwise be invisible.
+	if special != HexGridScript.NO_CELL and not swapped.is_empty():
 		return
 
 	var centre := HexGridScript.vertex_centroid(vertex, cell_size) + origin

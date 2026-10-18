@@ -155,6 +155,12 @@ static func _has_promotion(result: MoveResult, kind: String) -> bool:
 	return false
 
 
+## Zoom for a clip, relative to the section default. The pearl promotion changes the
+## centre and all six neighbours at once, so it needs to be seen further back.
+static func zoom_for(id: String) -> float:
+	return 0.9 if id == "pearl" else 1.0
+
+
 ## Where the clip player points its zoom.
 static func focus_cell(id: String) -> Vector2i:
 	match id:

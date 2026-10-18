@@ -41,6 +41,7 @@ var _delay := 0.0
 # The demonstration is deterministic, so it is resolved once and replayed: rebuilding the
 # Game, re-rigging 85 cells and re-running the resolver on every loop was the frame spike
 # each clip produced when it cleared.
+var zoom := ZOOM
 var _game: Game
 var _snapshot := {}
 var _result: MoveResult
@@ -68,13 +69,18 @@ func _ready() -> void:
 	_sub.add_child(_view)
 	# Show the board before its turn rather than an empty panel: build it now, render the
 	# pre-move state, and start the animation when the delay expires.
+	zoom = ZOOM * Library.zoom_for(clip_id)
 	_game = Library.make_game(clip_id)
 	_snapshot = _pieces(_game)
 	_result = Library.play(_game, clip_id)
 	_restore()
 	_view.set_game(_game)
 	_view.sync_from_game()
-	_view.cull_rect = Rect2()
+	_select_subject()
+	# Framed before the first frame is shown: without this the viewport displays the
+	# un-cropped region until the clip's turn comes round, which is what put every panel's
+	# board in the bottom right corner on entry.
+	_apply_zoom()
 	_delay = maxf(start_delay, 0.0)
 	# Nothing to show until the delay expires, so do not pay for a render target.
 	_sub.render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -122,11 +128,7 @@ func _restart() -> void:
 	# nothing is selected, so nothing is highlighted.
 	# A starflower turn has no trio: select the piece itself so the board outlines its six
 	# neighbours. Otherwise outline the trio being turned.
-	if result.piece_cell != Vector2i(-1, -1):
-		_view.cursor_special = result.piece_cell
-	else:
-		_view.cursor_special = HexGridScript.NO_CELL
-		_view.cursor_vertex = _vertex_for(result.rotation_cells)
+	_select_subject(result)
 	_view.cursor_legal = true
 	_view.show_result(result)
 	_hold = 0.0
@@ -142,11 +144,11 @@ func _apply_zoom() -> void:
 	var centre := _view.cell_center(Library.focus_cell(clip_id))
 	# Only this viewport culls, and it says exactly what it can see: the clip's own zoom
 	# crop, plus a couple of cells so nothing pops in at the edge.
-	var half := CLIP_SIZE * 0.5 / ZOOM
+	var half := CLIP_SIZE * 0.5 / zoom
 	_view.cull_rect = Rect2(centre - half, half * 2.0).grow(_view.cell_size * 2.0)
 	_sub.canvas_transform = Transform2D(
 		Vector2(ZOOM, 0.0), Vector2(0.0, ZOOM),
-		CLIP_SIZE * 0.5 - centre * ZOOM
+		CLIP_SIZE * 0.5 - centre * zoom
 	)
 
 
@@ -179,3 +181,21 @@ func _pieces(game: Game) -> Dictionary:
 func _restore() -> void:
 	for cell: Vector2i in _snapshot:
 		_game.board.set_piece(cell, int(_snapshot[cell]))
+
+
+## What the outline should be on. The flower clips select the flower itself - the point of
+## the demonstration is that piece - while clears and star clusters outline the trio being
+## turned, because that trio is the subject.
+func _select_subject(result: MoveResult = null) -> void:
+	if _view == null:
+		return
+	var flower_subject := clip_id in ["flower", "turn", "pearl"]
+	if flower_subject:
+		_view.cursor_special = Library.focus_cell(clip_id)
+		_view.cursor_vertex = _vertex_for(
+			result.rotation_cells if result != null else []
+		)
+		return
+	_view.cursor_special = HexGridScript.NO_CELL
+	if result != null:
+		_view.cursor_vertex = _vertex_for(result.rotation_cells)
