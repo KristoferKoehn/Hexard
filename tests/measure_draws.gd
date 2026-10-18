@@ -25,7 +25,7 @@ func _initialize() -> void:
 func _process(_delta: float) -> bool:
 	_frame += 1
 	# Marginal cost: place N gems, sample, then N more. The slope is the per-gem draw cost.
-	var steps := [0, 85, 85, 85]
+	var steps := [0, 85, 85]
 	var step_index := (_frame - 4) / 6
 	if _frame < 4:
 		return false
@@ -34,14 +34,12 @@ func _process(_delta: float) -> bool:
 			print(line)
 		quit(0)
 		return false
-	if (_frame - 4) % 6 == 0:
+	if (_frame - 4) % 14 == 0:
 		_place(int(steps[step_index]))
 		# stage 2: board hidden. If the draw count does not follow, it is not the board.
 		_view.visible = step_index != 2
-	elif (_frame - 4) % 6 == 2:
-		print("  ready=%s slices=%d age=%s quads=%d" % [
-			str(_view.get("_gem_ready")), (_view.get("_gem_textures") as Dictionary).size(),
-			str(_view.get("_gem_age")), int(_view.get("_quad_count"))])
+	elif (_frame - 4) % 14 == 10:
+		print("  atlas slices=%d" % (_view.get("_atlas_textures") as Dictionary).size())
 		var label := "%2d gems" % int(steps[step_index])
 		if step_index == 1:
 			label = "85 gems, board visible"

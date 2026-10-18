@@ -132,6 +132,15 @@ var playback_scale := 1.0
 var cull_rect := Rect2()
 ## Baked static layer. Falls back to drawing directly when no viewport texture is available:
 ## headless has no renderer, and the tests must still exercise the real draw path.
+## One render of every gem variant into a single sheet, sliced into AtlasTextures. A gem drawn
+## out of polygons costs five draw calls - draw_colored_polygon does not batch at all - while the
+## same gem as a textured quad batches: 85 quads measure one draw call.
+const ATLAS_COLS := 7
+const ATLAS_CELL := 96
+const ATLAS_RADIUS := 40.0
+var _atlas_view: SubViewport = null
+var _atlas_textures: Dictionary = {}
+var _atlas_age := 0
 var _static_view: SubViewport = null
 var _static_texture: Texture2D = null
 var _static_size := Vector2.ZERO
@@ -259,7 +268,58 @@ func show_result(result: MoveResult) -> void:
 		_shake_strength = 1.0
 		_shake_clock = 0.0
 	queue_redraw()
+## Renders the fourteen variants (seven colours, glyphs on and off) once, then harvests them.
+func _ensure_gem_atlas() -> void:
+	if _atlas_view != null:
+		return
+	_atlas_view = SubViewport.new()
+	_atlas_view.size = Vector2i(ATLAS_CELL * ATLAS_COLS, ATLAS_CELL * 2)
+	_atlas_view.transparent_bg = true
+	_atlas_view.disable_3d = true
+	# ALWAYS rather than ONCE: a single update can land before the layer's first _draw, which
+	# leaves a blank sheet. It stops as soon as the harvest succeeds.
+	_atlas_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(_atlas_view)
+	var layer := BoardStaticLayer.new()
+	layer.painter = Callable(self, "paint_gem_atlas")
+	_atlas_view.add_child(layer)
+
+
+func paint_gem_atlas(canvas: CanvasItem) -> void:
+	var colours: Array = GEM_COLORS.keys()
+	for row in 2:
+		for col in colours.size():
+			var centre := Vector2((float(col) + 0.5) * ATLAS_CELL, (float(row) + 0.5) * ATLAS_CELL)
+			GemPainter.draw(canvas, centre, ATLAS_RADIUS, GEM_COLORS[colours[col]],
+				int(colours[col]), 1.0, row == 0)
+
+
+## Copies the sheet out of the viewport before slicing: the slices must outlive the viewport, and
+## a plain ImageTexture is also what the batching measurement used.
+func _harvest_gem_atlas() -> void:
+	var viewport_texture: Texture2D = _atlas_view.get_texture()
+	if viewport_texture == null:
+		return
+	var image: Image = viewport_texture.get_image()
+	if image == null or image.is_empty():
+		return
+	var sheet := ImageTexture.create_from_image(image)
+	var colours: Array = GEM_COLORS.keys()
+	for row in 2:
+		for col in colours.size():
+			var slice := AtlasTexture.new()
+			slice.atlas = sheet
+			slice.region = Rect2(col * ATLAS_CELL, row * ATLAS_CELL, ATLAS_CELL, ATLAS_CELL)
+			_atlas_textures["%d:%d" % [int(colours[col]), row]] = slice
+	_atlas_view.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	queue_redraw()
+
+
 func _process(delta: float) -> void:
+	if _atlas_view != null and _atlas_textures.is_empty():
+		_atlas_age += 1
+		if _atlas_age >= 2:
+			_harvest_gem_atlas()
 	if _playing and _step_index != _announced_step:
 		_announced_step = _step_index
 		step_began.emit(str(_steps[_step_index]["kind"]), _steps[_step_index])
@@ -546,8 +606,20 @@ func _draw_piece(centre: Vector2, piece: int, radius: float, alpha: float) -> vo
 				Color(1.0, 0.80, 0.36, alpha) if hot else Color(0.82, 0.86, 0.94, alpha)
 			)
 		_:
-			GemPainter.draw(self, centre, radius, base, int(Pieces.color_of(piece)),
-				alpha, _patterns_allowed())
+			var colour := int(Pieces.color_of(piece))
+			var glyphs := _patterns_allowed()
+			_ensure_gem_atlas()
+			var slice: AtlasTexture = _atlas_textures.get(
+				"%d:%d" % [colour, 0 if glyphs else 1])
+			if slice != null:
+				# The atlas cell includes the shadow margin, so the destination is scaled by
+				# radius / ATLAS_RADIUS rather than by twice the radius.
+				var side := float(ATLAS_CELL) * (radius / ATLAS_RADIUS)
+				draw_texture_rect(slice,
+					Rect2(centre - Vector2(side, side) * 0.5, Vector2(side, side)),
+					false, Color(1.0, 1.0, 1.0, alpha))
+			else:
+				GemPainter.draw(self, centre, radius, base, colour, alpha, glyphs)
 			if Pieces.is_bonus_star(piece):
 				# A gold rim and a corner sparkle rather than a star across the face: the big
 				# pale star covered the glyph and read as a sticker on a bevelled gem.

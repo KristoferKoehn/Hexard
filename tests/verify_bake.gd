@@ -31,6 +31,7 @@ func _process(_delta: float) -> bool:
 	if _frames < 8:
 		return false
 	_check_static()
+	_check_gem_atlas()
 	for message: String in _failures:
 		print("  ! ", message)
 	if _failures.is_empty():
@@ -69,3 +70,33 @@ func _check_static() -> void:
 	# The plate and sockets only: the backdrop is drawn directly now, so this is not near-full.
 	if ratio < 0.15:
 		_failures.append("static bake looks empty: only %.1f%% painted" % (ratio * 100.0))
+
+
+## The atlas must exist as fourteen slices and the glyph row must differ from the plain row,
+## otherwise the board draws patterns that were never rendered.
+func _check_gem_atlas() -> void:
+	var slices: Dictionary = _view.get("_atlas_textures")
+	if slices.size() != 14:
+		_failures.append("expected 14 gem slices, got %d" % slices.size())
+		return
+	var sample: AtlasTexture = slices.get("1:0")
+	if sample == null:
+		_failures.append("no slice for colour 1 with glyphs")
+		return
+	var image: Image = sample.atlas.get_image()
+	if image == null or image.is_empty():
+		_failures.append("gem atlas atlas texture has no image")
+		return
+	var cell := int(BoardView.ATLAS_CELL)
+	var plain := 0
+	var glyph := 0
+	for y in range(4, cell - 4, 4):
+		for x in range(4, cell - 4, 4):
+			if image.get_pixel(x, y).a > 0.1:
+				plain += 1
+			if image.get_pixel(x, y + cell).a > 0.1:
+				glyph += 1
+	if plain == 0:
+		_failures.append("first atlas cell is empty")
+	print("gem atlas: %d slices, cell %dx%d, glyph row %d opaque samples vs %d" % [
+		slices.size(), cell, cell, glyph, plain])
