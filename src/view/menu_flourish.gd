@@ -52,18 +52,5 @@ func _draw() -> void:
 
 
 func _draw_gem(centre: Vector2, radius: float, base: Color, color: int, alpha: float) -> void:
-	var corners := _corners(centre, radius)
-	draw_colored_polygon(corners, Color(base.r, base.g, base.b, alpha * 0.9))
-	draw_colored_polygon(_corners(centre - Vector2(0.0, radius * 0.26), radius * 0.48),
-		Color(1, 1, 1, alpha * 0.22))
-	# The glyph comes along, faintly: it is the game's own visual language, not decoration.
-	GemGlyphs.draw_mark(self, centre, radius, GemGlyphs.kind_for(color),
-		GemGlyphs.mark_color(base) * Color(1, 1, 1, 0.85))
-
-
-func _corners(centre: Vector2, radius: float) -> PackedVector2Array:
-	var points := PackedVector2Array()
-	for index in 6:
-		var angle := deg_to_rad(60.0 * float(index))
-		points.append(centre + Vector2(cos(angle), sin(angle)) * radius)
-	return points
+	# The board's own gem, dimmed: a backdrop has to look like the game it advertises.
+	GemPainter.draw(self, centre, radius, base, color, alpha)
