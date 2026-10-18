@@ -80,64 +80,6 @@ var cursor_special := HexGrid.NO_CELL
 var _cursor_painter: CursorPainter = null
 
 
-## Renders every gem variant once. One frame of a small viewport, then the texture is
-## sliced into fourteen AtlasTextures and the viewport is parked.
-func _ensure_gem_atlas() -> void:
-	if _gem_view != null:
-		return
-	var size := get_viewport_rect().size
-	if size.x < 1.0 or size.y < 1.0:
-		return
-	_gem_view = SubViewport.new()
-	_gem_view.size = Vector2i(GEM_ATLAS_CELL * GEM_ATLAS_COLS, GEM_ATLAS_CELL * 2)
-	_gem_view.transparent_bg = true
-	_gem_view.disable_3d = true
-	add_child(_gem_view)
-	var layer := BoardStaticLayer.new()
-	layer.painter = Callable(self, "paint_gem_atlas")
-	_gem_view.add_child(layer)
-	# UPDATE_ALWAYS rather than ONCE: a single update can land before the layer's first _draw,
-	# which leaves a blank sheet. It is switched off as soon as the slices are taken.
-	_gem_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-
-
-func paint_gem_atlas(canvas: CanvasItem) -> void:
-	var colours: Array = GEM_COLORS.keys()
-	for row in 2:
-		for col in colours.size():
-			var centre := Vector2(
-				(float(col) + 0.5) * GEM_ATLAS_CELL, (float(row) + 0.5) * GEM_ATLAS_CELL
-			)
-			GemPainter.draw(canvas, centre, GEM_ATLAS_RADIUS, GEM_COLORS[colours[col]],
-				int(colours[col]), 1.0, row == 0)
-
-
-## Slices the rendered sheet once it has actually been drawn. Until then every draw call
-## falls back to the direct path, so nothing can appear blank.
-func _harvest_gem_textures() -> void:
-	if _gem_ready or _gem_view == null:
-		return
-	# Requires the viewport to have been through a couple of frames, otherwise the texture is
-	# still blank and the slices would be empty for the life of the process.
-	if _gem_age < 2:
-		return
-	var sheet: Texture2D = _gem_view.get_texture()
-	if sheet == null:
-		return
-	var colours: Array = GEM_COLORS.keys()
-	for row in 2:
-		for col in colours.size():
-			var slice := AtlasTexture.new()
-			slice.atlas = sheet
-			slice.region = Rect2(col * GEM_ATLAS_CELL, row * GEM_ATLAS_CELL,
-				GEM_ATLAS_CELL, GEM_ATLAS_CELL)
-			_gem_textures["%d:%d" % [int(colours[col]), row]] = slice
-	_gem_ready = true
-	# Parked rather than freed: freeing the viewport frees the texture the slices point at.
-	_gem_view.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	queue_redraw()
-
-
 ## Bakes backdrop, plate and sockets into a SubViewport, once per size. The texture is blitted
 ## in board space, so the tutorial clips' camera zoom still scales it correctly.
 ## Sized to the plate, not the viewport. The viewport size is not a property of the board -
@@ -194,16 +136,8 @@ var _static_view: SubViewport = null
 var _static_texture: Texture2D = null
 var _static_size := Vector2.ZERO
 var _static_rect := Rect2()
-## One render of all fourteen gem variants (seven colours, glyphs on and off) into a single
 ## texture, sliced into AtlasTextures. A plain gem was five polygons plus glyph primitives;
 ## as a texture it is one draw.
-const GEM_ATLAS_CELL := 96
-const GEM_ATLAS_RADIUS := 40.0
-const GEM_ATLAS_COLS := 7
-var _gem_view: SubViewport = null
-var _gem_textures: Dictionary = {}
-var _gem_ready := false
-var _gem_age := 0
 ## Cells to outline instead of asking the board. Empty means the normal rule: the trio
 ## under the cursor, or a selected special's own swap set. The tutorial's clips set this,
 ## because they replay a cached result and their board is back at its pre-move state.
@@ -326,9 +260,6 @@ func show_result(result: MoveResult) -> void:
 		_shake_clock = 0.0
 	queue_redraw()
 func _process(delta: float) -> void:
-	if _gem_view != null and not _gem_ready:
-		_gem_age += 1
-		_harvest_gem_textures()
 	if _playing and _step_index != _announced_step:
 		_announced_step = _step_index
 		step_began.emit(str(_steps[_step_index]["kind"]), _steps[_step_index])
@@ -348,13 +279,6 @@ func _process(delta: float) -> void:
 		if _step_index >= _steps.size():
 			_stop()
 	queue_redraw()
-
-
-## Which animation step is playing, for the perf overlay. Empty when settled.
-func active_kind() -> String:
-	if not _playing or _step_index >= _steps.size():
-		return ""
-	return str(_steps[_step_index]["kind"])
 
 
 func _stop(sync: bool = true) -> void:
@@ -622,20 +546,8 @@ func _draw_piece(centre: Vector2, piece: int, radius: float, alpha: float) -> vo
 				Color(1.0, 0.80, 0.36, alpha) if hot else Color(0.82, 0.86, 0.94, alpha)
 			)
 		_:
-			var colour := int(Pieces.color_of(piece))
-			var glyphs := _patterns_allowed()
-			_ensure_gem_atlas()
-			var key := "%d:%d" % [colour, 0 if glyphs else 1]
-			if _gem_textures.has(key):
-				# The atlas cell includes the shadow margin, so the destination is scaled by
-				# radius / GEM_ATLAS_RADIUS rather than by 2 * radius.
-				var side := float(GEM_ATLAS_CELL) * (radius / GEM_ATLAS_RADIUS)
-				draw_texture_rect(_gem_textures[key],
-					Rect2(centre - Vector2(side, side) * 0.5, Vector2(side, side)),
-					false, Color(1.0, 1.0, 1.0, alpha))
-			else:
-				# No renderer (headless) or not baked yet: draw the same gem directly.
-				GemPainter.draw(self, centre, radius, base, colour, alpha, glyphs)
+			GemPainter.draw(self, centre, radius, base, int(Pieces.color_of(piece)),
+				alpha, _patterns_allowed())
 			if Pieces.is_bonus_star(piece):
 				# A gold rim and a corner sparkle rather than a star across the face: the big
 				# pale star covered the glyph and read as a sticker on a bevelled gem.

@@ -99,12 +99,6 @@ Exit code 0 and `VISUAL CACHE: OK` means pass. This exists because both caches c
 mis-sized while every headless test stays green - the first version of the gem atlas was blank
 and only a pixel readback caught it.
 
-## Performance overlay
-
-Press **F3** in game for frame rate, script time, draw calls and object count. It exists because
-the web build was diagnosed three times by inference; the numbers settle it in one look. Being
-able to say "50 fps, 8 ms script, 120 draw calls" turns a vague "not perfect" into a target.
-
 ## Getting started
 
 ```bat
