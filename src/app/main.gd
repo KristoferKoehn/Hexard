@@ -11,7 +11,7 @@ const GameScript := preload("res://src/core/game.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 const TutorialScript := preload("res://src/core/tutorial.gd")
 
-enum Screen { MENU, PLAYING, PAUSED, RESULT, SETTINGS }
+enum Screen { MENU, PLAYING, PAUSED, RESULT, SETTINGS, TUTORIAL }
 
 @onready var board_view: BoardView = $BoardView
 @onready var hud: Hud = $Hud
@@ -38,6 +38,7 @@ var settings_panel: SettingsPanel
 var achievements_panel: AchievementsPanel
 var leaderboard_panel: LeaderboardPanel
 var pause_panel: PausePanel
+var tutorial_view: TutorialView
 ## Where the settings screen returns to: the menu, or the pause screen that opened it.
 var _settings_return: Screen = Screen.MENU
 var toast: AchievementToast
@@ -49,7 +50,7 @@ func _ready() -> void:
 	hud.mode_chosen.connect(_on_mode_chosen)
 	hud.difficulty_chosen.connect(_on_difficulty_chosen)
 	hud.start_pressed.connect(_on_start_pressed)
-	hud.tutorial_pressed.connect(_on_tutorial_pressed)
+	hud.tutorial_pressed.connect(_open_tutorial)
 	hud.restart_pressed.connect(_on_restart_pressed)
 	hud.menu_pressed.connect(_on_menu_pressed)
 	hud.show_menu(selected)
@@ -88,6 +89,9 @@ func _ready() -> void:
 	pause_panel.settings_pressed.connect(_open_settings)
 	pause_panel.restart_pressed.connect(_on_restart_pressed)
 	pause_panel.menu_pressed.connect(_on_menu_pressed)
+	tutorial_view = TutorialView.new()
+	add_child(tutorial_view)
+	tutorial_view.closed.connect(_close_tutorial)
 	toast = AchievementToast.new()
 	add_child(toast)
 	hud.settings_pressed.connect(_open_settings)
@@ -133,6 +137,7 @@ func start_run(config: RunConfig, run_seed: int = -1) -> void:
 
 ## The scripted tutorial: its own game, its own board rigs (docs/design.md §7.4).
 func start_tutorial() -> void:
+	# Kept for the old smoke checks; the menu now opens the clip section instead.
 	tutorial = TutorialScript.new()
 	game = tutorial.game
 	_enter_playing()
@@ -161,8 +166,22 @@ func _sync_tutorial() -> void:
 	board_view.queue_redraw()
 
 
-func _on_tutorial_pressed() -> void:
-	start_tutorial()
+## The tutorial section: looping demonstrations rather than a scripted lesson.
+func _open_tutorial() -> void:
+	if tutorial_view == null:
+		return
+	_close_overlays()
+	screen = Screen.TUTORIAL
+	hud.visible = false
+	tutorial_view.open()
+
+
+func _close_tutorial() -> void:
+	if tutorial_view != null:
+		tutorial_view.close()
+	hud.visible = true
+	screen = Screen.MENU
+	hud.show_menu(selected)
 
 
 ## Restarts the current mode with a new seed (the R key).
@@ -230,6 +249,8 @@ func screen_name() -> String:
 			return "result"
 		Screen.PAUSED:
 			return "paused"
+		Screen.TUTORIAL:
+			return "tutorial"
 		Screen.SETTINGS:
 			return "settings"
 		_:

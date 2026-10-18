@@ -171,5 +171,5 @@ func test_one_board_lives_through_every_step() -> void:
 		"including its stranger")
 	# And the new lesson is somewhere else, on the same board.
 	assert_eq(tutorial.goal_id(), "stars", "on the stars lesson")
-	assert_eq(tutorial.game.board.tile_count(), 85, "the board is still full")
+	assert_eq(tutorial.game.tile_count(), 85, "the board is still full")
 	assert_eq(tutorial.game.board.invariant_violations().size(), 0, "and still settled")
