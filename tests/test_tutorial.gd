@@ -173,3 +173,40 @@ func test_one_board_lives_through_every_step() -> void:
 	assert_eq(tutorial.goal_id(), "stars", "on the stars lesson")
 	assert_eq(tutorial.game.tile_count(), 85, "the board is still full")
 	assert_eq(tutorial.game.board.invariant_violations().size(), 0, "and still settled")
+
+
+func test_each_clip_demonstrates_what_it_claims() -> void:
+	# The check that was missing when four of five clips were wrong: every clip must
+	# actually produce the thing its text says, from its own rig, with its own move.
+	var Library := preload("res://src/core/tutorial_library.gd")
+	var expected := {
+		"clear": "cleared", "stars": "bonus_star_cluster",
+		"flower": "starflower", "pearl": "pearl", "turn": "turn",
+	}
+	for id: String in Library.ids():
+		var game = Library.make_game(id)
+		var result = Library.play(game, id)
+		assert_true(result.committed, "%s: the demonstration move is committed" % id)
+		match str(expected[id]):
+			"cleared":
+				assert_ge(result.cleared_count, 3, "%s: clears gems" % id)
+			"bonus_star_cluster":
+				var found := false
+				for group in result.clear_groups:
+					if group.has_formation("bonus_star_cluster"):
+						found = true
+				assert_true(found, "%s: forms a star cluster" % id)
+			"starflower":
+				var promoted := false
+				for promotion: Dictionary in result.promotions:
+					if str(promotion.get("kind", "")) == "starflower":
+						promoted = true
+				assert_true(promoted, "%s: blooms a starflower" % id)
+			"pearl":
+				var pearl := false
+				for promotion: Dictionary in result.promotions:
+					if str(promotion.get("kind", "")) == "pearl":
+						pearl = true
+				assert_true(pearl, "%s: makes a pearl" % id)
+			"turn":
+				assert_eq(result.piece_cell, Vector2i(4, 4), "%s: turns the starflower" % id)
