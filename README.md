@@ -44,6 +44,25 @@ scripts and research notes stay out of the build.
 Verified artifacts: `build/hexard.exe` (104 MB, single file with the pck embedded) and
 `build/web/` (index.html, index.js, index.wasm 37.9 MB, index.pck 226 KB).
 
+### Running the web build
+
+The build must be served over HTTP (a `file://` URL fails on both the wasm and the pck), and a
+plain `python -m http.server` is not enough:
+
+```
+python scripts/serve_web.py 8080     # http://127.0.0.1:8080/
+```
+
+It sets `Cross-Origin-Opener-Policy`, `Cross-Origin-Embedder-Policy` and
+`Cross-Origin-Resource-Policy`, and serves `.wasm` as `application/wasm`. Without those, a page
+that is itself cross-origin isolated refuses the game's subresources - Chrome reports it as
+"each embedded iframe must also specify this policy" plus a block of failed requests - and the
+wrong wasm MIME type defeats streaming instantiation.
+
+For real hosting: itch.io serves Godot web exports with the right headers, which makes it the
+low-friction option. Static hosts that cannot set response headers (GitHub Pages) will work for
+a plain page but not when embedded in a COEP page.
+
 ## Documentation
 
 - 📄 **[Game design document](docs/design.md)** — vision, rules spec, board geometry, pieces, modes, scoring, UX, architecture, milestones, deviations from the original.
