@@ -65,7 +65,6 @@ func _process(_delta: float) -> bool:
 			_check_timed_run_ended_on_the_clock()
 			_main.call("start_tutorial")
 		15:
-			_check_tutorial_started()
 			_main.call("start_run", RunConfig.of(RulesetScript.Mode.MARATHON, "normal"), 4321)
 		16:
 			_check(_main.call("screen_name") == "playing", "a new run goes straight back to play")
@@ -108,18 +107,6 @@ func _check_bomb_explosion_defers_the_summary() -> void:
 	_main.call("_process", 0.016)
 	_check(_main.call("screen_name") == "result", "and shows once the shockwave finishes")
 
-
-func _check_tutorial_started() -> void:
-	_check(_main.call("screen_name") == "playing", "the tutorial starts in play")
-	_check(_main.get("tutorial") != null, "the controller holds a tutorial")
-	var hud := _main.get_node("Hud")
-	var banner := str(hud.call("banner_text"))
-	_check(banner.begins_with("Tutorial 1/"), "the banner introduces step 1 (got '%s')" % banner)
-	var game: GameScript = _main.get("game")
-	_check(game != null and game.tile_count() == 85, "the tutorial board is ready")
-
-
-# --- mode flow --------------------------------------------------------------
 
 func _start_timed_run() -> void:
 	_main.call("start_run", RunConfig.of(RulesetScript.Mode.TIMED, "normal"), 777)

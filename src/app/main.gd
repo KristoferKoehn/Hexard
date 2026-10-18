@@ -9,7 +9,6 @@ const HexGrid := preload("res://src/core/hex_grid.gd")
 const Pieces := preload("res://src/core/piece.gd")
 const GameScript := preload("res://src/core/game.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
-const TutorialScript := preload("res://src/core/tutorial.gd")
 
 enum Screen { MENU, PLAYING, PAUSED, RESULT, SETTINGS, TUTORIAL }
 
@@ -24,7 +23,6 @@ var cursor_special := HexGrid.NO_CELL
 var _hovered_special := HexGrid.NO_CELL
 var screen: Screen = Screen.MENU
 var selected: RunConfig = RunConfig.of(RulesetScript.Mode.MARATHON, "normal")
-var tutorial: Tutorial = null
 ## Set when the run ended mid-animation (a bomb going off), so the summary panel
 ## waits for the shockwave instead of cutting it off.
 var _pending_result := false
@@ -126,7 +124,6 @@ func _process(delta: float) -> void:
 func start_run(config: RunConfig, run_seed: int = -1) -> void:
 	_close_overlays()
 	selected = config
-	tutorial = null
 	var seed_value := run_seed if run_seed >= 0 else randi()
 	game = GameScript.new(seed_value, RulesetScript.for_run(config))
 	_enter_playing()
@@ -136,38 +133,6 @@ func start_run(config: RunConfig, run_seed: int = -1) -> void:
 	)
 
 
-## The scripted tutorial: its own game, its own board rigs (docs/design.md §7.4).
-func start_tutorial() -> void:
-	# Kept for the old smoke checks; the menu now opens the clip section instead.
-	tutorial = TutorialScript.new()
-	game = tutorial.game
-	_enter_playing()
-	_sync_tutorial()
-
-
-func _sync_tutorial() -> void:
-	if tutorial == null:
-		hud.set_banner("")
-		return
-	# The tutorial rigs the board in place, so the view has to re-read it.
-	board_view.sync_from_game()
-	if tutorial.complete:
-		hud.set_banner("Tutorial complete — press M for the menu, or R to keep playing this board")
-		hud.set_message("you have seen every mechanic")
-		return
-	var line := "Tutorial %d/%d · %s — %s" % [
-		tutorial.step_number(), tutorial.step_count(), tutorial.step_title(), tutorial.instruction(),
-	]
-	if tutorial.retried:
-		line += "      (that was not it, so the board is back as it was)"
-	hud.set_banner(line)
-	var target: int = tutorial.hint_vertex()
-	select_vertex(target)
-	board_view.hint_vertex = target
-	board_view.queue_redraw()
-
-
-## The tutorial section: looping demonstrations rather than a scripted lesson.
 func _open_tutorial() -> void:
 	if tutorial_view == null:
 		return
@@ -190,7 +155,6 @@ func new_game(seed_value: int) -> void:
 	if game == null:
 		start_run(selected, seed_value)
 		return
-	tutorial = null
 	var ruleset := RulesetScript.for_run(RunConfig.from_ruleset(game.ruleset))
 	ruleset.rotation_mode = int(game.ruleset.rotation_mode)
 	game = GameScript.new(seed_value, ruleset)
@@ -207,8 +171,6 @@ func _enter_playing() -> void:
 	board_view.hint_vertex = -1
 	board_view.hover_cell = HexGrid.NO_CELL
 	_refresh_cursor()
-	if tutorial == null:
-		hud.set_banner("")
 	hud.show_playing()
 	hud.update_from_game(HudModel.from_game(game, _displayed_score))
 
@@ -290,7 +252,6 @@ func _on_menu_pressed() -> void:
 	hud.visible = true
 	screen = Screen.MENU
 	game = null
-	tutorial = null
 	board_view.set_game(null)
 	hud.set_banner("")
 	hud.show_menu(selected)
@@ -375,13 +336,6 @@ func _apply(result: MoveResult, label: String) -> void:
 			hud.set_message("the bomb went off")
 			return
 		_enter_result()
-		return
-
-	if tutorial != null:
-		# Sync on a retry too: the board was just put back and the player needs to see
-		# that, and the banner needs to explain it.
-		if tutorial.evaluate(result) or tutorial.retried:
-			_sync_tutorial()
 		return
 
 	var parts := PackedStringArray([label])

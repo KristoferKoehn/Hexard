@@ -44,6 +44,26 @@ const CLIPS := [
 		"text": "Six starflowers ringing a centre make a black pearl.",
 	},
 	{
+		"id": "pearl_bloom",
+		"title": "A pearl from a flower",
+		"text": "Bloom a flower whose centre is already a starflower and the centre becomes a black pearl.",
+	},
+	{
+		"id": "colour_wipe",
+		"title": "Clearing a bomb",
+		"text": "A bomb is defused when its own colour clears. With a bonus star of that colour in the group, every gem of that colour is wiped with it.",
+	},
+	{
+		"id": "flower_cluster",
+		"title": "Three starflowers",
+		"text": "Three starflowers together pay a windfall and clear.",
+	},
+	{
+		"id": "pearl_finish",
+		"title": "The perfect finish",
+		"text": "Three black pearls together end the run in a perfect finish.",
+	},
+	{
 		"id": "bombs",
 		"title": "Bombs",
 		"text": "A bomb clears with its own colour, and its fuse ticks down every move. Clear it before it reaches zero.",
@@ -89,6 +109,23 @@ static func make_game(id: String) -> Game:
 			_rig_ring(game, Pieces.GemColor.RED, Pieces.starflower())
 		"bombs":
 			_rig_bombs(game)
+		"pearl_bloom":
+			game.board.set_piece(CENTRE, Pieces.starflower())
+			for cell: Vector2i in Grid.neighbours(CENTRE):
+				game.board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
+		"colour_wipe":
+			var wipe_trio: Array = Grid.vertices()[_vertex_near(CENTRE)]
+			game.board.set_piece(wipe_trio[0], Pieces.bomb(Pieces.GemColor.RED, 3))
+			game.board.set_piece(wipe_trio[1], Pieces.bonus_star(Pieces.GemColor.RED))
+			game.board.set_piece(wipe_trio[2], Pieces.gem(Pieces.GemColor.RED))
+		"flower_cluster":
+			var flower_trio: Array = Grid.vertices()[_vertex_near(CENTRE)]
+			for index in 3:
+				game.board.set_piece(flower_trio[index], Pieces.starflower())
+		"pearl_finish":
+			var pearl_trio: Array = Grid.vertices()[_vertex_near(CENTRE)]
+			for index in 3:
+				game.board.set_piece(pearl_trio[index], Pieces.pearl())
 	return game
 
 
@@ -107,6 +144,9 @@ static func slot_cell(id: String) -> Vector2i:
 ## the rig is a fixture, so searching it at runtime was ~950ms of blocked frames on the
 ## first visit for an answer that never changes.
 const BOMB_CELL := Vector2i(4, 4)
+## A corner vertex, used when a clip's formation is already complete and the shown rotation
+## only needs to trigger a resolve somewhere harmless.
+const FAR_VERTEX := 0
 
 const DEMO_MOVES := {
 	"clear": {"vertex": 38, "direction": 1},
@@ -124,6 +164,10 @@ static func play(game: Game, id: String) -> MoveResult:
 		# The bomb's own triangle is already monochrome, so turning that trio demonstrates
 		# the defuse without needing a completing move at all.
 		return game.rotate(_vertex_near(BOMB_CELL), GameScript.CLOCKWISE)
+	if id in ["pearl_bloom", "colour_wipe", "flower_cluster", "pearl_finish"]:
+		# These rigs are already complete, so the demonstration move must not disturb them:
+		# a turn at a far corner resolves the board while the formation stays intact.
+		return game.rotate(FAR_VERTEX, GameScript.CLOCKWISE)
 	if DEMO_MOVES.has(id):
 		var move: Dictionary = DEMO_MOVES[id]
 		return game.rotate(int(move["vertex"]), int(move["direction"]))
@@ -149,6 +193,17 @@ static func _goal_met(id: String, result: MoveResult) -> bool:
 			return _has_promotion(result, "pearl")
 		"bombs":
 			return result.bombs_defused > 0
+		"pearl_bloom":
+			return _has_promotion(result, "pearl")
+		"colour_wipe":
+			for group in result.clear_groups:
+				if group.has_formation("bomb_colour_wipe"):
+					return true
+			return false
+		"flower_cluster":
+			return result.cleared_count > 0
+		"pearl_finish":
+			return result.finished
 	return false
 
 
@@ -163,6 +218,20 @@ static func _has_promotion(result: MoveResult, kind: String) -> bool:
 ## centre and all six neighbours at once, so it needs to be seen further back.
 static func zoom_for(id: String) -> float:
 	return 0.9 if id == "pearl" else 1.0
+
+
+## Cells a clip's outline should cover, when that is not simply the trio it rotates. These
+## clips are about a formation, so the formation is outlined and the rotation happens
+## elsewhere on the board.
+static func subject_cells(id: String) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	match id:
+		"pearl_bloom":
+			return Grid.neighbours(CENTRE)
+		"colour_wipe", "flower_cluster", "pearl_finish", "bombs":
+			for cell: Vector2i in Grid.vertices()[_vertex_near(CENTRE)]:
+				out.append(cell)
+	return out
 
 
 ## Where the clip player points its zoom.

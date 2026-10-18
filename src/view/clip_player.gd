@@ -196,6 +196,11 @@ func _select_subject(result: MoveResult = null) -> void:
 		_view.cursor_vertex = _vertex_for(HexGridScript.neighbours(Library.CENTRE))
 		return
 	_view.cursor_special = HexGridScript.NO_CELL
+	var subject: Array[Vector2i] = Library.subject_cells(clip_id)
+	if not subject.is_empty():
+		_view.cursor_cells = subject
+		_view.cursor_vertex = _vertex_for(subject)
+		return
 	if result == null:
 		return
 	_view.cursor_cells = result.rotation_cells.duplicate()
