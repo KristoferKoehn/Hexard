@@ -18,13 +18,21 @@ func _clean_scratch() -> void:
 func _summary(
 	score: int, level: int = 1, won: bool = false, mode: String = "Marathon",
 	difficulty: String = "normal", reason: String = "bomb_exploded", turns: int = 10
-) -> Dictionary:
-	return {
-		"mode": mode, "difficulty": difficulty, "score": score, "level": level,
-		"won": won, "reason": reason, "turns": turns, "combos": 3, "cleared": 40,
-		"rounds": 0, "elapsed": 12.5, "pearls": 0, "starflowers": 0,
-		"bombs_defused": 1, "seed": 99,
-	}
+) -> RunSummary:
+	var summary := RunSummary.new()
+	summary.mode = mode
+	summary.difficulty = difficulty
+	summary.score = score
+	summary.level = level
+	summary.won = won
+	summary.reason = reason
+	summary.turns = turns
+	summary.combos = 3
+	summary.cleared = 40
+	summary.elapsed = 12.5
+	summary.bombs_defused = 1
+	summary.seed_value = 99
+	return summary
 
 
 # --- settings ---------------------------------------------------------------

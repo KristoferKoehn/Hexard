@@ -367,26 +367,24 @@ func _build_result() -> void:
 	buttons.add_child(menu_button)
 
 
-func show_result(summary: Dictionary) -> void:
+func show_result(summary: RunSummary) -> void:
 	_menu.visible = false
 	_result.visible = true
 	_set_status_visible(false)
 
-	var won: bool = bool(summary.get("won", false))
+	var won := summary.won
 	_result_title.text = "PERFECT FINISH" if won else "RUN OVER"
 	_result_title.add_theme_color_override("font_color", Color("8ef0a0") if won else Color("ff8a80"))
 
 	var lines := PackedStringArray()
-	lines.append(_reason_text(str(summary.get("reason", ""))))
-	lines.append("%s · %s" % [summary.get("mode", ""), str(summary.get("difficulty", "")).capitalize()])
+	lines.append(_reason_text(summary.reason))
+	lines.append("%s · %s" % [summary.mode, summary.difficulty.capitalize()])
 	lines.append("Score %d      Level %d      Combos %d" % [
-		int(summary.get("score", 0)), int(summary.get("level", 1)), int(summary.get("combos", 0)),
+		summary.score, summary.level, summary.combos,
 	])
-	if int(summary.get("rounds", 0)) > 0:
-		lines.append("Rounds survived: %d" % int(summary.get("rounds", 0)))
-	lines.append("Turns %d      Time %0.1fs" % [
-		int(summary.get("turns", 0)), float(summary.get("elapsed", 0.0)),
-	])
+	if summary.rounds > 0:
+		lines.append("Rounds survived: %d" % summary.rounds)
+	lines.append("Turns %d      Time %0.1fs" % [summary.turns, summary.elapsed])
 	_result_body.text = "\n".join(lines)
 
 

@@ -46,43 +46,43 @@ static func table_key(mode: String, difficulty: String) -> String:
 
 ## Folds a finished run (`Game.summary()`) into the profile. Returns the table
 ## key it went into, so the caller can show the updated board.
-func record_run(summary: Dictionary, stamp: String = "") -> String:
-	var mode := str(summary.get("mode", "Marathon"))
-	var difficulty := str(summary.get("difficulty", "normal"))
+func record_run(summary: RunSummary, stamp: String = "") -> String:
+	var mode := summary.mode
+	var difficulty := summary.difficulty
 	var key := table_key(mode, difficulty)
-	var score := int(summary.get("score", 0))
-	var level := int(summary.get("level", 1))
-	var won := bool(summary.get("won", false))
+	var score := summary.score
+	var level := summary.level
+	var won := summary.won
 
 	totals["games"] += 1
 	totals["wins"] += 1 if won else 0
 	totals["losses"] += 0 if won else 1
 	totals["score"] += score
-	totals["combos"] += int(summary.get("combos", 0))
-	totals["cleared"] += int(summary.get("cleared", 0))
-	totals["turns"] += int(summary.get("turns", 0))
-	totals["rounds"] += int(summary.get("rounds", 0))
-	totals["pearls"] += int(summary.get("pearls", 0))
-	totals["starflowers"] += int(summary.get("starflowers", 0))
-	totals["bombs_defused"] += int(summary.get("bombs_defused", 0))
-	totals["time_played"] += int(round(float(summary.get("elapsed", 0.0))))
+	totals["combos"] += summary.combos
+	totals["cleared"] += summary.cleared
+	totals["turns"] += summary.turns
+	totals["rounds"] += summary.rounds
+	totals["pearls"] += summary.pearls
+	totals["starflowers"] += summary.starflowers
+	totals["bombs_defused"] += summary.bombs_defused
+	totals["time_played"] += int(round(summary.elapsed))
 	totals["best_level"] = maxi(int(totals["best_level"]), level)
 
 	if not bests.has(key) or score > int(bests[key]["score"]):
 		bests[key] = {
 			"score": score, "level": level, "won": won,
-			"reason": str(summary.get("reason", "")), "date": stamp,
+			"reason": summary.reason, "date": stamp,
 		}
 
 	var entry := {
 		"score": score,
 		"level": level,
 		"won": won,
-		"reason": str(summary.get("reason", "")),
+		"reason": summary.reason,
 		"mode": mode,
 		"difficulty": difficulty,
-		"turns": int(summary.get("turns", 0)),
-		"seed": int(summary.get("seed", 0)),
+		"turns": summary.turns,
+		"seed": summary.seed_value,
 		"date": stamp,
 	}
 	var board: Array = boards.get(key, [])

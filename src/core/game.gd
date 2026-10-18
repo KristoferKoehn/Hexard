@@ -75,6 +75,12 @@ func colors() -> Array:
 func signature() -> String:
 	return board.signature()
 
+var total_cleared := 0
+var total_pearls := 0
+var total_starflowers := 0
+var total_defused := 0
+
+
 func commands() -> Array:
 	return _commands.duplicate(true)
 
@@ -254,6 +260,16 @@ func _award(result: MoveResult) -> void:
 ## Shared tail of every committed move: bank the score, pay out mode-specific
 ## rewards, age the bombs, and check whether the board is still playable.
 func _finish_move(result: MoveResult) -> void:
+	# Lifetime counters. These are what the summary reports, and before they existed
+	# ProfileService invented a zero for each one.
+	total_cleared += result.cleared_count
+	total_defused += result.bombs_defused
+	for promotion: Dictionary in result.promotions:
+		match str(promotion.get("kind", "")):
+			"starflower":
+				total_starflowers += 1
+			"pearl":
+				total_pearls += 1
 	_award(result)
 	if ruleset.mode == RulesetScript.Mode.SURVIVAL:
 		round_cleared += result.cleared_count
@@ -333,19 +349,11 @@ func mode_name() -> String:
 		_:
 			return "Marathon"
 
-func summary() -> Dictionary:
-	return {
-		"mode": mode_name(),
-		"difficulty": ruleset.difficulty,
-		"score": score,
-		"level": level,
-		"combos": total_combos,
-		"turns": turns,
-		"rounds": rounds_cleared,
-		"reason": finish_reason,
-		"won": victory,
-		"elapsed": elapsed,
-	}
+## What the run reports when it ends. A typed record rather than a dictionary:
+## the consumers used to read it with invented defaults, including five fields
+## that were never written at all.
+func summary() -> RunSummary:
+	return RunSummary.from_game(self)
 
 ## Redistributes the existing gems; if no arrangement is playable (or the board
 ## is empty), regenerates a fresh one.

@@ -259,12 +259,17 @@ func test_a_bonus_star_thaws_its_neighbours() -> void:
 func test_summary_describes_the_finished_run() -> void:
 	var game := GameScript.new(4, _mode(RulesetScript.Mode.TIMED, "hard"))
 	game.tick(999.0)
-	var summary: Dictionary = game.summary()
-	assert_eq(summary["mode"], "Timed", "mode name")
-	assert_eq(summary["difficulty"], "hard", "difficulty")
-	assert_eq(summary["reason"], "time_out", "why it ended")
-	assert_eq(summary["won"], false, "and that it was a loss")
-	assert_gt(summary["elapsed"], 0.0, "with elapsed time")
+	var summary: RunSummary = game.summary()
+	assert_eq(summary.mode, "Timed", "mode name")
+	assert_eq(summary.difficulty, "hard", "difficulty")
+	assert_eq(summary.reason, "time_out", "why it ended")
+	assert_eq(summary.won, false, "and that it was a loss")
+	assert_gt(summary.elapsed, 0.0, "with elapsed time")
+	# The counters the profile reads must actually be produced by the run: they used
+	# to be absent from the summary entirely, so ProfileService recorded zeros.
+	assert_eq(summary.turns, game.turns, "turns are reported")
+	assert_eq(summary.seed_value, game.seed_value, "the replay seed is reported")
+	assert_ge(summary.cleared, 0, "cleared tiles are reported")
 
 
 

@@ -127,9 +127,9 @@ func _start_timed_run() -> void:
 
 func _check_timed_run_ended_on_the_clock() -> void:
 	_check(_main.call("screen_name") == "result", "the clock running out shows the result screen")
-	var summary: Dictionary = _main.get("game").summary()
-	_check(str(summary["reason"]) == "time_out", "the summary says why")
-	_check(bool(summary["won"]) == false, "and that it was a loss")
+	var summary: RunSummary = _main.get("game").summary()
+	_check(summary.reason == "time_out", "the summary says why")
+	_check(summary.won == false, "and that it was a loss")
 
 
 func _check(condition: bool, message: String) -> void:
