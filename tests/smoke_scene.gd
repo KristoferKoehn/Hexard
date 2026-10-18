@@ -364,8 +364,8 @@ func _report() -> void:
 	quit(1)
 
 
-## Snapping must work for both specials, and the outline is driven by the same
-## cursor_special the rotate keys consult.
+## A special is a cursor position of its own: every grid vertex keeps working as a
+## trio rotation, Space switches to the piece, and hovering retargets between them.
 func _check_special_snap() -> void:
 	var game: GameScript = _main.get("game")
 	var view = _main.get_node("BoardView")
@@ -377,11 +377,33 @@ func _check_special_snap() -> void:
 	game.board.set_piece(cell, Pieces.starflower())
 	view.call("sync_from_game")
 	_main.call("select_vertex", vertex)
-	_check(_main.get("cursor_special") == cell,
-		"the cursor snaps onto a starflower (vertex %d, cursor_special %s)" % [vertex, str(_main.get("cursor_special"))])
-	_check(game.swapped_cells(cell).size() == 6, "a starflower swaps six neighbours")
+	_check(_main.get("cursor_special") == HexGrid.NO_CELL,
+		"a vertex touching a flower is still a normal trio position")
+	_check(view.call("game") != null, "the view has the board")
+
+	_main.call("_play_key", KEY_SPACE)
+	_check(_main.get("cursor_special") == cell, "Space selects the flower")
+	_check(game.swapped_cells(cell).size() == 6, "which swaps six neighbours")
+	_main.call("_play_key", KEY_SPACE)
+	_check(_main.get("cursor_special") == HexGrid.NO_CELL, "Space again returns to the trio")
 
 	game.board.set_piece(cell, Pieces.pearl())
 	_main.call("select_vertex", vertex)
-	_check(_main.get("cursor_special") == cell, "the cursor snaps onto a pearl")
-	_check(game.swapped_cells(cell).size() == 3, "a pearl swaps three")
+	_main.call("_play_key", KEY_SPACE)
+	_check(_main.get("cursor_special") == cell, "Space selects a pearl too")
+	_check(game.swapped_cells(cell).size() == 3, "which swaps three")
+
+	# Hovering one special then another must retarget, not leave the first selected.
+	var other := Vector2i(4, 6)
+	game.board.set_piece(cell, Pieces.starflower())
+	game.board.set_piece(other, Pieces.pearl())
+	view.call("sync_from_game")
+	_main.call("_mouse_moved", view.position + view.call("cell_center", cell))
+	_check(_main.get("cursor_special") == cell, "hovering a flower targets it")
+	_main.call("_mouse_moved", view.position + view.call("cell_center", other))
+	_check(_main.get("cursor_special") == other, "hovering a pearl retargets the outline")
+
+	# Leave nothing special behind for later stages.
+	game.board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
+	game.board.set_piece(other, Pieces.gem(Pieces.GemColor.BLUE))
+	_main.call("_refresh_cursor")

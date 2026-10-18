@@ -224,10 +224,10 @@ func play_move(direction: int) -> void:
 	# A starflower or pearl anywhere in the trio means the spin turns that piece
 	# instead of the three tiles. Re-derived from the board here rather than read
 	# from the cursor, so a piece that changed under the cursor cannot act stale.
-	var special := _special_at_cursor()
-	if special != HexGrid.NO_CELL:
-		play_piece_move(special, direction)
+	if cursor_special != HexGrid.NO_CELL and _special_at(cursor_special) != HexGrid.NO_CELL:
+		play_piece_move(cursor_special, direction)
 		return
+	cursor_special = HexGrid.NO_CELL
 	board_view.hint_vertex = -1
 	var result := game.rotate(cursor_vertex, direction)
 	var turn := "CW" if direction == GameScript.CLOCKWISE else "CCW"
@@ -323,6 +323,8 @@ func _apply(result: MoveResult, label: String) -> void:
 func move_cursor(direction: Vector2) -> void:
 	if game == null:
 		return
+	# Stepping away from a special returns the cursor to ordinary vertex selection.
+	cursor_special = HexGrid.NO_CELL
 	cursor_vertex = HexGrid.step_vertex(cursor_vertex, direction, board_view.cell_size)
 	_refresh_cursor()
 
@@ -344,7 +346,9 @@ func snap_cursor_to(viewport_point: Vector2) -> void:
 ## Keeps the view in sync, including whether a spin at the cursor can clear.
 func _refresh_cursor() -> void:
 	board_view.cursor_vertex = cursor_vertex
-	cursor_special = _special_at_cursor()
+	if cursor_special != HexGrid.NO_CELL and _special_at(cursor_special) == HexGrid.NO_CELL:
+		# The piece turned into something else (or was destroyed): back to trio mode.
+		cursor_special = HexGrid.NO_CELL
 	board_view.cursor_special = cursor_special
 	if cursor_special != HexGrid.NO_CELL:
 		# Snapped onto a special: a rotate turns the piece, not the trio.
@@ -362,6 +366,27 @@ func _special_at_cursor() -> Vector2i:
 		if _special_at(cell) != HexGrid.NO_CELL:
 			return cell
 	return HexGrid.NO_CELL
+
+
+## Cycles the cursor between the trio at this vertex and a starflower or pearl it
+## contains. The special is its own cursor position, so every grid vertex keeps
+## working as a normal three-tile rotation.
+func _toggle_special_target() -> void:
+	if cursor_special != HexGrid.NO_CELL:
+		cursor_special = HexGrid.NO_CELL
+		hud.set_message("trio mode — spinning turns three tiles")
+		_refresh_cursor()
+		return
+	var special := _special_at_cursor()
+	if special == HexGrid.NO_CELL:
+		hud.set_message("no starflower or pearl at this position (Space switches to one)")
+		_refresh_cursor()
+		return
+	cursor_special = special
+	var piece: int = game.board.get_piece(special)
+	var what := "starflower" if Pieces.is_starflower(piece) else "pearl"
+	hud.set_message("%s selected — spinning turns all its neighbours" % what)
+	_refresh_cursor()
 
 
 func _special_turn_is_legal(cell: Vector2i) -> bool:
@@ -498,6 +523,8 @@ func _play_key(code: int) -> void:
 			play_move(GameScript.CLOCKWISE)
 		KEY_F:
 			use_special(GameScript.CLOCKWISE)
+		KEY_SPACE:
+			_toggle_special_target()
 		KEY_H:
 			show_hint()
 		KEY_R:
@@ -509,14 +536,19 @@ func _play_key(code: int) -> void:
 
 
 func _mouse_moved(viewport_point: Vector2) -> void:
+	if game == null or screen != Screen.PLAYING:
+		return
 	var cell := board_view.cell_at(board_view.to_local(viewport_point))
-	# Hovering a special piece is more useful than hovering its vertex.
 	var special := _special_at(cell)
 	board_view.hover_cell = special
-	if special == HexGrid.NO_CELL:
-		snap_cursor_to(viewport_point)
-	else:
-		board_view.queue_redraw()
+	if special != HexGrid.NO_CELL:
+		# Hovering a special targets it, so moving flower -> pearl retargets the
+		# outline rather than leaving the previous special selected.
+		cursor_special = special
+		_refresh_cursor()
+		return
+	cursor_special = HexGrid.NO_CELL
+	snap_cursor_to(viewport_point)
 
 
 func _mouse_clicked(viewport_point: Vector2, button_index: int) -> void:
