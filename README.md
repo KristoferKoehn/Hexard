@@ -20,9 +20,15 @@ specials, all three modes, the presentation, the meta screens and the tutorial.
 
 ## Building
 
-Export templates must match the pinned engine (`4.7.2-stable`). Put the pack's contents in
-`%APPDATA%/Godot/export_templates/4.7.2.stable/`; without it every preset fails, and Godot
-does not fall back to another version's templates.
+Both presets reference the **matching 4.7.2 templates held in `tools/templates/`** (gitignored,
+~230 MB) through their `custom_template` fields. That is deliberate: Godot normally wants them
+in `%APPDATA%/Godot/export_templates/4.7.2.stable/`, but a sandboxed or CI machine may not be
+allowed to write there, and a project-relative path keeps the build reproducible either way.
+On a normal machine you can install the pack into `%APPDATA%` and clear the `custom_template`
+lines instead.
+
+The pack is `Godot_v4.7.2-stable_export_templates.tpz` (1.28 GB). Only what is shipped was
+kept: `web_*.zip` and `windows_*_x86_64.exe`, read out of the pack with `ZIPReader`.
 
 ```
 tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path . \
@@ -31,10 +37,12 @@ tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path . \
     --export-release "Web" build/web/index.html
 ```
 
-`build/web` has to exist first - the exporter will not create the output directory.
+The output directory has to exist first - the exporter will not create it. Both presets use
+`export_filter="all_resources"` with `exclude_filter="tests/*, docs/*, tools/*"`, so test
+scripts and research notes stay out of the build.
 
-Both presets use `export_filter="all_resources"` with `exclude_filter="tests/*, docs/*, tools/*"`,
-so test scripts and research notes stay out of the build.
+Verified artifacts: `build/hexard.exe` (104 MB, single file with the pck embedded) and
+`build/web/` (index.html, index.js, index.wasm 37.9 MB, index.pck 226 KB).
 
 ## Documentation
 
