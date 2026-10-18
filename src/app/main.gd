@@ -796,5 +796,6 @@ func _apply_juice() -> void:
 	if settings == null:
 		return
 	board_view.settings = settings
+	hud.set_glyphs_enabled(settings.colour_patterns)
 	if audio != null:
 		audio.settings = settings

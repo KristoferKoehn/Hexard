@@ -375,6 +375,13 @@ func show_playing() -> void:
 ## unlock rather than always being printed.
 ## The menu reports on the profile, so it needs it. One instance is kept alive by Main
 ## for the whole session, so no refresh plumbing is needed when it changes.
+## Colour patterns are an accessibility setting, not decoration: when they are off the
+## menu backdrop stops showing them too.
+func set_glyphs_enabled(enabled: bool) -> void:
+	if _flourish != null:
+		_flourish.show_glyphs = enabled
+
+
 func set_profile(value: ProfileService) -> void:
 	_profile = value
 	_refresh_menu_records()

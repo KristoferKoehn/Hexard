@@ -686,6 +686,15 @@ func _check_menu_flow() -> void:
 	_check(selected.difficulty == "easy", "at the difficulty that was picked")
 	_check(not bool(hud.call("is_difficulty_open")), "and the difficulty step is gone")
 
+	# Colour patterns are an accessibility setting, so they must reach the backdrop too.
+	var settings = _main.get("settings")
+	settings.colour_patterns = false
+	_main.call("_apply_juice")
+	_check(not bool(flourish.show_glyphs), "menu gems drop their marks with the setting off")
+	settings.colour_patterns = true
+	_main.call("_apply_juice")
+	_check(bool(flourish.show_glyphs), "and get them back with it on")
+
 	# The three system buttons live on the menu now.
 	_main.call("_on_menu_pressed")
 	(hud as Node).emit_signal("achievements_pressed")

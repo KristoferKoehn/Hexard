@@ -19,6 +19,9 @@ const ORBIT_X := 0.44
 const ORBIT_Y := 0.38
 
 var _angle := 0.0
+## Follows the colour-patterns setting: the accessibility marks belong on every gem the
+## player can see, including the ones on the menu.
+var show_glyphs := true
 
 
 func _ready() -> void:
@@ -53,4 +56,4 @@ func _draw() -> void:
 
 func _draw_gem(centre: Vector2, radius: float, base: Color, color: int, alpha: float) -> void:
 	# The board's own gem, dimmed: a backdrop has to look like the game it advertises.
-	GemPainter.draw(self, centre, radius, base, color, alpha)
+	GemPainter.draw(self, centre, radius, base, color, alpha, show_glyphs)
