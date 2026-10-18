@@ -77,11 +77,7 @@ var game: Game
 var cursor_vertex := -1
 ## Set when the cursor has snapped onto a starflower or pearl centre.
 var cursor_special := HexGrid.NO_CELL
-# Outline segments for the current cursor cells. The shape depends only on which
-# cells are outlined, so it is rebuilt when the selection changes and merely
-# redrawn every frame while animating.
-var _outline_key := ""
-var _outline_segments: Array = []
+var _cursor_painter: CursorPainter = null
 var cursor_legal := true
 var hint_vertex := -1
 var hover_cell := HexGrid.NO_CELL
@@ -600,90 +596,23 @@ func _patterns_allowed() -> bool:
 
 func _flashes_allowed() -> bool:
 	return settings == null or settings.flashes_enabled()
-
-
-## Draws only the edges of `cells` that are not shared with another member, so
-## the result is the silhouette of the group. The neighbour across an edge is found
-## by probing outward along that edge's normal, which avoids duplicating the grid's
-## neighbour arithmetic.
-func _draw_cluster_outline(cells: Array, color: Color, width: float) -> void:
-	var key := ""
-	for cell: Vector2i in cells:
-		key += "%d,%d;" % [cell.x, cell.y]
-	if key != _outline_key:
-		_outline_key = key
-		_outline_segments = _build_outline_segments(cells)
-	for segment: Array in _outline_segments:
-		var a: Vector2 = segment[0]
-		var b: Vector2 = segment[1]
-		draw_line(a, b, color, width)
-		# Round the meets: independent segments leave a visible notch at inner
-		# corners, so each endpoint gets a dot of half the line width.
-		draw_circle(a, width * 0.5, color)
-		draw_circle(b, width * 0.5, color)
-
-
-## Boundary edges of `cells`, as [start, end] pairs. This was previously computed
-## inside _draw, where it cost one cell_at() search (85 distance tests) per edge per
-## frame; the shape only depends on the selection, so it is built once and cached.
-func _build_outline_segments(cells: Array) -> Array:
-	var members := {}
-	for cell: Vector2i in cells:
-		members[cell] = true
-	var segments: Array = []
-	for cell: Vector2i in cells:
-		var centre := cell_center(cell)
-		var corners := _corners(centre, cell_size * OUTLINE_SCALE)
-		for index in 6:
-			# The neighbour across an edge is found by probing along that edge's
-			# normal, so the grid's adjacency stays the single source of truth.
-			var normal := deg_to_rad(30.0 + 60.0 * float(index))
-			var probe := centre + Vector2(cos(normal), sin(normal)) * cell_size * 1.1
-			var across := cell_at(probe)
-			if across != cell and members.has(across):
-				continue
-			segments.append([corners[index], corners[(index + 1) % 6]])
-	return segments
-
-
+## The cursor is drawn by CursorPainter; the swap set is asked of the rules, so the
+## outline cannot disagree with what a turn actually moves.
 func _draw_cursor() -> void:
-	var vertices := HexGrid.vertices()
+	if _cursor_painter == null:
+		_cursor_painter = CursorPainter.new()
+	_cursor_painter.cell_size = cell_size
+	_cursor_painter.origin = _origin
 
-	if hint_vertex >= 0 and hint_vertex < vertices.size():
-		var hint_centre := HexGrid.vertex_centroid(hint_vertex, cell_size) + _origin
-		draw_arc(hint_centre, cell_size * 0.5, 0, TAU, 24, Color("ffd166"), 2.0)
-
-	if cursor_vertex < 0 or cursor_vertex >= vertices.size():
-		return
-	# A white outline around the outside of the trio, instead of a wash over the
-	# tiles: the gem colours stay true, and shared edges are not drawn so it reads
-	# as one cluster rather than three separate cells.
-	var outline := Color(1.0, 1.0, 1.0, 0.95) if cursor_legal else Color(1.0, 1.0, 1.0, 0.40)
-	# A special turn swaps a different set than the trio: a starflower turns its six
-	# neighbours and a pearl turns three in a Y. Ask the rules, never guess.
 	var swapped: Array[Vector2i] = []
-	if cursor_special != HexGrid.NO_CELL:
+	if cursor_special != HexGrid.NO_CELL and game != null:
 		swapped = game.swapped_cells(cursor_special)
 	else:
-		for cell: Vector2i in vertices[cursor_vertex]:
-			swapped.append(cell)
-	_draw_cluster_outline(swapped, outline, 2.5)
-
-	# A snapped special has no vertex position, so the vertex dot goes away.
-	if cursor_special != HexGrid.NO_CELL:
-		return
-
-	var centre := HexGrid.vertex_centroid(cursor_vertex, cell_size) + _origin
-	# Green means "spinning here will clear"; dim grey means it would just revert.
-	var dot := Color(0.45, 0.95, 0.55, 0.95) if cursor_legal else Color(0.62, 0.66, 0.74, 0.80)
-	draw_circle(centre, cell_size * 0.16, dot)
-	draw_circle(centre, cell_size * 0.10, Color(0.06, 0.08, 0.12, 0.92))
-	if cursor_legal:
-		draw_arc(centre, cell_size * 0.28, 0, TAU, 24, Color(0.45, 0.95, 0.55, 0.55), 1.5)
-
-
-# --- small geometry helpers -------------------------------------------------
-
+		var vertices := HexGrid.vertices()
+		if cursor_vertex >= 0 and cursor_vertex < vertices.size():
+			for cell: Vector2i in vertices[cursor_vertex]:
+				swapped.append(cell)
+	_cursor_painter.draw(self, cursor_vertex, cursor_special, cursor_legal, hint_vertex, swapped)
 func _corners(centre: Vector2, radius: float) -> PackedVector2Array:
 	var points := PackedVector2Array()
 	for i in 6:

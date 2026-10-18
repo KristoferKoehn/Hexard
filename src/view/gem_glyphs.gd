@@ -15,8 +15,10 @@ const Pieces := preload("res://src/core/piece.gd")
 
 enum Kind { NONE, DOT, BARS, DOT_GRID, SLASH, TRIANGLE, SQUARE, CHEVRON }
 
-const DARK_MARK := Color(0.05, 0.06, 0.09, 0.60)
-const LIGHT_MARK := Color(1.0, 1.0, 1.0, 0.66)
+## Deliberately faint: the mark is a fallback channel, not a label. Strong enough to
+## separate hues, quiet enough that the gem still reads as a jewel.
+const DARK_MARK := Color(0.05, 0.06, 0.09, 0.30)
+const LIGHT_MARK := Color(1.0, 1.0, 1.0, 0.33)
 ## Gems above this (linear) luminance get a dark mark. Tuned so mid-green and
 ## orange take a dark mark while violet and red take a light one.
 const LIGHT_GEM_THRESHOLD := 0.32
