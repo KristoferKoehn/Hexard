@@ -22,46 +22,42 @@ const ClearGroupScript := preload("res://src/core/clear_group.gd")
 ## Mutates `board`, accumulating everything into `result`.
 ## `refill` is false in Survival mode, where cleared cells stay empty for the
 ## rest of the round.
-static func resolve(board: Board, ruleset: Ruleset, rng: Rng, result: MoveResult, level: int, refill: bool = true) -> void:
+static func resolve(
+	board: Board, ruleset: Ruleset, rng: Rng, result: MoveResult, level: int, refill: bool = true
+) -> void:
+	var ctx := ResolveContext.new(board, ruleset, rng, result, level, refill)
 	# Pieces fall before formations are judged. On a board with gaps (Survival) a
 	# rotation can lift a piece into an empty cell, so this pass is what keeps
 	# "nothing is ever left floating" true after *every* move.
-	apply_gravity(board, result)
+	apply_gravity(ctx.board, ctx.result)
 
 	var depth := 0
 	while true:
-		if not _resolve_step(board, ruleset, result, level, depth + 1):
+		ctx.depth = depth + 1
+		if not _resolve_step(ctx):
 			break
 		depth += 1
-		apply_gravity(board, result, depth)
-		if refill:
-			refill_board(board, rng, result, level, ruleset, depth)
-		if result.finished:
+		apply_gravity(ctx.board, ctx.result, depth)
+		if ctx.refill:
+			refill_board(ctx.board, ctx.rng, ctx.result, ctx.level, ctx.ruleset, depth)
+		if ctx.result.finished:
 			break
 	result.cascades = depth
-
-
-## One resolution step, highest priority first. Short-circuits on the first
-## category that actually did something.
-static func _resolve_step(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
+static func _resolve_step(ctx: ResolveContext) -> bool:
 	return (
-		_resolve_flowers(board, ruleset, result, level, depth)
-		or _resolve_pearl_rings(board, ruleset, result, level, depth)
-		or _resolve_pearl_finish(board, ruleset, result, level, depth)
-		or _resolve_star_clusters(board, ruleset, result, level, depth)
-		or _resolve_starflower_clusters(board, ruleset, result, level, depth)
-		or _resolve_colour_clusters(board, ruleset, result, level, depth)
+		_resolve_flowers(ctx)
+		or _resolve_pearl_rings(ctx)
+		or _resolve_pearl_finish(ctx)
+		or _resolve_star_clusters(ctx)
+		or _resolve_starflower_clusters(ctx)
+		or _resolve_colour_clusters(ctx)
 	)
-
-
-# --- formations -------------------------------------------------------------
-
-## Ring of six same-coloured gems: the ring clears and the centre blooms into a
-## starflower — or into a black pearl when it was already a starflower.
-##
-## Survival has no starflowers: there a flower unlocks the whole board and sweeps
-## every gem of the ring colour instead (docs/design.md §6.3).
-static func _resolve_flowers(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
+static func _resolve_flowers(ctx: ResolveContext) -> bool:
+	var board := ctx.board
+	var ruleset := ctx.ruleset
+	var result := ctx.result
+	var level := ctx.level
+	var depth := ctx.depth
 	var centres := MatchFinderScript.flower_centres(board)
 	if centres.is_empty():
 		return false
@@ -89,7 +85,12 @@ static func _resolve_flowers(board: Board, ruleset: Ruleset, result: MoveResult,
 
 ## Six starflowers ringing a centre: the starflowers are consumed and the centre
 ## becomes a black pearl (docs/design.md §3.4).
-static func _resolve_pearl_rings(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
+static func _resolve_pearl_rings(ctx: ResolveContext) -> bool:
+	var board := ctx.board
+	var ruleset := ctx.ruleset
+	var result := ctx.result
+	var level := ctx.level
+	var depth := ctx.depth
 	var centres := MatchFinderScript.pearl_ring_centres(board)
 	if centres.is_empty():
 		return false
@@ -108,7 +109,12 @@ static func _resolve_pearl_rings(board: Board, ruleset: Ruleset, result: MoveRes
 
 
 ## The perfect finish: a pearl cluster or a pearl ring ends the run.
-static func _resolve_pearl_finish(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
+static func _resolve_pearl_finish(ctx: ResolveContext) -> bool:
+	var board := ctx.board
+	var ruleset := ctx.ruleset
+	var result := ctx.result
+	var level := ctx.level
+	var depth := ctx.depth
 	var finish := MatchFinderScript.pearl_finish(board)
 	if finish.is_empty():
 		return false
@@ -127,7 +133,12 @@ static func _resolve_pearl_finish(board: Board, ruleset: Ruleset, result: MoveRe
 
 
 ## Three bonus stars of any colours: they clear, plus every tile they touch.
-static func _resolve_star_clusters(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
+static func _resolve_star_clusters(ctx: ResolveContext) -> bool:
+	var board := ctx.board
+	var ruleset := ctx.ruleset
+	var result := ctx.result
+	var level := ctx.level
+	var depth := ctx.depth
 	var cells := MatchFinderScript.star_cluster_cells(board)
 	if cells.is_empty():
 		return false
@@ -145,7 +156,12 @@ static func _resolve_star_clusters(board: Board, ruleset: Ruleset, result: MoveR
 
 
 ## Three starflowers together are worth a windfall.
-static func _resolve_starflower_clusters(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
+static func _resolve_starflower_clusters(ctx: ResolveContext) -> bool:
+	var board := ctx.board
+	var ruleset := ctx.ruleset
+	var result := ctx.result
+	var level := ctx.level
+	var depth := ctx.depth
 	var cells := MatchFinderScript.starflower_cluster_cells(board)
 	if cells.is_empty():
 		return false
@@ -161,7 +177,12 @@ static func _resolve_starflower_clusters(board: Board, ruleset: Ruleset, result:
 
 ## Ordinary colour clusters, plus the two bomb rules: a defuse bonus, and a
 ## colour wipe when a bonus star of the bomb's colour is in the same clear.
-static func _resolve_colour_clusters(board: Board, ruleset: Ruleset, result: MoveResult, level: int, depth: int) -> bool:
+static func _resolve_colour_clusters(ctx: ResolveContext) -> bool:
+	var board := ctx.board
+	var ruleset := ctx.ruleset
+	var result := ctx.result
+	var level := ctx.level
+	var depth := ctx.depth
 	var groups: Array = MatchFinderScript.clear_groups(board)
 	if groups.is_empty():
 		return false
