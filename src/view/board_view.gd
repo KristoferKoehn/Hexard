@@ -374,7 +374,9 @@ func _draw_backdrop() -> void:
 	if _backdrop == null:
 		_build_backdrop()
 	var centre := _plate_rect().get_center()
-	var span := cell_size * 34.0
+	# Sized from the viewport diagonal rather than a fixed 34-cell square: the texture ends
+	# at the rect edge, so a fixed square left a visible seam where the gradient stopped.
+	var span := get_viewport_rect().size.length() * 1.15
 	draw_texture_rect(_backdrop, Rect2(centre - Vector2(span, span) * 0.5, Vector2(span, span)), false)
 
 

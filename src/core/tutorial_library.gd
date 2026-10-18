@@ -108,7 +108,11 @@ static func make_game(id: String) -> Game:
 		"pearl":
 			_rig_ring(game, Pieces.starflower(), Pieces.gem(Pieces.GemColor.BLUE))
 		"bombs":
-			_rig_bombs(game)
+			# Bomb and one gem on two corners; the third colour waits in a trio that shares
+			# the empty corner, so one rotation completes the cluster. An already-monochrome
+			# triangle cannot exist: it would have cleared on arrival.
+			_rig_triangle(game, Pieces.bomb(Pieces.GemColor.ORANGE, 3),
+				Pieces.gem(Pieces.GemColor.ORANGE), Pieces.gem(Pieces.GemColor.ORANGE))
 		"pearl_bloom":
 			# Ring of five reds around a starflower: the sixth is rotated in, and blooming a
 			# flower whose centre is already a starflower makes a pearl.
@@ -128,7 +132,7 @@ static func slot_cell(id: String) -> Vector2i:
 	match id:
 		"stars":
 			return _star_triangle()[2]
-		"colour_wipe", "flower_cluster", "pearl_finish":
+		"colour_wipe", "flower_cluster", "pearl_finish", "bombs":
 			return Grid.vertices()[_vertex_near(CENTRE)][2]
 		"turn":
 			return CENTRE
@@ -158,9 +162,28 @@ static func play(game: Game, id: String) -> MoveResult:
 	if id == "turn":
 		return game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
 	if id == "bombs":
-		# NOTE: an already-monochrome triangle is not a reachable board state, so this rig is
-		# wrong; the one-short replacement hangs inside the completing-move search and is
-		# documented rather than shipped.
+		# Read the answer off the rig instead of searching for it: the arriving gem is the one
+		# in a trio that shares the empty corner, and its index in that trio's cyclic order
+		# gives the direction directly. Searching meant building twelve games and hung.
+		var slot := slot_cell(id)
+		var vertices := Grid.vertices()
+		for vertex_index in vertices.size():
+			var trio: Array = vertices[vertex_index]
+			if not trio.has(slot):
+				continue
+			var slot_index: int = trio.find(slot)
+			for cell: Vector2i in trio:
+				if cell == slot:
+					continue
+				if not Pieces.has_color(game.board.get_piece(cell)):
+					continue
+				if int(Pieces.color_of(game.board.get_piece(cell))) != Pieces.GemColor.ORANGE:
+					continue
+				var arriving_index: int = trio.find(cell)
+				var step: int = posmod(slot_index - arriving_index, 3)
+				if step == 0:
+					continue
+				return game.rotate(vertex_index, 1 if step == 1 else -1)
 		return game.rotate(_vertex_near(BOMB_CELL), GameScript.CLOCKWISE)
 	if DEMO_MOVES.has(id):
 		var move: Dictionary = DEMO_MOVES[id]
@@ -239,8 +262,7 @@ static func subject_cells(id: String) -> Array[Vector2i]:
 		"pearl_bloom":
 			return Grid.neighbours(CENTRE)
 		"bombs":
-			for cell: Vector2i in Grid.vertices()[_vertex_near(CENTRE)]:
-				out.append(cell)
+			pass
 	return out
 
 
