@@ -94,6 +94,10 @@ var _backdrop: ImageTexture = null
 ## Multiplies every animation duration. 1.0 is the game; the tutorial's clips use
 ## above 1.0 so a demonstration can be followed rather than glimpsed.
 var playback_scale := 1.0
+## Board-space rectangle the camera can actually see. The tutorial's clips show about a
+## dozen cells through a small viewport while the board still holds 85, so culling here
+## is most of that section's drawing cost.
+var _cull_rect := Rect2()
 var settings: Settings
 var _announced_step := -1
 var _shake_strength := 0.0
@@ -295,17 +299,52 @@ func _draw() -> void:
 	var active := _active_step()
 	var skip := _skipped_cells(active)
 
+	_update_cull_rect()
 	_draw_backdrop()
 	_draw_plate()
 	for cell: Vector2i in HexGrid.all_cells():
-		_draw_socket(cell)
+		if _visible(cell_center(cell)):
+			_draw_socket(cell)
 	for cell: Vector2i in _display:
 		if skip.has(cell):
+			continue
+		if not _visible(cell_center(cell)):
 			continue
 		_draw_piece(cell_center(cell), int(_display[cell]), cell_size * GEM_SCALE, 1.0)
 	if not active.is_empty():
 		_draw_step(active)
 	_draw_cursor()
+
+
+## The visible rectangle in board space, derived from the viewport's canvas transform so
+## it follows a zoom crop as well as the ordinary full-screen view. Under the normal
+## camera the transform is identity and every cell is inside it, so this costs one rect
+## test per cell and changes nothing about the game's appearance.
+func _update_cull_rect() -> void:
+	var screen := Rect2(Vector2.ZERO, get_viewport_rect().size)
+	var viewport := get_viewport()
+	if viewport == null:
+		_cull_rect = screen
+		return
+	var inverse := viewport.canvas_transform.affine_inverse()
+	var corners := [
+		inverse * screen.position,
+		inverse * (screen.position + Vector2(screen.size.x, 0.0)),
+		inverse * (screen.position + Vector2(0.0, screen.size.y)),
+		inverse * (screen.position + screen.size),
+	]
+	var low: Vector2 = corners[0]
+	var high: Vector2 = corners[0]
+	for corner: Vector2 in corners:
+		low = Vector2(minf(low.x, corner.x), minf(low.y, corner.y))
+		high = Vector2(maxf(high.x, corner.x), maxf(high.y, corner.y))
+	# A couple of cells of margin, so a piece sliding in from outside is not popped in.
+	var margin := cell_size * 2.0
+	_cull_rect = Rect2(low - Vector2(margin, margin), (high - low) + Vector2(margin, margin) * 2.0)
+
+
+func _visible(point: Vector2) -> bool:
+	return _cull_rect.has_point(point)
 
 
 func _active_step() -> Dictionary:
