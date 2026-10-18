@@ -11,7 +11,7 @@ const GameScript := preload("res://src/core/game.gd")
 const RulesetScript := preload("res://src/core/ruleset.gd")
 const TutorialScript := preload("res://src/core/tutorial.gd")
 
-enum Screen { MENU, PLAYING, RESULT, SETTINGS }
+enum Screen { MENU, PLAYING, PAUSED, RESULT, SETTINGS }
 
 @onready var board_view: BoardView = $BoardView
 @onready var hud: Hud = $Hud
@@ -37,6 +37,9 @@ var audio: AudioService
 var settings_panel: SettingsPanel
 var achievements_panel: AchievementsPanel
 var leaderboard_panel: LeaderboardPanel
+var pause_panel: PausePanel
+## Where the settings screen returns to: the menu, or the pause screen that opened it.
+var _settings_return: Screen = Screen.MENU
 var toast: AchievementToast
 
 
@@ -77,6 +80,12 @@ func _ready() -> void:
 	settings_panel.leaderboard_pressed.connect(_open_leaderboard_for_selection)
 	settings_panel.free_mode_toggled.connect(_on_free_mode_toggled)
 	hud.set_free_mode_unlocked(settings.free_mode_unlocked)
+	pause_panel = PausePanel.new()
+	add_child(pause_panel)
+	pause_panel.resume_pressed.connect(_resume)
+	pause_panel.settings_pressed.connect(_open_settings)
+	pause_panel.restart_pressed.connect(_on_restart_pressed)
+	pause_panel.menu_pressed.connect(_on_menu_pressed)
 	toast = AchievementToast.new()
 	add_child(toast)
 	hud.settings_pressed.connect(_open_settings)
@@ -213,6 +222,8 @@ func screen_name() -> String:
 			return "menu"
 		Screen.RESULT:
 			return "result"
+		Screen.PAUSED:
+			return "paused"
 		Screen.SETTINGS:
 			return "settings"
 		_:
@@ -509,6 +520,8 @@ func _handle_key(code: int) -> void:
 	match screen:
 		Screen.MENU:
 			_menu_key(code)
+		Screen.PAUSED:
+			_pause_key(code)
 		Screen.RESULT:
 			_result_key(code)
 		Screen.SETTINGS:
@@ -527,12 +540,23 @@ func _menu_key(code: int) -> void:
 			var step := -1 if code == KEY_UP or code == KEY_W else 1
 			selected = selected.next_difficulty(step)
 			hud.highlight_menu(selected)
-		KEY_S:
+		KEY_O:
 			_open_settings()
 		KEY_ENTER, KEY_SPACE, KEY_KP_ENTER:
 			start_run(selected)
 		KEY_ESCAPE:
 			get_tree().quit()
+
+
+## Esc pauses the run; gameplay keys do nothing while the menu is up.
+func _pause_key(code: int) -> void:
+	match code:
+		KEY_ESCAPE, KEY_P:
+			_resume()
+		KEY_R:
+			start_run(selected)
+		KEY_M:
+			_on_menu_pressed()
 
 
 func _result_key(code: int) -> void:
@@ -542,7 +566,7 @@ func _result_key(code: int) -> void:
 		KEY_M:
 			_on_menu_pressed()
 		KEY_ESCAPE:
-			get_tree().quit()
+			_on_menu_pressed()
 
 
 ## Rotation keys, which must wait for the board to settle. Cursor movement is
@@ -580,7 +604,7 @@ func _play_key(code: int) -> void:
 		KEY_T:
 			toggle_rotation_mode()
 		KEY_ESCAPE:
-			get_tree().quit()
+			_open_pause()
 
 
 func _mouse_moved(viewport_point: Vector2) -> void:
@@ -619,9 +643,26 @@ func _mouse_clicked(viewport_point: Vector2, button_index: int) -> void:
 
 # --- settings and audio -----------------------------------------------------
 
+func _open_pause() -> void:
+	if pause_panel == null or game == null:
+		return
+	screen = Screen.PAUSED
+	pause_panel.open()
+
+
+func _resume() -> void:
+	if pause_panel != null:
+		pause_panel.close()
+	screen = Screen.PLAYING
+	if game != null:
+		hud.update_from_game(HudModel.from_game(game, _displayed_score))
+
+
 func _open_settings() -> void:
 	if settings_panel == null:
 		return
+	if screen != Screen.SETTINGS:
+		_settings_return = screen
 	screen = Screen.SETTINGS
 	hud.visible = false
 	settings_panel.open()
@@ -631,6 +672,13 @@ func _close_settings() -> void:
 	if settings_panel != null:
 		settings_panel.close()
 	settings.save_to()
+	# Back to wherever settings was opened from: the menu, or the pause screen over a
+	# run in progress - which must not be silently abandoned by visiting settings.
+	if _settings_return == Screen.PAUSED and game != null and game.state == GameScript.State.PLAYING:
+		screen = Screen.PAUSED
+		if pause_panel != null:
+			pause_panel.open()
+		return
 	hud.visible = true
 	screen = Screen.MENU
 	hud.show_menu(selected)

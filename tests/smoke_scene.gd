@@ -78,6 +78,7 @@ func _process(_delta: float) -> bool:
 			_check_achievements_panel()
 			_check_leaderboard_panel()
 			_check_free_mode_cheat()
+			_check_pause_menu()
 			_report()
 			return true
 	return false
@@ -589,3 +590,34 @@ func _find_label(root: Node, prefix: String) -> Label:
 		if found != null:
 			return found
 	return null
+
+
+## Esc pauses instead of quitting, gameplay is inert while paused, and settings opened
+## from the pause screen come back to it rather than dumping the run on the menu.
+func _check_pause_menu() -> void:
+	_main.call("start_run", RunConfig.of(RulesetScript.Mode.MARATHON, "normal"), 999)
+	_check(_main.call("screen_name") == "playing", "a run is up before pausing")
+	var game = _main.get("game")
+	var panel: Node = _main.get("pause_panel")
+	_check(panel != null and not panel.visible, "the pause menu starts hidden")
+
+	_main.call("_handle_key", KEY_ESCAPE)
+	_check(_main.call("screen_name") == "paused", "escape pauses the run")
+	_check(panel != null and panel.visible, "and the menu is up")
+
+	var turns_before := int(game.turns)
+	_main.call("_handle_key", KEY_X)
+	_check(int(game.turns) == turns_before, "a rotate key does nothing while paused")
+
+	_main.call("_handle_key", KEY_ESCAPE)
+	_check(_main.call("screen_name") == "playing", "escape again resumes")
+	_check(not panel.visible, "and the menu is down")
+
+	# Settings from the pause screen must not abandon the run.
+	_main.call("_handle_key", KEY_ESCAPE)
+	(panel as Node).emit_signal("settings_pressed")
+	_check(_main.call("screen_name") == "settings", "settings opens from the pause menu")
+	_main.call("_close_settings")
+	_check(_main.call("screen_name") == "paused", "and closing it returns to the pause menu")
+	(panel as Node).emit_signal("resume_pressed")
+	_check(_main.call("screen_name") == "playing", "resume returns to the game")
