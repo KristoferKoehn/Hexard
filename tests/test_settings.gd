@@ -256,3 +256,20 @@ func test_top_scores_for_a_configuration() -> void:
 	assert_eq(int(profile.top_scores_for(null).size()), 0, "no configuration, no board")
 	assert_eq(int(profile.top_scores_for(RunConfig.from_name("Timed", "hard"), 10).size()), 0,
 		"an unplayed table is empty rather than borrowing another's scores")
+
+
+func test_the_free_mode_code() -> void:
+	assert_true(SettingsScript.is_free_mode_code([3, 1, 4, 1, 5, 9]), "the first six digits of pi")
+	assert_false(SettingsScript.is_free_mode_code([3, 1, 4, 1, 5]), "a short sequence is not the code")
+	assert_false(SettingsScript.is_free_mode_code([3, 1, 4, 1, 5, 9, 2]), "nor a long one")
+	assert_false(SettingsScript.is_free_mode_code([3, 1, 4, 1, 5, 8]), "nor a near miss")
+	assert_false(SettingsScript.is_free_mode_code([1, 3, 4, 1, 5, 9]), "nor the right digits in the wrong order")
+
+
+func test_free_mode_is_locked_by_default_and_stays_unlocked() -> void:
+	var settings := SettingsScript.new()
+	assert_false(settings.free_mode_unlocked, "FREE mode is locked out of the box")
+	settings.free_mode_unlocked = true
+	var reloaded := SettingsScript.new()
+	reloaded.apply_dictionary(settings.to_dictionary())
+	assert_true(reloaded.free_mode_unlocked, "and unlocking is saved with the profile")

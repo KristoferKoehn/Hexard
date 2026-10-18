@@ -13,6 +13,11 @@ const DEFAULT_PATH := "user://hexard_settings.json"
 
 ## Every rebindable action and its default keys. Several keys per action, because
 ## the defaults cover both arrows/WASD and X/E-style layout independence.
+## The first six digits of pi, typed in the settings screen. The window is measured
+## from the first digit to the last, not between keys.
+const FREE_MODE_CODE := [3, 1, 4, 1, 5, 9]
+const FREE_MODE_WINDOW_MS := 2000
+
 const DEFAULT_BINDINGS := {
 	"cursor_up": [KEY_UP, KEY_W],
 	"cursor_down": [KEY_DOWN, KEY_S],
@@ -58,6 +63,9 @@ var reduced_motion := false
 ## difference between playable and unplayable for a colour-blind player, not
 ## decoration, so it must not be buried.
 var colour_patterns := true
+## FREE rotation is a cheat, not an option: the reference mode is STRICT, and anyone who
+## wants the looser one types the code. Persisted, so it unlocks per profile.
+var free_mode_unlocked := false
 
 var bindings: Dictionary = {}
 
@@ -171,6 +179,7 @@ func to_dictionary() -> Dictionary:
 		"flashes": flashes,
 		"reduced_motion": reduced_motion,
 		"colour_patterns": colour_patterns,
+		"free_mode_unlocked": free_mode_unlocked,
 		"bindings": bound,
 	}
 
@@ -193,6 +202,7 @@ func apply_dictionary(data: Dictionary) -> void:
 	flashes = bool(data.get("flashes", flashes))
 	reduced_motion = bool(data.get("reduced_motion", reduced_motion))
 	colour_patterns = bool(data.get("colour_patterns", colour_patterns))
+	free_mode_unlocked = bool(data.get("free_mode_unlocked", free_mode_unlocked))
 	var bound: Variant = data.get("bindings", null)
 	if typeof(bound) == TYPE_DICTIONARY:
 		for action: String in DEFAULT_BINDINGS:
@@ -218,6 +228,17 @@ func _number(data: Dictionary, key: String, fallback: float) -> float:
 
 
 ## Human-readable key name for the settings screen ("Z", "Esc", "F1").
+## Pure, so the sequence can be tested without a key event: the panel only supplies
+## digits and a clock.
+static func is_free_mode_code(digits: Array) -> bool:
+	if digits.size() != FREE_MODE_CODE.size():
+		return false
+	for index in FREE_MODE_CODE.size():
+		if int(digits[index]) != int(FREE_MODE_CODE[index]):
+			return false
+	return true
+
+
 static func key_name(code: int) -> String:
 	var special := {
 		KEY_ESCAPE: "Esc", KEY_SPACE: "Space", KEY_ENTER: "Enter", KEY_TAB: "Tab",

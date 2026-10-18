@@ -75,6 +75,8 @@ func _ready() -> void:
 	leaderboard_panel.closed.connect(_close_leaderboard)
 	hud.leaderboard_pressed.connect(_open_leaderboard_for_run)
 	settings_panel.leaderboard_pressed.connect(_open_leaderboard_for_selection)
+	settings_panel.free_mode_toggled.connect(_on_free_mode_toggled)
+	hud.set_free_mode_unlocked(settings.free_mode_unlocked)
 	toast = AchievementToast.new()
 	add_child(toast)
 	hud.settings_pressed.connect(_open_settings)
@@ -464,6 +466,9 @@ func show_hint() -> void:
 func toggle_rotation_mode() -> void:
 	if game == null:
 		return
+	# Locked means hidden: a keypress must not advertise that the mode exists.
+	if not settings.free_mode_unlocked:
+		return
 	var ruleset: Variant = game.ruleset
 	if int(ruleset.rotation_mode) == int(RulesetScript.RotationMode.FREE):
 		ruleset.rotation_mode = RulesetScript.RotationMode.STRICT
@@ -677,6 +682,19 @@ func _on_achievements_reset() -> void:
 		achievements_panel.refresh()
 	if settings_panel != null:
 		settings_panel.refresh()
+
+
+## The cheat code just unlocked or locked FREE rotation.
+func _on_free_mode_toggled(unlocked: bool) -> void:
+	if toast != null:
+		toast.show_text("Free Mode Unlocked" if unlocked else "Free mode locked")
+	audio.play_cue("accept" if unlocked else "lock")
+	hud.set_free_mode_unlocked(unlocked)
+	# Locking must not leave the running game in the mode it just revoked.
+	if not unlocked and game != null:
+		if int(game.ruleset.rotation_mode) == int(RulesetScript.RotationMode.FREE):
+			game.ruleset.rotation_mode = RulesetScript.RotationMode.STRICT
+			hud.update_from_game(HudModel.from_game(game, _displayed_score))
 
 
 func _on_settings_changed() -> void:

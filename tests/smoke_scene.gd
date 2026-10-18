@@ -77,6 +77,7 @@ func _process(_delta: float) -> bool:
 			_check_settings_layout()
 			_check_achievements_panel()
 			_check_leaderboard_panel()
+			_check_free_mode_cheat()
 			_report()
 			return true
 	return false
@@ -541,3 +542,50 @@ func _check_leaderboard_panel() -> void:
 			"with a header row even on an empty table (%d cells)" % grid.get_child_count())
 	panel.emit_signal("closed")
 	_check(not panel.visible, "and it closes")
+
+
+## The cheat code: typed in the settings screen it unlocks FREE rotation for the profile
+## and makes the T hint appear; typed again it locks and hides the hint. Worth checking
+## headlessly because the handler is an _unhandled_input on a CanvasLayer, which is
+## exactly the kind of thing that silently never fires.
+func _check_free_mode_cheat() -> void:
+	_main.call("_open_settings")
+	var panel: Node = _main.get("settings_panel")
+	var settings = _main.get("settings")
+	var hud: Node = _main.get("hud")
+	_check(not bool(settings.free_mode_unlocked), "FREE mode starts locked")
+	_check(not _controls_text(hud).contains("rotation mode"), "with no hint to find it")
+
+	_type_code(panel)
+	_check(bool(settings.free_mode_unlocked), "the code unlocks FREE mode")
+	_check(_controls_text(hud).contains("rotation mode"), "and the T hint appears")
+	if _main.get("toast") != null:
+		_check(int(_main.get("toast").call("pending")) > 0, "and a toast is queued")
+
+	_type_code(panel)
+	_check(not bool(settings.free_mode_unlocked), "typing it again locks it")
+	_check(not _controls_text(hud).contains("rotation mode"), "and the hint goes away")
+	_main.call("_close_settings")
+
+
+func _type_code(panel: Node) -> void:
+	for code in [KEY_3, KEY_1, KEY_4, KEY_1, KEY_5, KEY_9]:
+		var key := InputEventKey.new()
+		key.keycode = code
+		key.pressed = true
+		panel.call("_unhandled_input", key)
+
+
+func _controls_text(hud: Node) -> String:
+	var label := _find_label(hud, "arrows/WASD")
+	return label.text if label != null else ""
+
+
+func _find_label(root: Node, prefix: String) -> Label:
+	for child in root.get_children():
+		if child is Label and (child as Label).text.begins_with(prefix):
+			return child
+		var found := _find_label(child, prefix)
+		if found != null:
+			return found
+	return null

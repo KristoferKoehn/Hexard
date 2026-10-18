@@ -45,6 +45,7 @@ var _controls: Label
 var _banner: Label
 var _menu: Control
 var _menu_blurb: Label
+var _free_mode_unlocked := false
 var _result: Control
 var _result_title: Label
 var _result_body: Label
@@ -87,7 +88,7 @@ func _build_status() -> void:
 	_banner.visible = false
 	_message = _make_label(Vector2(18, 632), MESSAGE_FONT_SIZE, NeonStyle.AMBER)
 	_controls = _make_label(Vector2(18, 684), 15, NeonStyle.DIM)
-	_controls.text = "arrows/WASD  move    ·    Z/X or click  rotate    ·    F/Space  select special    ·    H  hint    ·    R  new board    ·    T  rotation mode    ·    esc  quit"
+	_refresh_controls()
 
 
 func _make_rich(position: Vector2, font_size: int) -> RichTextLabel:
@@ -298,6 +299,26 @@ func show_playing() -> void:
 	_menu.visible = false
 	_result.visible = false
 	_set_status_visible(true)
+
+
+## The T hint advertises a mode that is supposed to be a secret, so it follows the
+## unlock rather than always being printed.
+func set_free_mode_unlocked(unlocked: bool) -> void:
+	_free_mode_unlocked = unlocked
+	_refresh_controls()
+
+
+func _refresh_controls() -> void:
+	if _controls == null:
+		return
+	var parts := PackedStringArray([
+		"arrows/WASD  move", "Z/X or click  rotate", "F/Space  select special",
+		"H  hint", "R  new board",
+	])
+	if _free_mode_unlocked:
+		parts.append("T  rotation mode")
+	parts.append("esc  quit")
+	_controls.text = "    ·    ".join(parts)
 
 
 func _set_status_visible(visible_now: bool) -> void:

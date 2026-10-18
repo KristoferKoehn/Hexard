@@ -9,6 +9,7 @@ signal closed
 signal changed
 signal achievements_pressed
 signal leaderboard_pressed
+signal free_mode_toggled(unlocked: bool)
 
 const SettingsScript := preload("res://src/core/settings.gd")
 const ProfileScript := preload("res://src/core/profile_service.gd")
@@ -22,6 +23,10 @@ var _toggle_buttons: Dictionary = {}
 var _binding_buttons: Dictionary = {}
 var _records: Label
 var _armed_action := ""
+# Digits and the clock reading when each was typed, so the window is measured from the
+# first digit to the last rather than between keys.
+var _code_digits: Array[int] = []
+var _code_times: Array[int] = []
 
 func _ready() -> void:
 	layer = 2
@@ -230,6 +235,48 @@ func _after_change() -> void:
 	changed.emit()
 
 ## Rebinding captures keys here so the controller never has to know about it.
+## Separately from _input, so rebinding capture (which owns keys while armed) cannot
+## feed the code, and so a rebind session is never mistaken for typing.
+func _unhandled_input(event: InputEvent) -> void:
+	if not visible or not _armed_action.is_empty():
+		return
+	if not (event is InputEventKey):
+		return
+	var key := event as InputEventKey
+	if not key.pressed or key.echo:
+		return
+	var digit := -1
+	match key.keycode:
+		KEY_3: digit = 3
+		KEY_1: digit = 1
+		KEY_4: digit = 4
+		KEY_5: digit = 5
+		KEY_9: digit = 9
+	if digit < 0:
+		return
+	var now := Time.get_ticks_msec()
+	_code_digits.append(digit)
+	_code_times.append(now)
+	while _code_digits.size() > SettingsScript.FREE_MODE_CODE.size():
+		_code_digits.pop_front()
+		_code_times.pop_front()
+	if not SettingsScript.is_free_mode_code(_code_digits):
+		return
+	var elapsed := now - _code_times[0]
+	_code_digits.clear()
+	_code_times.clear()
+	if elapsed > SettingsScript.FREE_MODE_WINDOW_MS:
+		return
+	_toggle_free_mode()
+
+
+func _toggle_free_mode() -> void:
+	settings.free_mode_unlocked = not settings.free_mode_unlocked
+	settings.save_to()
+	free_mode_toggled.emit(settings.free_mode_unlocked)
+	refresh()
+
+
 func _input(event: InputEvent) -> void:
 	if not visible or _armed_action == "":
 		return

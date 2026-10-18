@@ -104,3 +104,14 @@ func test_cascade_depth_does_not_make_the_clear_louder() -> void:
 	var first: float = peaks[1]
 	var last: float = peaks[5]
 	assert_almost_eq(last, first, first * 0.2, "depth 5 is as loud as depth 1, not louder")
+
+
+func test_the_cheat_cues_are_tellable_apart() -> void:
+	for cue: String in ["accept", "lock"]:
+		assert_true(Synth.CUES.has(cue), "there is a %s cue" % cue)
+	var accept: Dictionary = Synth.CUES["accept"]
+	var lock: Dictionary = Synth.CUES["lock"]
+	assert_gt(float(accept["freq"]), float(lock["freq"]), "accept is brighter than lock")
+	assert_ne(int(accept["wave"]), int(lock["wave"]), "and a different timbre, not just a note")
+	assert_gt(float(accept["slide"]), 0.0, "accept rises")
+	assert_lt(float(lock["slide"]), 0.0, "lock falls")

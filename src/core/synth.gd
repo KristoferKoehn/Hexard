@@ -41,6 +41,11 @@ const CUES := {
 	# distinct from the multi chime, which is static in pitch. The upward slide is
 	# what makes it read as a reward rather than a click.
 	"achievement": {"wave": Wave.TRIANGLE, "freq": 880.0, "dur": 0.45, "amp": 0.32, "slide": 700.0},
+	# Cheat-code feedback. Accept is a bright sine rising an interval; lock is a duller
+	# square falling. Opposite in pitch, timbre and direction, so they cannot be confused
+	# even at low volume - which matters when the only feedback is audio and a toast.
+	"accept":     {"wave": Wave.SINE, "freq": 1318.5, "dur": 0.26, "amp": 0.30, "slide": 420.0},
+	"lock":       {"wave": Wave.SQUARE, "freq": 330.0, "dur": 0.24, "amp": 0.22, "slide": -150.0},
 }
 
 ## Cascades climb in pitch so a chain sounds like it is going somewhere: one
