@@ -10,7 +10,6 @@ const Library := preload("res://src/core/tutorial_library.gd")
 func test_each_clip_demonstrates_what_it_claims() -> void:
 	# The check that was missing when four of five clips were wrong: every clip must
 	# actually produce the thing its text says, from its own rig, with its own move.
-	var Library := preload("res://src/core/tutorial_library.gd")
 	var expected := {
 		"clear": "cleared", "stars": "bonus_star_cluster",
 		"flower": "starflower", "pearl": "pearl", "turn": "turn", "bombs": "defused",

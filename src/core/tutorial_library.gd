@@ -102,17 +102,17 @@ static func make_game(id: String) -> Game:
 		"stars":
 			_rig_stars(game)
 		"flower":
-			_rig_ring(game, Pieces.GemColor.RED, Pieces.gem(Pieces.GemColor.RED))
+			_rig_ring(game, Pieces.gem(Pieces.GemColor.ORANGE), Pieces.gem(Pieces.GemColor.BLUE))
 		"turn":
 			_rig_turn(game)
 		"pearl":
-			_rig_ring(game, Pieces.GemColor.RED, Pieces.starflower())
+			_rig_ring(game, Pieces.starflower(), Pieces.gem(Pieces.GemColor.BLUE))
 		"bombs":
 			_rig_bombs(game)
 		"pearl_bloom":
 			# Ring of five reds around a starflower: the sixth is rotated in, and blooming a
 			# flower whose centre is already a starflower makes a pearl.
-			_rig_ring(game, Pieces.gem(Pieces.GemColor.RED), Pieces.starflower())
+			_rig_ring(game, Pieces.gem(Pieces.GemColor.ORANGE), Pieces.starflower())
 		"colour_wipe":
 			_rig_triangle(game, Pieces.bomb(Pieces.GemColor.RED, 3),
 				Pieces.bonus_star(Pieces.GemColor.RED), Pieces.gem(Pieces.GemColor.RED))
@@ -158,8 +158,9 @@ static func play(game: Game, id: String) -> MoveResult:
 	if id == "turn":
 		return game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
 	if id == "bombs":
-		# The bomb's own triangle is already monochrome, so turning that trio demonstrates
-		# the defuse without needing a completing move at all.
+		# NOTE: an already-monochrome triangle is not a reachable board state, so this rig is
+		# wrong; the one-short replacement hangs inside the completing-move search and is
+		# documented rather than shipped.
 		return game.rotate(_vertex_near(BOMB_CELL), GameScript.CLOCKWISE)
 	if DEMO_MOVES.has(id):
 		var move: Dictionary = DEMO_MOVES[id]
