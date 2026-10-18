@@ -660,6 +660,15 @@ func _check_menu_flow() -> void:
 	_check(_main.call("screen_name") == "menu", "the menu is up")
 	_check(not bool(hud.call("is_difficulty_open")), "with the difficulty step closed")
 
+	# The mode buttons were briefly painted blank because their text came only from a
+	# later refresh; a title at build time is now asserted, not assumed.
+	var mode_buttons: Dictionary = hud.get("_mode_buttons")
+	_check(mode_buttons.size() == 3, "there are three mode buttons")
+	for mode: int in mode_buttons:
+		var button := mode_buttons[mode] as Button
+		_check(button.text.begins_with(Hud.MODE_LABELS[mode]), "mode button %d is titled" % mode)
+		_check(button.text.contains("\n"), "and carries its best score underneath")
+
 	_main.call("_handle_key", KEY_2)
 	_check(bool(hud.call("is_difficulty_open")), "picking a mode opens its difficulty step")
 	_check(_main.get("hud").get("_menu").visible == false, "and the mode menu steps aside")

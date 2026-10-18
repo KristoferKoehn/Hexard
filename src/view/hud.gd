@@ -218,7 +218,9 @@ func _build_menu() -> void:
 	mode_row.add_theme_constant_override("separation", 10)
 	column.add_child(mode_row)
 	for mode: int in [RulesetScript.Mode.MARATHON, RulesetScript.Mode.TIMED, RulesetScript.Mode.SURVIVAL]:
-		var button := _menu_button("", Vector2(210, 54), 20)
+		# Titled at build time as well as on refresh: a button that relies on a later
+		# refresh is a button that can be painted blank.
+		var button := _menu_button("%s\n—" % MODE_LABELS[mode], Vector2(210, 60), 20)
 		button.pressed.connect(_on_mode_pressed.bind(mode))
 		mode_row.add_child(button)
 		_mode_buttons[mode] = button
@@ -245,6 +247,7 @@ func _build_menu() -> void:
 
 	column.add_child(_title("1/2/3 pick a mode   ·   Enter replay last   ·   Esc quit", 15))
 	_build_difficulty()
+	_refresh_menu_records()
 
 
 ## The second step: which difficulty of the chosen mode.
