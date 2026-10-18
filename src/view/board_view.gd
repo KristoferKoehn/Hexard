@@ -19,7 +19,7 @@ const GEM_COLORS := {
 	Pieces.GemColor.BLUE: Color("2f58c8"),    # oklch 0.50 0.18 265
 	Pieces.GemColor.RED: Color("d73337"),     # oklch 0.58 0.20  25
 	Pieces.GemColor.VIOLET: Color("ad67dc"),  # oklch 0.64 0.18 310
-	Pieces.GemColor.GREEN: Color("43b966"),   # oklch 0.70 0.16 150
+	Pieces.GemColor.GREEN: Color("00b74a"),   # oklch 0.68 0.21 150
 	Pieces.GemColor.ORANGE: Color("fc9a10"),  # oklch 0.77 0.17  65
 	Pieces.GemColor.CYAN: Color("34dde5"),    # oklch 0.82 0.13 200
 	Pieces.GemColor.YELLOW: Color("fae353"),  # oklch 0.91 0.16 100
@@ -416,10 +416,35 @@ func _draw_piece(centre: Vector2, piece: int, radius: float, alpha: float) -> vo
 			draw_circle(centre - Vector2(radius * 0.22, radius * 0.22), radius * 0.22,
 				Color(0.78, 0.84, 0.98, alpha * 0.9))
 		Pieces.Kind.BOMB:
-			draw_colored_polygon(corners, base.darkened(0.3))
-			draw_polyline(_closed(corners), Color(0.06, 0.08, 0.11, alpha), 2.5)
-			draw_circle(centre, radius * 0.34, Color(0.06, 0.08, 0.11, alpha))
-			_draw_centered_text(str(Pieces.counter_of(piece)), centre, 19, Color(1.0, 0.82, 0.4, alpha))
+			# A machine part, not a gem: steel plate, rivets, and the fuse about to blow
+			# heats the rim. It still reports its colour, through the same glyph set the
+			# gems use, drawn in its own hue so it reads on dark steel.
+			var bomb_color := int(Pieces.color_of(piece))
+			var counter := Pieces.counter_of(piece)
+			var hot := counter <= 2
+			var plate := Color("5c3a22") if hot else Color("2b3140")
+			var face := Color("33211a") if hot else Color("1a1f2b")
+			draw_colored_polygon(
+				_corners(centre + Vector2(radius * 0.09, radius * 0.13), radius * 0.97),
+				Color(0, 0, 0, 0.32 * alpha)
+			)
+			draw_colored_polygon(corners, plate)
+			var inner := _corners(centre, radius * 0.84)
+			draw_colored_polygon(inner, face)
+			draw_polyline(_closed(inner), plate.lightened(0.30), 1.5)
+			for index in [1, 3, 5]:
+				var angle := deg_to_rad(60.0 * float(index))
+				var rivet := centre + Vector2(cos(angle), sin(angle)) * radius * 0.90
+				draw_circle(rivet, radius * 0.10, plate.lightened(0.38))
+				draw_circle(rivet, radius * 0.04, Color(0.05, 0.07, 0.10, alpha))
+			GemGlyphs.draw_mark(
+				self, centre - Vector2(0.0, radius * 0.12), radius * 0.78,
+				GemGlyphs.kind_for(bomb_color), Color(base.r, base.g, base.b, 0.95 * alpha)
+			)
+			_draw_centered_text(
+				str(counter), centre + Vector2(radius * 0.50, radius * 0.44), 15,
+				Color(1.0, 0.80, 0.36, alpha) if hot else Color(0.82, 0.86, 0.94, alpha)
+			)
 		_:
 			# One light, from the top left: a cast shadow underneath, a darker rim, the
 			# face inset inside it, a specular patch up-left and an inner shadow

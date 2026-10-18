@@ -63,10 +63,14 @@ static func mark_color(base: Color) -> Color:
 
 ## Draws the mark for `color` centred on a gem of the given base colour.
 static func draw(canvas: CanvasItem, centre: Vector2, radius: float, color: int, base: Color) -> void:
-	var kind := kind_for(color)
+	draw_mark(canvas, centre, radius, kind_for(color), mark_color(base))
+
+
+## Draws a mark with an explicit colour, for pieces that are not gems and need the
+## mark to read against their own material (a bomb's steel plate, say).
+static func draw_mark(canvas: CanvasItem, centre: Vector2, radius: float, kind: int, mark: Color) -> void:
 	if kind == Kind.NONE or radius <= 1.0:
 		return
-	var mark := mark_color(base)
 	# Nudged down-right so the mark never sits under the bevel highlight.
 	var at := centre + Vector2(radius * 0.04, radius * 0.07)
 
