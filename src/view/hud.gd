@@ -15,6 +15,7 @@ signal settings_pressed
 signal restart_pressed
 signal menu_pressed
 signal leaderboard_pressed
+signal achievements_pressed
 
 const RulesetScript := preload("res://src/core/ruleset.gd")
 const Grid := preload("res://src/core/hex_grid.gd")
@@ -49,6 +50,11 @@ var _free_mode_unlocked := false
 var _profile: ProfileService
 var _menu_config: RunConfig
 var _menu_records: Label
+var _menu_lifetime: Label
+var _difficulty: Control
+var _difficulty_title: Label
+var _difficulty_blurb: Label
+var _open_mode: int = 0
 var _flourish: MenuFlourish
 var _result: Control
 var _result_title: Label
@@ -199,61 +205,98 @@ func _build_menu() -> void:
 	add_child(_menu)
 
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 14)
+	column.add_theme_constant_override("separation", 12)
 	_menu.add_child(column)
 
 	column.add_child(_title("HEXARD", 64))
 	column.add_child(_title("rotate trios · build flowers · close the pearl ring", 18))
 
+	# A mode is a door, not a radio button: picking one opens its difficulty screen, so
+	# the menu never has to hold a half-made choice.
 	var mode_row := HBoxContainer.new()
-	mode_row.add_theme_constant_override("separation", 8)
+	mode_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	mode_row.add_theme_constant_override("separation", 10)
 	column.add_child(mode_row)
-	var mode_group := ButtonGroup.new()
 	for mode: int in [RulesetScript.Mode.MARATHON, RulesetScript.Mode.TIMED, RulesetScript.Mode.SURVIVAL]:
-		var button := _toggle(MODE_LABELS[mode], mode_group)
-		button.pressed.connect(_on_mode_button.bind(mode))
+		var button := _menu_button("", Vector2(210, 54), 20)
+		button.pressed.connect(_on_mode_pressed.bind(mode))
 		mode_row.add_child(button)
 		_mode_buttons[mode] = button
 
-	_menu_blurb = _title("", 16)
-	column.add_child(_menu_blurb)
-
-	var difficulty_row := HBoxContainer.new()
-	difficulty_row.add_theme_constant_override("separation", 8)
-	column.add_child(difficulty_row)
-	difficulty_row.add_child(_title("difficulty:", 16))
-	var difficulty_group := ButtonGroup.new()
-	for difficulty: String in DIFFICULTIES:
-		var button := _toggle(difficulty.capitalize(), difficulty_group)
-		button.pressed.connect(_on_difficulty_button.bind(difficulty))
-		difficulty_row.add_child(button)
-		_difficulty_buttons[difficulty] = button
-
 	_menu_records = _title("", 15)
 	column.add_child(_menu_records)
+	_menu_lifetime = _title("", 14)
+	column.add_child(_menu_lifetime)
 
-	var start := Button.new()
-	start.text = "Start  (Enter)"
-	start.custom_minimum_size = Vector2(220, 44)
-	start.pressed.connect(func() -> void: start_pressed.emit())
+	var system_row := HBoxContainer.new()
+	system_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	system_row.add_theme_constant_override("separation", 10)
+	column.add_child(system_row)
+	var system := [
+		["Achievements", func() -> void: achievements_pressed.emit()],
+		["Leaderboard", func() -> void: leaderboard_pressed.emit()],
+		["Settings", func() -> void: settings_pressed.emit()],
+		["Tutorial", func() -> void: tutorial_pressed.emit()],
+	]
+	for entry: Array in system:
+		var button := _menu_button(str(entry[0]), Vector2(150, 40), 16)
+		button.pressed.connect(entry[1])
+		system_row.add_child(button)
 
-	var action_row := HBoxContainer.new()
-	action_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	action_row.add_theme_constant_override("separation", 10)
-	action_row.add_child(start)
-	var tutorial := Button.new()
-	tutorial.text = "Tutorial"
-	tutorial.custom_minimum_size = Vector2(140, 44)
-	tutorial.pressed.connect(func() -> void: tutorial_pressed.emit())
-	action_row.add_child(tutorial)
-	var settings_button := Button.new()
-	settings_button.text = "Settings"
-	settings_button.custom_minimum_size = Vector2(140, 44)
-	settings_button.pressed.connect(func() -> void: settings_pressed.emit())
-	action_row.add_child(settings_button)
-	column.add_child(action_row)
+	column.add_child(_title("1/2/3 pick a mode   ·   Enter replay last   ·   Esc quit", 15))
+	_build_difficulty()
 
-	column.add_child(_title("←/→ mode   ·   ↑/↓ difficulty   ·   Enter start", 15))
+
+## The second step: which difficulty of the chosen mode.
+func _build_difficulty() -> void:
+	_difficulty = CenterContainer.new()
+	(_difficulty as Control).set_anchors_preset(Control.PRESET_FULL_RECT)
+	(_difficulty as Control).mouse_filter = Control.MOUSE_FILTER_PASS
+	add_child(_difficulty)
+
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 14)
+	_difficulty.add_child(column)
+
+	_difficulty_title = _title("", 52)
+	column.add_child(_difficulty_title)
+	_difficulty_blurb = _title("", 17)
+	column.add_child(_difficulty_blurb)
+
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+	column.add_child(row)
+	for difficulty: String in DIFFICULTIES:
+		var button := _menu_button("", Vector2(200, 54), 18)
+		button.pressed.connect(_on_difficulty_pressed.bind(difficulty))
+		row.add_child(button)
+		_difficulty_buttons[difficulty] = button
+
+	var back := _menu_button("Back  (Esc)", Vector2(150, 38), 16)
+	back.pressed.connect(func() -> void: close_difficulty())
+	column.add_child(back)
+	_difficulty.visible = false
+
+
+func _menu_button(text: String, minimum: Vector2, font_size: int) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = minimum
+	NeonStyle.style_button(button, font_size)
+	return button
+
+
+## A mode button: records the choice, then opens that mode's difficulty screen.
+func _on_mode_pressed(mode: int) -> void:
+	mode_chosen.emit(mode)
+	show_difficulty(mode)
+
+
+## A difficulty button: the mode is already chosen, so this starts the run.
+func _on_difficulty_pressed(difficulty: String) -> void:
+	difficulty_chosen.emit(difficulty)
+	start_pressed.emit()
 
 
 func _title(text: String, font_size: int) -> Label:
@@ -268,51 +311,59 @@ func _title(text: String, font_size: int) -> Label:
 	return label
 
 
-func _toggle(text: String, group: ButtonGroup) -> Button:
-	var button := Button.new()
-	button.text = text
-	button.toggle_mode = true
-	button.button_group = group
-	button.custom_minimum_size = Vector2(150, 40)
-	return button
-
-
-func _on_mode_button(mode: int) -> void:
-	mode_chosen.emit(mode)
-
-
-func _on_difficulty_button(difficulty: String) -> void:
-	difficulty_chosen.emit(difficulty)
-
-
 func show_menu(config: RunConfig) -> void:
 	_menu_config = config
 	_flourish.visible = true
-	_refresh_menu_records()
+	_difficulty.visible = false
 	_menu.visible = true
 	_result.visible = false
 	_set_status_visible(false)
-	if _mode_buttons.has(config.mode):
-		(_mode_buttons[config.mode] as Button).button_pressed = true
-	if _difficulty_buttons.has(config.difficulty):
-		(_difficulty_buttons[config.difficulty] as Button).button_pressed = true
-	_menu_blurb.text = MODE_BLURBS.get(config.mode, "")
+	_refresh_menu_records()
 
 
+## Opens the difficulty step for a mode. The ambient board stays: it is the menu's
+## backdrop, and this is still the menu.
+func show_difficulty(mode: int) -> void:
+	_open_mode = mode
+	_menu.visible = false
+	_difficulty.visible = true
+	_flourish.visible = true
+	_difficulty_title.text = MODE_LABELS.get(mode, "")
+	_difficulty_blurb.text = MODE_BLURBS.get(mode, "")
+	for difficulty: String in DIFFICULTIES:
+		if _difficulty_buttons.has(difficulty):
+			(_difficulty_buttons[difficulty] as Button).text = "%s  ·  %s" % [
+				difficulty.capitalize(), _best_text(mode, difficulty),
+			]
+
+
+func close_difficulty() -> void:
+	_difficulty.visible = false
+	_menu.visible = true
+	_refresh_menu_records()
+
+
+func is_difficulty_open() -> bool:
+	return _difficulty != null and _difficulty.visible
+
+
+func open_mode() -> int:
+	return _open_mode
+
+
+## Kept for the controller, which tracks the selected run: it only refreshes the
+## figures, because visibility now belongs to show_menu and show_difficulty.
 func highlight_menu(config: RunConfig) -> void:
 	_menu_config = config
 	_refresh_menu_records()
-	if _mode_buttons.has(config.mode):
-		(_mode_buttons[config.mode] as Button).button_pressed = true
-	if _difficulty_buttons.has(config.difficulty):
-		(_difficulty_buttons[config.difficulty] as Button).button_pressed = true
-	_menu_blurb.text = MODE_BLURBS.get(config.mode, "")
 
 
 func show_playing() -> void:
 	if _flourish != null:
 		_flourish.visible = false
 	_menu.visible = false
+	if _difficulty != null:
+		_difficulty.visible = false
 	_result.visible = false
 	_set_status_visible(true)
 
@@ -331,16 +382,33 @@ func set_profile(value: ProfileService) -> void:
 func _refresh_menu_records() -> void:
 	if _menu_records == null:
 		return
-	if _profile == null or _menu_config == null:
+	if _profile == null:
 		_menu_records.text = ""
 		return
-	var best: Dictionary = _profile.best_for(_menu_config.mode_name(), _menu_config.difficulty)
 	var totals: Dictionary = _profile.totals
-	var line := "best %s at level %d   ·   %d runs   ·   %d of %d achievements" % [
-		_thousands(int(best.get("score", 0))), int(best.get("level", 0)),
-		int(totals.get("games", 0)), _profile.achievement_count(), Achievements.count(),
+	_menu_records.text = "%d runs   ·   %d wins   ·   %d of %d achievements" % [
+		int(totals.get("games", 0)), int(totals.get("wins", 0)),
+		_profile.achievement_count(), Achievements.count(),
 	]
-	_menu_records.text = line
+	if _menu_lifetime != null:
+		_menu_lifetime.text = "best level %d   ·   %d gems cleared   ·   %d bombs defused" % [
+			int(totals.get("best_level", 0)), int(totals.get("cleared", 0)),
+			int(totals.get("bombs_defused", 0)),
+		]
+	# Each mode button carries its own best at the difficulty the player used last.
+	var difficulty := _menu_config.difficulty if _menu_config != null else "normal"
+	for mode: int in _mode_buttons:
+		var button := _mode_buttons[mode] as Button
+		button.text = "%s\n%s" % [MODE_LABELS.get(mode, ""), _best_text(mode, difficulty)]
+
+
+## The best score for a table, or a dash when it has never been played.
+func _best_text(mode: int, difficulty: String) -> String:
+	if _profile == null:
+		return "—"
+	var best: Dictionary = _profile.best_for(RunConfig.mode_name_of(mode), difficulty)
+	var score := int(best.get("score", 0))
+	return _thousands(score) if score > 0 else "—"
 
 
 static func _thousands(value: int) -> String:

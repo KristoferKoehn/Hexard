@@ -79,6 +79,7 @@ func _process(_delta: float) -> bool:
 			_check_leaderboard_panel()
 			_check_free_mode_cheat()
 			_check_pause_menu()
+			_check_menu_flow()
 			_report()
 			return true
 	return false
@@ -648,3 +649,42 @@ func _check_pause_menu() -> void:
 	(panel as Node).emit_signal("restart_pressed")
 	_check(_main.call("screen_name") == "playing", "restart from the pause menu starts a run")
 	_check(not panel.visible, "without leaving the pause screen over it")
+
+
+## The menu is now two steps: pick a mode, then pick a difficulty, and the mode buttons
+## are doors rather than a radio selection. The ambient board stays up for both.
+func _check_menu_flow() -> void:
+	_main.call("_on_menu_pressed")
+	var hud: Node = _main.get("hud")
+	var flourish = hud.get("_flourish")
+	_check(_main.call("screen_name") == "menu", "the menu is up")
+	_check(not bool(hud.call("is_difficulty_open")), "with the difficulty step closed")
+
+	_main.call("_handle_key", KEY_2)
+	_check(bool(hud.call("is_difficulty_open")), "picking a mode opens its difficulty step")
+	_check(_main.get("hud").get("_menu").visible == false, "and the mode menu steps aside")
+	_check(flourish != null and flourish.visible, "the orbiting gems keep going")
+
+	_main.call("_handle_key", KEY_ESCAPE)
+	_check(not bool(hud.call("is_difficulty_open")), "escape steps back to the modes")
+	_check(_main.get("hud").get("_menu").visible, "with the menu visible again")
+
+	_main.call("_handle_key", KEY_3)
+	_main.call("_handle_key", KEY_1)
+	_check(_main.call("screen_name") == "playing", "a difficulty starts the run")
+	var selected: RunConfig = _main.get("selected")
+	_check(selected.mode_name() == "Survival", "in the mode that was picked")
+	_check(selected.difficulty == "easy", "at the difficulty that was picked")
+	_check(not bool(hud.call("is_difficulty_open")), "and the difficulty step is gone")
+
+	# The three system buttons live on the menu now.
+	_main.call("_on_menu_pressed")
+	(hud as Node).emit_signal("achievements_pressed")
+	_check(bool(_main.get("achievements_panel").visible), "achievements open from the menu")
+	_main.get("achievements_panel").call("close")
+	(hud as Node).emit_signal("leaderboard_pressed")
+	_check(bool(_main.get("leaderboard_panel").visible), "so does the leaderboard")
+	_main.get("leaderboard_panel").call("close")
+	(hud as Node).emit_signal("settings_pressed")
+	_check(_main.call("screen_name") == "settings", "and settings")
+	_main.call("_close_settings")

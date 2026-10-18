@@ -45,6 +45,7 @@ var toast: AchievementToast
 
 func _ready() -> void:
 	hud.set_profile(profile)
+	hud.achievements_pressed.connect(_open_achievements)
 	hud.mode_chosen.connect(_on_mode_chosen)
 	hud.difficulty_chosen.connect(_on_difficulty_chosen)
 	hud.start_pressed.connect(_on_start_pressed)
@@ -545,21 +546,44 @@ func _handle_key(code: int) -> void:
 
 
 func _menu_key(code: int) -> void:
+	# The difficulty step owns the digits while it is open, and Escape steps back out
+	# of it rather than quitting.
+	if hud.is_difficulty_open():
+		match code:
+			KEY_1:
+				_pick_difficulty("easy")
+			KEY_2:
+				_pick_difficulty("normal")
+			KEY_3:
+				_pick_difficulty("hard")
+			KEY_ESCAPE:
+				hud.close_difficulty()
+		return
 	match code:
-		KEY_LEFT, KEY_A, KEY_RIGHT, KEY_D:
-			var step := -1 if code == KEY_LEFT or code == KEY_A else 1
-			selected = selected.next_mode(step)
-			hud.highlight_menu(selected)
-		KEY_UP, KEY_W, KEY_DOWN, KEY_S:
-			var step := -1 if code == KEY_UP or code == KEY_W else 1
-			selected = selected.next_difficulty(step)
-			hud.highlight_menu(selected)
-		KEY_O:
-			_open_settings()
+		KEY_1:
+			hud.show_difficulty(RulesetScript.Mode.MARATHON)
+		KEY_2:
+			hud.show_difficulty(RulesetScript.Mode.TIMED)
+		KEY_3:
+			hud.show_difficulty(RulesetScript.Mode.SURVIVAL)
 		KEY_ENTER, KEY_SPACE, KEY_KP_ENTER:
 			start_run(selected)
+		KEY_A:
+			_open_achievements()
+		KEY_L:
+			_open_leaderboard_for_selection()
+		KEY_O:
+			_open_settings()
 		KEY_ESCAPE:
 			get_tree().quit()
+
+
+## Keyboard route through the difficulty step. The HUD buttons reach the same two
+## signals; this is the same decision without a pointer.
+func _pick_difficulty(difficulty: String) -> void:
+	selected = RunConfig.of(hud.open_mode(), difficulty)
+	hud.close_difficulty()
+	start_run(selected)
 
 
 ## Esc pauses the run; gameplay keys do nothing while the menu is up.
