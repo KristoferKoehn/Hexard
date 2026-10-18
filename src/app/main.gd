@@ -588,13 +588,23 @@ func _pick_difficulty(difficulty: String) -> void:
 
 ## Esc pauses the run; gameplay keys do nothing while the menu is up.
 func _pause_key(code: int) -> void:
+	# While the quit confirmation is up it owns the keys, so Escape cancels the question
+	# instead of resuming a game the player was on the way out of.
+	if pause_panel != null and pause_panel.is_confirming():
+		match code:
+			KEY_Y, KEY_ENTER, KEY_KP_ENTER:
+				pause_panel.confirm_quit()
+			KEY_N, KEY_ESCAPE, KEY_P:
+				pause_panel.cancel_confirm()
+		return
 	match code:
 		KEY_ESCAPE, KEY_P:
 			_resume()
+		KEY_M:
+			if pause_panel != null:
+				pause_panel.request_quit()
 		KEY_R:
 			start_run(selected)
-		KEY_M:
-			_on_menu_pressed()
 
 
 func _result_key(code: int) -> void:

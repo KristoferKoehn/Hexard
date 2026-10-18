@@ -643,6 +643,23 @@ func _check_pause_menu() -> void:
 	_check(_main.call("screen_name") == "menu", "and the menu is reachable from there too")
 	_check(not panel.visible and hud.visible, "pause down, menu up")
 
+	# Leaving the run asks first: Main menu throws away the board, the score and the clock.
+	_main.call("start_run", RunConfig.of(RulesetScript.Mode.MARATHON, "normal"), 1003)
+	_main.call("_handle_key", KEY_ESCAPE)
+	(panel as Node).call("request_quit")
+	_check(bool((panel as Node).call("is_confirming")), "main menu asks before quitting")
+	_check(_main.call("screen_name") == "paused", "and does not quit on the first click")
+	(panel as Node).call("cancel_confirm")
+	_check(not bool((panel as Node).call("is_confirming")), "cancel puts the question away")
+	_check(_main.call("screen_name") == "paused", "with the run still paused")
+	(panel as Node).call("request_quit")
+	_main.call("_handle_key", KEY_ESCAPE)
+	_check(_main.call("screen_name") == "paused", "escape cancels the question, not the pause")
+	(panel as Node).call("request_quit")
+	_main.call("_handle_key", KEY_Y)
+	_check(_main.call("screen_name") == "menu", "confirming leaves the run")
+	_check(not panel.visible, "and the pause screen comes down")
+
 	# Restart from the pause menu is the same class of bug.
 	_main.call("start_run", RunConfig.of(RulesetScript.Mode.MARATHON, "normal"), 1002)
 	_main.call("_handle_key", KEY_ESCAPE)
