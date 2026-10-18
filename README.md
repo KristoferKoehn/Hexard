@@ -84,6 +84,12 @@ a plain page but not when embedded in a COEP page.
 - 📄 **[Game design document](docs/design.md)** — vision, rules spec, board geometry, pieces, modes, scoring, UX, architecture, milestones, deviations from the original.
 - 🔍 **[Research evidence ledger](docs/research/sources.md)** — every claim with a source URL and confidence rating, including what the original game *doesn't* do (no Hypercube, gravity is real, no combo timer).
 
+## Performance overlay
+
+Press **F3** in game for frame rate, script time, draw calls and object count. It exists because
+the web build was diagnosed three times by inference; the numbers settle it in one look. Being
+able to say "50 fps, 8 ms script, 120 draw calls" turns a vague "not perfect" into a target.
+
 ## Getting started
 
 ```bat

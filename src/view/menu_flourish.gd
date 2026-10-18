@@ -19,6 +19,7 @@ const ORBIT_X := 0.44
 const ORBIT_Y := 0.38
 
 var _angle := 0.0
+var _draw_clock := 0.0
 ## Follows the colour-patterns setting: the accessibility marks belong on every gem the
 ## player can see, including the ones on the menu.
 var show_glyphs := true
@@ -33,6 +34,12 @@ func _process(delta: float) -> void:
 	if not visible:
 		return
 	_angle = fmod(_angle + delta * SPIN, TAU)
+	# The orbit turns 0.055 rad/s, which is under a pixel per frame at these radii. Redrawing
+	# every frame buys nothing visible and costs a full canvas pass, so it runs at a third.
+	_draw_clock += delta
+	if _draw_clock < 1.0 / 20.0:
+		return
+	_draw_clock = 0.0
 	queue_redraw()
 
 
