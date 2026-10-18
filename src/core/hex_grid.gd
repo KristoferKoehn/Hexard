@@ -78,7 +78,14 @@ static func column(column_index: int) -> Array[Vector2i]:
 
 # --- adjacency --------------------------------------------------------------
 
+## Cached: the legality scan alone asks for neighbours thousands of times, and building a
+## fresh array each time dominated the cost. Callers must treat the result as read-only.
+static var _neighbours_cache: Dictionary = {}
+
+
 static func neighbours(cell: Vector2i) -> Array[Vector2i]:
+	if _neighbours_cache.has(cell):
+		return _neighbours_cache[cell]
 	var out: Array[Vector2i] = []
 	if not has_cell(cell):
 		return out
@@ -87,6 +94,7 @@ static func neighbours(cell: Vector2i) -> Array[Vector2i]:
 		var candidate: Vector2i = cell + offset
 		if has_cell(candidate):
 			out.append(candidate)
+	_neighbours_cache[cell] = out
 	return out
 
 

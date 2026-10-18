@@ -217,6 +217,49 @@ static func flower_centres(board: Board) -> Array[Vector2i]:
 	return out
 
 
+## Would a cycle that lands this arrangement form anything at `centre`? A flower and a
+## pearl ring need the same six neighbours, so the legality scan decides both in one pass:
+## it asks this question tens of thousands of times per full scan, and reading each
+## neighbour twice was half the cost of the answer.
+static func formation_at(board: Board, centre: Vector2i) -> bool:
+	var centre_piece: int = board.get_piece(centre)
+	if Pieces.is_empty(centre_piece):
+		return false
+	var ring := Grid.neighbours(centre)
+	if ring.size() != 6:
+		return false
+
+	var ring_color := -1
+	var flower_ok := true
+	var all_starflowers := true
+	for cell: Vector2i in ring:
+		var piece: int = board.get_piece(cell)
+		if all_starflowers and not Pieces.is_starflower(piece):
+			all_starflowers = false
+		if not flower_ok:
+			continue
+		if board.is_locked(cell):
+			flower_ok = false
+		elif Pieces.is_empty(piece) or not Pieces.has_color(piece):
+			flower_ok = false
+		else:
+			var color := int(Pieces.color_of(piece))
+			if ring_color == -1:
+				ring_color = color
+			elif color != ring_color:
+				flower_ok = false
+
+	if all_starflowers and not Pieces.is_pearl(centre_piece):
+		return true
+	if not flower_ok or Pieces.is_pearl(centre_piece):
+		return false
+	if Pieces.is_bomb(centre_piece):
+		return true
+	if Pieces.has_color(centre_piece) and int(Pieces.color_of(centre_piece)) == ring_color:
+		return false
+	return true
+
+
 ## Six starflowers ringing a centre: the centre becomes a black pearl.
 static func is_pearl_creation_ring(board: Board, centre: Vector2i) -> bool:
 	if Pieces.is_pearl(board.get_piece(centre)):

@@ -94,8 +94,7 @@ static func formation_near(board: Board, cells: Array) -> bool:
 
 
 static func is_formation_centre(board: Board, cell: Vector2i) -> bool:
-	return MatchFinderScript.is_flower(board, cell) \
-		or MatchFinderScript.is_pearl_creation_ring(board, cell)
+	return MatchFinderScript.formation_at(board, cell)
 
 
 # --- queries ----------------------------------------------------------------
