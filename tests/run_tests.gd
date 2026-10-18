@@ -26,6 +26,7 @@ const TEST_SCRIPTS := [
 	"res://tests/test_run_config.gd",
 	"res://tests/test_timeline.gd",
 	"res://tests/test_glyphs.gd",
+	"res://tests/test_achievements.gd",
 ]
 
 

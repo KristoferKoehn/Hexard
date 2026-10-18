@@ -163,12 +163,20 @@ func _enter_playing() -> void:
 func _enter_result() -> void:
 	screen = Screen.RESULT
 	board_view.hint_vertex = -1
-	if profile != null and game != null:
-		profile.record_run(game.summary(), Time.get_datetime_string_from_system())
+	var summary := game.summary()
+	var unlocked: Array[String] = []
+	if profile != null:
+		profile.record_run(summary, Time.get_datetime_string_from_system())
+		# Evaluated against the totals *after* recording, so accumulation achievements
+		# see this run as part of the history.
+		var earned := Achievements.evaluate(summary, profile.totals, profile.achievements)
+		for id: String in earned:
+			profile.unlock(id)
 		profile.save_to()
+		unlocked = Achievements.titles_for(earned)
 	if settings_panel != null:
 		settings_panel.profile = profile
-	hud.show_result(game.summary())
+	hud.show_result(summary, unlocked)
 
 
 ## Which screen is up, as a string (used by the view smoke test).

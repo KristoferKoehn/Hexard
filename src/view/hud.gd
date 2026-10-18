@@ -340,7 +340,7 @@ func _build_result() -> void:
 	buttons.add_child(menu_button)
 
 
-func show_result(summary: RunSummary) -> void:
+func show_result(summary: RunSummary, unlocked: Array[String] = []) -> void:
 	_menu.visible = false
 	_result.visible = true
 	_set_status_visible(false)
@@ -358,6 +358,9 @@ func show_result(summary: RunSummary) -> void:
 	if summary.rounds > 0:
 		lines.append("Rounds survived: %d" % summary.rounds)
 	lines.append("Turns %d      Time %0.1fs" % [summary.turns, summary.elapsed])
+	if not unlocked.is_empty():
+		lines.append("")
+		lines.append("★  Achieved: " + ", ".join(unlocked))
 	_result_body.text = "\n".join(lines)
 
 

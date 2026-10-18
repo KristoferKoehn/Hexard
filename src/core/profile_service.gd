@@ -29,6 +29,7 @@ func _init() -> void:
 
 
 func reset() -> void:
+	achievements.clear()
 	totals = {}
 	for key: String in TOTAL_KEYS:
 		totals[key] = 0
@@ -136,12 +137,35 @@ func played_tables() -> Array[String]:
 
 # --- persistence ------------------------------------------------------------
 
+## Achievement ids that have been earned. Keys only: the value is always true, and
+## a dictionary keeps lookup and persistence trivial.
+var achievements: Dictionary = {}
+
+
+func has_achievement(id: String) -> bool:
+	return achievements.has(id)
+
+
+## Earns an achievement. Returns true only the first time, so the caller can announce
+## it once instead of on every run that satisfies it again.
+func unlock(id: String) -> bool:
+	if id.is_empty() or achievements.has(id):
+		return false
+	achievements[id] = true
+	return true
+
+
+func achievement_count() -> int:
+	return achievements.size()
+
+
 func to_dictionary() -> Dictionary:
 	return {
 		"version": VERSION,
 		"totals": totals.duplicate(true),
 		"bests": bests.duplicate(true),
 		"boards": boards.duplicate(true),
+		"achievements": achievements.duplicate(true),
 	}
 
 
@@ -157,6 +181,11 @@ func load_from(path: String = DEFAULT_PATH) -> bool:
 
 func apply_dictionary(data: Dictionary) -> void:
 	reset()
+	var loaded_achievements: Variant = data.get("achievements", null)
+	if typeof(loaded_achievements) == TYPE_DICTIONARY:
+		for key: Variant in loaded_achievements:
+			if bool(loaded_achievements[key]):
+				achievements[str(key)] = true
 	var loaded_totals: Variant = data.get("totals", null)
 	if typeof(loaded_totals) == TYPE_DICTIONARY:
 		for key: String in TOTAL_KEYS:

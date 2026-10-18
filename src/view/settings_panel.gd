@@ -282,6 +282,7 @@ func _records_text() -> String:
 		% [int(totals["games"]), int(totals["wins"]), int(totals["best_level"]),
 			int(totals["score"]), int(totals["combos"])]
 	)
+	lines.append("achievements: %d of %d" % [profile.achievement_count(), Achievements.count()])
 	for table: String in profile.played_tables():
 		var parts := table.split("|")
 		var best: Dictionary = profile.best_for(parts[0], parts[1])
