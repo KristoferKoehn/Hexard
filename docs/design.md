@@ -23,7 +23,7 @@ The one-line pitch: **the goal is not to clear gems — it is to arrange them.**
 2. **Building beats clearing.** Stars, starflowers, pearls and the pearl finish are the real game. Points are a by-product.
 3. **Readable cause and effect.** Every board change is explainable — rotation, clear, gravity, refill — so the player can plan 3+ moves ahead.
 4. **Respect the clock, never rush the player.** Marathon has no timer. Time pressure and bombs are opt-in modes/difficulty.
-5. **Accessible from the first minute.** The original's biggest documented weakness was onboarding; ours is a strength (interactive tutorial, hint glow, colour-blind patterns, full remapping).
+5. **Accessible from the first minute.** The original's biggest documented weakness was onboarding; ours is a strength (demonstration clips, hint glow, colour-blind patterns, full remapping).
 
 ### Non-goals (v1)
 
@@ -344,23 +344,37 @@ Fixed single screen showing the whole 85-cell board, 16:9 safe. No zoom, no pan 
 
 ### 7.4 Tutorial
 
-Five scripted steps in a Tutorial mode (its own game, FREE rotation, no bombs, greedy refills), each rigging
-the board so the mechanic is one move away:
+A **tutorial section of ten in-engine replays**, not a scripted lesson. Each clip is a small
+viewport running the real `BoardView` and the real animation timeline, cropped to the cells
+that matter, replaying one canned move on a loop, with a sentence underneath.
 
-| # | Step | Rigged board | Goal |
+| # | Clip | Rig (one piece short) | Shown |
 |---|---|---|---|
-| 1 | Spin to clear | A triple with a stranger in it, one spin from a match | a committed move that clears |
-| 2 | Bonus stars | Three bonus stars of different colours, ready to go off | a `bonus_star_cluster` clear |
-| 3 | Flowers bloom | Six red gems ringing a blue centre | a `starflower` promotion |
-| 4 | Turning a starflower | A starflower ringed by six different colours | a piece turn (`F`) |
-| 5 | Black pearls | Six starflowers ringing a centre | a `pearl` promotion |
+| 1 | Spin to clear | a triple with a stranger in it | a colour cluster clearing |
+| 2 | Bonus stars | two stars in a triangle, the third rotated in | a `bonus_star_cluster` |
+| 3 | Flowers bloom | five ring gems, the sixth rotated in | a `starflower` promotion |
+| 4 | Turning a starflower | a starflower ringed by six colours | a piece turn |
+| 5 | Black pearls | five starflowers, the sixth rotated in | a `pearl` promotion |
+| 6 | A pearl from a flower | five ring gems around a starflower | the second pearl recipe |
+| 7 | Clearing a bomb | a bomb and a star, the third colour rotated in | defuse + colour wipe |
+| 8 | Three starflowers | two in place, the third rotated in | the windfall |
+| 9 | The perfect finish | two pearls, the third rotated in | a `pearl_cluster` finish |
+| 10 | Bombs | a bomb and one gem, the third rotated in | a defuse before the fuse runs out |
 
-Rigging is legitimate here — the point is to *show* the mechanic — but every setup is a legal board (a match-free
-background plus the formation), and the whole state machine is unit-tested against those rigs. The banner names
-the step and the controller moves the cursor to the vertex that matters.
+Two properties make this maintainable rather than a diorama:
 
-> The pattern background used for rigging has **no legal rotation at all**, which is why step 1 needs its own
-> setup rather than "any board" — found the hard way when the first version was unwinnable.
+- **A clip cannot drift from the game.** It has no video file: the player builds the clip's board
+  from `TutorialLibrary`, plays a real `MoveResult` through the real renderer, and loops. A palette
+  or animation change updates the tutorial for free.
+- **Every rig is one piece short**, so the demonstrated move is always the rotation that completes
+  the shape, and the outline covers exactly those three cells. `DEMO_MOVES` stores the vertex and
+  direction per clip (found once by search, then written down) so nothing is searched at runtime.
+  A complete formation would be an impossible board: it would have cleared on arrival.
+
+`tests/test_tutorial_clips.gd` asserts that each clip produces what its own text claims - a
+clear, a star cluster, a starflower, a pearl, a wipe, a windfall, a finish - using the clip's
+own rig and its own move. That check exists because four of five clips were once wrong while
+the whole suite was green.
 
 ### 7.4a Cursor and special turns
 
@@ -542,7 +556,7 @@ pearls *finish* the run). All six would have been near-impossible to find by eye
   freezes; a flower thaws the board and sweeps its colour; a bonus-star blast thaws what it touched.
 - The summary reports mode, difficulty, score, level, combos, rounds, reason and verdict.
 
-**Still to build (M4+):** the art pass and animation, audio, the interactive tutorial, autosave/resume, stats,
+**Still to build:** autosave/resume, and the vector art pass (bevels and pattern overlays),
 achievements and leaderboards.
 
 **Fixtures:** the tutorial board plus 3–5 transcribable reference boards (the fan project `hectic-hexagons`
@@ -573,7 +587,7 @@ Suggest a legal rotation using a bounded search (depth 2–3) over legal moves, 
 | 5 | Palette | Ambiguous (6 vs 7 colours, two greens, pink) | 7 hues, 5 early, pattern overlays | Distinguishability and accessibility |
 | 6 | Difficulty names | Exist but unnamed in sources | Easy / Normal / Hard | We must label them |
 | 7 | Star colour semantics | Sources conflict | Colour-agnostic 3-star cluster (stars + everything they touch); "3 same-colour stars wipe that colour" **rejected as unsupported** | Follows the stronger official MSN wording |
-| 8 | Onboarding | No tutorial (documented weakness) | Six-step interactive tutorial | Biggest cheap win |
+| 8 | Onboarding | No tutorial (documented weakness) | Ten demonstration clips with text | Biggest cheap win |
 
 ### ⚠️ Balance risk from deviation 1
 
@@ -598,7 +612,7 @@ Mitigations to evaluate in playtesting, in order of preference:
 | **M1** ✅ | Playable core: board, cursor, discrete rotation, match predicate, gravity, refill, cascades, scoring, dev-art scene | **Done:** 75 tests / 0 failed, view smoke test, 10,000-move soak; playable in-editor (`main.tscn`) |
 | **M2** ✅ | Specials: bonus stars (×2 + 3-star area clear), starflowers (flower → piece → ring rotation), black pearls (creation, Y rotation, perfect finish), bombs (tick, defuse, colour wipe) | **Done:** 101 tests / 0 failed incl. every formation; the soak plays 10,000 moves with specials |
 | **M3** ✅ | Progression + modes: 7 levels, combo thresholds, content gating, Marathon/Timed/Survival, difficulty, dead-board shuffle, win/lose flows | **Done:** 124 tests / 0 failed; menu, per-mode HUD, clock, Survival rounds and locking, result screen |
-| **M4** 🔶 | Presentation + meta: art pass, animations, audio, tutorial, settings, saves, stats, achievements, leaderboard | **Done:** tutorial, move animation, neon container + HUD, procedural audio with settings, settings screen with full rebinds and juice toggles, profile stats + local leaderboard storage. **Remaining:** leaderboard/stats panel on the result screen, achievements, autosave/resume, vector art pass |
+| **M4** ✅ | Presentation + meta: art pass, animations, audio, tutorial, settings, saves, stats, achievements, leaderboard | **Done:** ten demonstration clips, move animation, neon container and HUD, synthesised audio with a cue per clear, settings with rebinds and juice toggles, profile stats, local leaderboard, twenty achievements with toasts, leaderboard and achievements screens |
 | **M5** | Polish + balance: playtest-driven tuning of scoring/RNG/bombs, accessibility pass, replays, exports (Windows + web) | Balance targets met (§13), export builds run at 60 FPS |
 
 ---
