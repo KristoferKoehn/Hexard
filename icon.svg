@@ -1,0 +1,9 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- A neon hex tile with a gem face: the game's own shape, so the build reads as
+       intentional rather than shipping the engine default. -->
+  <rect width="128" height="128" rx="22" fill="#0b101c"/>
+  <polygon points="64,14 108,39 108,89 64,114 20,89 20,39"
+           fill="#2f58c8" stroke="#35e0f0" stroke-width="5"/>
+  <polygon points="64,30 94,47 94,81 64,98 34,81 34,47" fill="#34dde5"/>
+  <polygon points="64,42 82,52 82,76 64,86 46,76 46,52" fill="#fae353"/>
+</svg>

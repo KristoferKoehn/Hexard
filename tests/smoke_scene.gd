@@ -543,6 +543,11 @@ func _check_free_mode_cheat() -> void:
 	var panel: Node = _main.get("settings_panel")
 	var settings = _main.get("settings")
 	var hud: Node = _main.get("hud")
+	# Stated precondition: this check is about the code, not about what a previous check or a
+	# loaded profile left behind.
+	settings.free_mode_unlocked = false
+	# The HUD keeps its own copy of the flag to decide the hint, so both have to be reset.
+	hud.call("set_free_mode_unlocked", false)
 	_check(not bool(settings.free_mode_unlocked), "FREE mode starts locked")
 	_check(not _controls_text(hud).contains("rotation mode"), "with no hint to find it")
 

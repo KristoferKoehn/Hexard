@@ -38,14 +38,19 @@ const LIST := [
 		"hint": "Make a starflower.",
 	},
 	{
+		"id": "florist",
+		"title": "Florist",
+		"hint": "Grow three starflowers in one run.",
+	},
+	{
 		"id": "pearl",
 		"title": "Black Pearl",
 		"hint": "Make a pearl.",
 	},
 	{
-		"id": "pearl_ring",
-		"title": "The Grand One",
-		"hint": "Finish a run with a ring of six black pearls.",
+		"id": "veteran",
+		"title": "Veteran",
+		"hint": "Finish 25 runs.",
 	},
 	{
 		"id": "defuser",
@@ -63,6 +68,11 @@ const LIST := [
 		"hint": "Win a Survival run.",
 	},
 	{
+		"id": "pearl_ring",
+		"title": "The Grand One",
+		"hint": "Finish a run with a ring of six black pearls.",
+	},
+	{
 		"id": "long_haul",
 		"title": "Long Haul",
 		"hint": "Play 150 turns in one run.",
@@ -71,11 +81,6 @@ const LIST := [
 		"id": "bomb_rustler",
 		"title": "Bomb Rustler",
 		"hint": "Defuse five bombs in one run.",
-	},
-	{
-		"id": "florist",
-		"title": "Florist",
-		"hint": "Grow three starflowers in one run.",
 	},
 	{
 		"id": "pearl_diver",
@@ -106,12 +111,7 @@ const LIST := [
 		"id": "century",
 		"title": "Century",
 		"hint": "Finish 100 runs.",
-	},
-	{
-		"id": "veteran",
-		"title": "Veteran",
-		"hint": "Finish 25 runs.",
-	},
+	}
 ]
 
 
@@ -149,7 +149,7 @@ static func meets(id: String, summary: RunSummary, totals: Dictionary) -> bool:
 		"pearl":
 			return summary.pearls > 0
 		"pearl_ring":
-			return summary.reason == "pearl_ring" or summary.reason == "pearl_cluster"
+			return summary.reason == "pearl_ring"
 		"defuser":
 			return summary.bombs_defused > 0
 		"survivor":

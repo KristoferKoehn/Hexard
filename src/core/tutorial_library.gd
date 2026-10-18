@@ -352,8 +352,6 @@ static func _place_arriving_piece(game: Game, slot: Vector2i, avoid: Array, piec
 			return
 
 
-## A bomb sitting in a monochrome triangle of its own colour: any rotation of that trio
-## leaves it monochrome, so the first move of the clip clears the group and defuses the bomb.
 static func _rig_bombs(game: Game) -> void:
 	var trio: Array = Grid.vertices()[_vertex_near(BOMB_CELL)]
 	game.board.set_piece(trio[0], Pieces.bomb(Pieces.GemColor.BLUE, 3))

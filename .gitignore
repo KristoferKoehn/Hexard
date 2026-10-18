@@ -10,7 +10,6 @@
 # Builds / exports
 /build/
 /dist/
-export_presets.cfg
 
 # Reference-only research images (copyrighted game screenshots + our crops).
 # Only the markdown research notes are tracked.
