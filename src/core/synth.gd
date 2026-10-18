@@ -46,6 +46,13 @@ const CUES := {
 	# even at low volume - which matters when the only feedback is audio and a toast.
 	"accept":     {"wave": Wave.SINE, "freq": 1318.5, "dur": 0.26, "amp": 0.30, "slide": 420.0},
 	"lock":       {"wave": Wave.SQUARE, "freq": 330.0, "dur": 0.24, "amp": 0.22, "slide": -150.0},
+	# One cue per kind of clear, so the ear can tell what happened without looking. They are
+	# separated by pitch, timbre AND contour rather than by pitch alone: a high falling bell,
+	# a sweeping hiss, a low rise and a lower longer rise.
+	"windfall":   {"wave": Wave.SINE, "freq": 1760.0, "dur": 0.50, "amp": 0.34, "slide": -260.0},
+	"wipe":       {"wave": Wave.NOISE, "freq": 1200.0, "dur": 0.60, "amp": 0.42, "slide": -900.0},
+	"finish":     {"wave": Wave.SINE, "freq": 220.0, "dur": 1.20, "amp": 0.45, "slide": 520.0},
+	"grand":      {"wave": Wave.SINE, "freq": 160.0, "dur": 1.50, "amp": 0.50, "slide": 900.0},
 }
 
 ## Cascades climb in pitch so a chain sounds like it is going somewhere: one

@@ -115,3 +115,24 @@ func test_the_cheat_cues_are_tellable_apart() -> void:
 	assert_ne(int(accept["wave"]), int(lock["wave"]), "and a different timbre, not just a note")
 	assert_gt(float(accept["slide"]), 0.0, "accept rises")
 	assert_lt(float(lock["slide"]), 0.0, "lock falls")
+
+
+func test_each_kind_of_clear_has_its_own_cue() -> void:
+	# Distinct by pitch, timbre or contour - not merely a different note, because a player has
+	# to tell a windfall from a pearl finish without looking at the board.
+	var cues := ["clear", "star", "windfall", "wipe", "bloom", "pearl", "finish", "grand"]
+	var seen := {}
+	for cue: String in cues:
+		assert_true(Synth.CUES.has(cue), "there is a %s cue" % cue)
+		var recipe: Dictionary = Synth.CUES[cue]
+		var signature := "%d/%.0f/%.0f" % [
+			int(recipe["wave"]), float(recipe["freq"]), float(recipe["slide"])
+		]
+		assert_false(seen.has(signature),
+			"%s is not a duplicate of %s" % [cue, seen.get(signature, "")])
+		seen[signature] = cue
+		var energy := 0.0
+		var voice := Synth.voice_for(cue)
+		for index in 300:
+			energy += absf(Synth.sample(voice, 22050.0))
+		assert_gt(energy, 0.0, "%s renders sound" % cue)

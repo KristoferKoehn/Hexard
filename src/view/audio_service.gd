@@ -117,14 +117,24 @@ static func distinct_colours(result: MoveResult, first_clear_only: bool = false)
 
 
 func _cue_for(group) -> String:
+	# Each kind of clear gets its own sound. Order matters where a group can carry more than
+	# one formation: the biggest thing that happened wins.
+	if group.has_formation("pearl_ring"):
+		return "grand"
+	if group.has_formation("pearl_cluster"):
+		return "finish"
+	if group.has_formation("starflower_cluster"):
+		return "windfall"
+	if group.has_formation("bomb_colour_wipe"):
+		return "wipe"
 	if group.has_formation("bonus_star_cluster"):
 		return "star"
-	if group.has_formation("flower") or group.has_formation("starflower_cluster"):
+	if group.has_formation("flower"):
 		return "bloom"
-	if group.has_formation("pearl_built") or group.has_formation("pearl_cluster") \
-			or group.has_formation("pearl_ring"):
+	if group.has_formation("pearl_built"):
 		return "pearl"
 	return "clear"
+
 
 
 func _process(_delta: float) -> void:

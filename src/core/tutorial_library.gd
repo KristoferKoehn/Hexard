@@ -234,7 +234,10 @@ static func _goal_met(id: String, result: MoveResult) -> bool:
 					return true
 			return false
 		"flower_cluster":
-			return result.cleared_count > 0
+			for group in result.clear_groups:
+				if group.has_formation("starflower_cluster"):
+					return true
+			return false
 		"pearl_finish":
 			return result.finished
 	return false

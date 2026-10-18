@@ -13,7 +13,7 @@ func test_each_clip_demonstrates_what_it_claims() -> void:
 	var expected := {
 		"clear": "cleared", "stars": "bonus_star_cluster",
 		"flower": "starflower", "pearl": "pearl", "turn": "turn", "bombs": "defused",
-		"pearl_bloom": "pearl", "colour_wipe": "wipe", "flower_cluster": "cleared",
+		"pearl_bloom": "pearl", "colour_wipe": "wipe", "flower_cluster": "windfall",
 		"pearl_finish": "finished",
 	}
 	for id: String in Library.ids():
@@ -45,6 +45,12 @@ func test_each_clip_demonstrates_what_it_claims() -> void:
 				assert_eq(result.piece_cell, Vector2i(4, 4), "%s: turns the starflower" % id)
 			"defused":
 				assert_gt(result.bombs_defused, 0, "%s: defuses the bomb" % id)
+			"windfall":
+				var windfall := false
+				for group in result.clear_groups:
+					if group.has_formation("starflower_cluster"):
+						windfall = true
+				assert_true(windfall, "%s: pays the starflower windfall" % id)
 			"wipe":
 				var wiped := false
 				for group in result.clear_groups:
