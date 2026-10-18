@@ -124,3 +124,31 @@ func test_every_step_offers_a_vertex_to_look_at() -> void:
 		if tutorial.goal_id() == "turn":
 			result = tutorial.game.rotate_piece(Vector2i(4, 4), GameScript.CLOCKWISE)
 		tutorial.evaluate(result)
+
+
+func test_a_missed_spin_restores_the_step() -> void:
+	# The old behaviour left the board changed and the step stuck; a stray spin could
+	# make a step impossible with no feedback.
+	var tutorial := TutorialScript.new()
+	var before: int = tutorial.game.board.get_piece(Vector2i(4, 4))
+	var far := tutorial.game.rotate(0, 1)
+	if far.committed:
+		assert_false(tutorial.evaluate(far), "a spin away from the formation does not advance")
+		assert_true(tutorial.retried, "and says so")
+		assert_eq(tutorial.attempts, 1, "counting the attempt")
+		assert_eq(tutorial.goal_id(), "clear", "still on the same step")
+		assert_eq(tutorial.game.board.get_piece(Vector2i(3, 3)), Pieces.gem(Pieces.GemColor.RED),
+			"and the rig is back exactly as it was")
+		assert_eq(tutorial.game.board.get_piece(Vector2i(4, 4)), before, "cell for cell")
+
+
+func test_advancing_clears_the_retry_flag() -> void:
+	var tutorial := TutorialScript.new()
+	var far := tutorial.game.rotate(0, 1)
+	if far.committed:
+		tutorial.evaluate(far)
+		assert_true(tutorial.retried, "a miss is flagged")
+	var advance := _any_spin(tutorial)
+	assert_true(tutorial.evaluate(advance), "the real spin advances")
+	assert_false(tutorial.retried, "clearing the flag")
+	assert_eq(tutorial.attempts, 0, "and the attempt count")

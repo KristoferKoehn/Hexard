@@ -149,10 +149,12 @@ func _sync_tutorial() -> void:
 		hud.set_banner("Tutorial complete — press M for the menu, or R to keep playing this board")
 		hud.set_message("you have seen every mechanic")
 		return
-	hud.set_banner(
-		"Tutorial %d/%d · %s — %s"
-		% [tutorial.step_number(), tutorial.step_count(), tutorial.step_title(), tutorial.instruction()]
-	)
+	var line := "Tutorial %d/%d · %s — %s" % [
+		tutorial.step_number(), tutorial.step_count(), tutorial.step_title(), tutorial.instruction(),
+	]
+	if tutorial.retried:
+		line += "      (that was not it, so the board is back as it was)"
+	hud.set_banner(line)
 	var target: int = tutorial.hint_vertex()
 	select_vertex(target)
 	board_view.hint_vertex = target
@@ -354,7 +356,9 @@ func _apply(result: MoveResult, label: String) -> void:
 		return
 
 	if tutorial != null:
-		if tutorial.evaluate(result):
+		# Sync on a retry too: the board was just put back and the player needs to see
+		# that, and the banner needs to explain it.
+		if tutorial.evaluate(result) or tutorial.retried:
 			_sync_tutorial()
 		return
 

@@ -20,6 +20,11 @@ const SEED := 777
 var game: Game
 var step_index := 0
 var complete := false
+## Moves spent on the current step, and whether the last one missed. A tutorial that
+## silently leaves the player on a board its own setup no longer supports is the worst
+## kind of stuck: the rig is put back on a miss and the banner says so.
+var attempts := 0
+var retried := false
 ## Where the player should look: the controller moves the cursor here.
 var suggested_vertex := 0
 
@@ -31,7 +36,7 @@ func _init(run_seed: int = SEED) -> void:
 		{
 			"id": "clear",
 			"title": "Spin to clear",
-			"instruction": "Move the cursor and spin with Z or X. Three gems of one colour meeting at a point clear away.",
+			"instruction": "Move the cursor with the arrows, then spin with Z or X. Three gems of one colour meeting at a point clear away. Spins here always stick; in a real run, one that does nothing is refused.",
 		},
 		{
 			"id": "stars",
@@ -103,8 +108,15 @@ func evaluate(result: MoveResult) -> bool:
 	if complete or result == null or not result.committed:
 		return false
 	if not _goal_met(str(_current()["id"]), result):
+		# Put the step's setup back. Without this a single stray spin can wreck the rig
+		# and leave the step impossible, with no feedback and no way out.
+		attempts += 1
+		retried = true
+		_setup_step()
 		return false
 
+	retried = false
+	attempts = 0
 	step_index += 1
 	if step_index >= _steps.size():
 		complete = true
