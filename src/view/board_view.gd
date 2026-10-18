@@ -133,9 +133,14 @@ func _harvest_gem_textures() -> void:
 
 ## Bakes backdrop, plate and sockets into a SubViewport, once per size. The texture is blitted
 ## in board space, so the tutorial clips' camera zoom still scales it correctly.
+## Sized to the plate, not the viewport. The viewport size is not a property of the board -
+## it differs with device scaling and with the web canvas - and sizing the bake from it is what
+## drew only a corner of the sockets on some machines. Blitting a plate-sized quad instead of a
+## full-screen one also removes most of the fill cost.
 func _ensure_static_layer() -> void:
-	var size := get_viewport_rect().size
-	if _static_view != null and _static_size == size:
+	var rect := _plate_rect().grow(cell_size * 2.0)
+	var size := rect.size
+	if _static_view != null and _static_size == size and _static_rect.position == rect.position:
 		return
 	if _static_view != null:
 		_static_view.queue_free()
@@ -143,6 +148,7 @@ func _ensure_static_layer() -> void:
 		_static_texture = null
 	if size.x < 1.0 or size.y < 1.0:
 		return
+	_static_rect = rect
 	_static_view = SubViewport.new()
 	_static_view.size = Vector2i(size)
 	_static_view.transparent_bg = true
@@ -150,6 +156,9 @@ func _ensure_static_layer() -> void:
 	add_child(_static_view)
 	var layer := BoardStaticLayer.new()
 	layer.painter = Callable(self, "paint_static")
+	# Drawing happens in board space; shifting the layer puts that space into the small
+	# viewport, so paint_static needs no knowledge of the crop.
+	layer.position = -rect.position
 	_static_view.add_child(layer)
 	_static_size = size
 	_static_texture = _static_view.get_texture()
@@ -177,6 +186,7 @@ var cull_rect := Rect2()
 var _static_view: SubViewport = null
 var _static_texture: Texture2D = null
 var _static_size := Vector2.ZERO
+var _static_rect := Rect2()
 ## One render of all fourteen gem variants (seven colours, glyphs on and off) into a single
 ## texture, sliced into AtlasTextures. A plain gem was five polygons plus glyph primitives;
 ## as a texture it is one draw.
@@ -329,6 +339,13 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+## Which animation step is playing, for the perf overlay. Empty when settled.
+func active_kind() -> String:
+	if not _playing or _step_index >= _steps.size():
+		return ""
+	return str(_steps[_step_index]["kind"])
+
+
 func _stop(sync: bool = true) -> void:
 	_playing = false
 	_announced_step = -1
@@ -395,7 +412,7 @@ func _draw() -> void:
 
 	_ensure_static_layer()
 	if _static_texture != null:
-		draw_texture_rect(_static_texture, Rect2(Vector2.ZERO, _static_size), false)
+		draw_texture_rect(_static_texture, _static_rect, false)
 	else:
 		# Headless: no renderer, so no viewport texture. Same calls, drawn directly.
 		_draw_backdrop()

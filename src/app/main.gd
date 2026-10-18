@@ -43,6 +43,7 @@ var toast: AchievementToast
 ## F3 overlay. The web build reports "better but not perfect" without numbers, and these are
 ## the four that decide it: frame rate, script time, draw calls and object count.
 var _perf: Label
+var _perf_plate: PanelContainer
 var _perf_clock := 0.0
 
 
@@ -100,9 +101,24 @@ func _ready() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 4
 	add_child(layer)
+	# A bare Label in a CanvasLayer has no size and no position, so it drew nowhere: the
+	# overlay has to be anchored and given a plate of its own.
+	var plate := PanelContainer.new()
+	plate.position = Vector2(14, 14)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.02, 0.04, 0.07, 0.82)
+	style.set_corner_radius_all(6)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
+	plate.add_theme_stylebox_override("panel", style)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.visible = false
+	layer.add_child(plate)
 	_perf = NeonStyle.label("", 15, Color(0.7, 1.0, 0.75), 4)
-	_perf.visible = false
-	layer.add_child(_perf)
+	plate.add_child(_perf)
+	_perf_plate = plate
 	hud.settings_pressed.connect(_open_settings)
 	board_view.step_began.connect(audio.on_step)
 	_apply_juice()
@@ -111,23 +127,29 @@ func _ready() -> void:
 func _toggle_perf() -> void:
 	if _perf == null:
 		return
-	_perf.visible = not _perf.visible
+	_perf_plate.visible = not _perf_plate.visible
 	_perf_clock = 0.0
 
 
 func _update_perf(delta: float) -> void:
-	if _perf == null or not _perf.visible:
+	if _perf == null or not _perf_plate.visible:
 		return
 	_perf_clock += delta
 	if _perf_clock < 0.25:
 		return
 	_perf_clock = 0.0
-	_perf.text = "%.0f fps   script %.2f ms   draw %d   objects %d   nodes %d" % [
+	# The step name is the useful part: a drop "around tiles falling" has to be attributable
+	# to a phase, and draw calls during a fall say whether it is per-piece work.
+	var step := board_view.active_kind() if board_view != null else ""
+	if step.is_empty():
+		step = "idle"
+	_perf.text = "%.0f fps   script %.2f ms   draw %d   objects %d   nodes %d   step %s" % [
 		Engine.get_frames_per_second(),
 		Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)),
 		int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+		step,
 	]
 
 
