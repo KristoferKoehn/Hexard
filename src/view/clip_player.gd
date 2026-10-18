@@ -16,7 +16,7 @@ const HexGridScript := preload("res://src/core/hex_grid.gd")
 const CLIP_SIZE := Vector2(380, 214)
 ## Twenty percent less than the first pass: at 2.0 the formation filled the frame and
 ## the surrounding board - which is what gives the action its context - was cropped out.
-const ZOOM := 1.6
+const ZOOM := 1.44
 ## How long the finished state sits before the demonstration restarts.
 const HOLD := 2.0
 ## Offsets between clips' loops, set by the section. Larger than one animation, so the
@@ -33,6 +33,12 @@ var _sub: SubViewport
 var _view: BoardViewScript
 var _hold := 0.0
 var _delay := 0.0
+# The demonstration is deterministic, so it is resolved once and replayed: rebuilding the
+# Game, re-rigging 85 cells and re-running the resolver on every loop was the frame spike
+# each clip produced when it cleared.
+var _game: Game
+var _snapshot := {}
+var _result: MoveResult
 
 
 func _ready() -> void:
@@ -81,11 +87,16 @@ func _process(delta: float) -> void:
 
 func _restart() -> void:
 	_sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	var game := Library.make_game(clip_id)
-	_view.set_game(game)
+	if _game == null:
+		_game = Library.make_game(clip_id)
+		_snapshot = _pieces(_game)
+		_result = Library.play(_game, clip_id)
+	else:
+		_restore()
+	_view.set_game(_game)
 	# The board is rigged in place after the view took its copy, so it has to re-read.
 	_view.sync_from_game()
-	var result := Library.play(game, clip_id)
+	var result := _result
 	# Put the cursor on the trio being turned, so the board draws its swap outline around
 	# exactly the cells the demonstration moves. Without it the clip has no outline at all:
 	# nothing is selected, so nothing is highlighted.
@@ -128,3 +139,17 @@ func _vertex_for(cells: Array) -> int:
 		if all_present:
 			return index
 	return 0
+
+
+## Cell -> piece before the demonstration move, so a loop can put the board back without
+## rebuilding it.
+func _pieces(game: Game) -> Dictionary:
+	var out := {}
+	for cell: Vector2i in HexGridScript.all_cells():
+		out[cell] = game.board.get_piece(cell)
+	return out
+
+
+func _restore() -> void:
+	for cell: Vector2i in _snapshot:
+		_game.board.set_piece(cell, int(_snapshot[cell]))
