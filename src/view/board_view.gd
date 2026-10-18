@@ -78,6 +78,31 @@ var cursor_vertex := -1
 ## Set when the cursor has snapped onto a starflower or pearl centre.
 var cursor_special := HexGrid.NO_CELL
 var _cursor_painter: CursorPainter = null
+
+
+## Bakes backdrop, plate and sockets into a SubViewport, once per size. The texture is blitted
+## in board space, so the tutorial clips' camera zoom still scales it correctly.
+func _ensure_static_layer() -> void:
+	var size := get_viewport_rect().size
+	if _static_view != null and _static_size == size:
+		return
+	if _static_view != null:
+		_static_view.queue_free()
+		_static_view = null
+		_static_texture = null
+	if size.x < 1.0 or size.y < 1.0:
+		return
+	_static_view = SubViewport.new()
+	_static_view.size = Vector2i(size)
+	_static_view.transparent_bg = true
+	_static_view.disable_3d = true
+	add_child(_static_view)
+	var layer := BoardStaticLayer.new()
+	layer.painter = Callable(self, "paint_static")
+	_static_view.add_child(layer)
+	_static_size = size
+	_static_texture = _static_view.get_texture()
+	_static_view.render_target_update_mode = SubViewport.UPDATE_ONCE
 var cursor_legal := true
 var hint_vertex := -1
 var hover_cell := HexGrid.NO_CELL
@@ -96,6 +121,11 @@ var _backdrop: ImageTexture = null
 var playback_scale := 1.0
 ## Optional board-space region to restrict drawing to. Empty draws the whole board.
 var cull_rect := Rect2()
+## Baked static layer. Falls back to drawing directly when no viewport texture is available:
+## headless has no renderer, and the tests must still exercise the real draw path.
+var _static_view: SubViewport = null
+var _static_texture: Texture2D = null
+var _static_size := Vector2.ZERO
 ## Cells to outline instead of asking the board. Empty means the normal rule: the trio
 ## under the cursor, or a selected special's own swap set. The tutorial's clips set this,
 ## because they replay a cached result and their board is back at its pre-move state.
@@ -137,6 +167,8 @@ func sync_from_game() -> void:
 
 
 func _recenter() -> void:
+	# The origin is baked into the static layer, so it has to be redrawn.
+	_static_size = Vector2.ZERO
 	var bounds := HexGrid.pixel_bounds(cell_size)
 	_origin = -bounds.position - bounds.size * 0.5
 	_plate = null
@@ -301,11 +333,16 @@ func _draw() -> void:
 	var active := _active_step()
 	var skip := _skipped_cells(active)
 
-	_draw_backdrop()
-	_draw_plate()
-	for cell: Vector2i in HexGrid.all_cells():
-		if _visible(cell_center(cell)):
-			_draw_socket(cell)
+	_ensure_static_layer()
+	if _static_texture != null:
+		draw_texture_rect(_static_texture, Rect2(Vector2.ZERO, _static_size), false)
+	else:
+		# Headless: no renderer, so no viewport texture. Same calls, drawn directly.
+		_draw_backdrop()
+		_draw_plate()
+		for cell: Vector2i in HexGrid.all_cells():
+			if _visible(cell_center(cell)):
+				_draw_socket(cell)
 	for cell: Vector2i in _display:
 		if skip.has(cell):
 			continue
@@ -371,13 +408,17 @@ func _skipped_cells(step: Dictionary) -> Dictionary:
 ## A smooth radial glow behind the plate. Drawn as one dithered texture rather
 ## than concentric circles: stacked translucent circles band badly in 8-bit.
 func _draw_backdrop() -> void:
+	paint_backdrop(self)
+
+
+func paint_backdrop(canvas: CanvasItem) -> void:
 	if _backdrop == null:
 		_build_backdrop()
 	var centre := _plate_rect().get_center()
 	# Sized from the viewport diagonal rather than a fixed 34-cell square: the texture ends
 	# at the rect edge, so a fixed square left a visible seam where the gradient stopped.
 	var span := get_viewport_rect().size.length() * 1.15
-	draw_texture_rect(_backdrop, Rect2(centre - Vector2(span, span) * 0.5, Vector2(span, span)), false)
+	canvas.draw_texture_rect(_backdrop, Rect2(centre - Vector2(span, span) * 0.5, Vector2(span, span)), false)
 
 
 func _build_backdrop() -> void:
@@ -403,6 +444,10 @@ func _plate_rect() -> Rect2:
 
 
 func _draw_plate() -> void:
+	paint_plate(self)
+
+
+func paint_plate(canvas: CanvasItem) -> void:
 	if _plate == null:
 		_plate = StyleBoxFlat.new()
 		_plate.bg_color = PLATE_FILL
@@ -412,13 +457,27 @@ func _draw_plate() -> void:
 		_plate.shadow_color = Color(0.05, 0.85, 0.95, 0.22)
 		_plate.shadow_size = 18
 		_plate.anti_aliasing = true
-	draw_style_box(_plate, _plate_rect())
+	canvas.draw_style_box(_plate, _plate_rect())
 
 
 func _draw_socket(cell: Vector2i) -> void:
+	paint_socket(self, cell)
+
+
+func paint_socket(canvas: CanvasItem, cell: Vector2i) -> void:
 	var corners := _corners(cell_center(cell), cell_size * SOCKET_SCALE)
-	draw_colored_polygon(corners, SOCKET_FILL)
-	draw_polyline(_closed(corners), SOCKET_LINE, 1.0)
+	canvas.draw_colored_polygon(corners, SOCKET_FILL)
+	canvas.draw_polyline(_closed(corners), SOCKET_LINE, 1.0)
+
+
+## Everything that does not move: backdrop, plate, sockets. Baked into a texture once and
+## blitted afterwards, because it was ~170 draw calls per frame and WebGL2 pays real per-call
+## overhead. One implementation serves both the bake and the headless fallback.
+func paint_static(canvas: CanvasItem) -> void:
+	paint_backdrop(canvas)
+	paint_plate(canvas)
+	for cell: Vector2i in HexGrid.all_cells():
+		paint_socket(canvas, cell)
 
 
 func _draw_piece(centre: Vector2, piece: int, radius: float, alpha: float) -> void:

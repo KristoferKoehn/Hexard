@@ -63,8 +63,6 @@ func _process(_delta: float) -> bool:
 			_start_timed_run()
 		14:
 			_check_timed_run_ended_on_the_clock()
-			_main.call("start_tutorial")
-		15:
 			_main.call("start_run", RunConfig.of(RulesetScript.Mode.MARATHON, "normal"), 4321)
 		16:
 			_check(_main.call("screen_name") == "playing", "a new run goes straight back to play")
