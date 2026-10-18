@@ -72,13 +72,15 @@ func _build() -> void:
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(grid)
 
+	var index := 0
 	for entry: Dictionary in TutorialLibrary.CLIPS:
-		grid.add_child(_card(entry))
+		grid.add_child(_card(entry, index))
+		index += 1
 
 
 ## One topic, one card: title, the recording centred inside it, and the sentence
 ## underneath. The card's own rim is what separates topics now that they share a screen.
-func _card(entry: Dictionary) -> Control:
+func _card(entry: Dictionary, index: int = 0) -> Control:
 	var card := PanelContainer.new()
 	card.add_theme_stylebox_override("panel", NeonStyle.panel_box(18))
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -94,6 +96,9 @@ func _card(entry: Dictionary) -> Control:
 
 	var player := ClipPlayer.new()
 	player.clip_id = str(entry["id"])
+	# Spread the first plays across the loop so the clips take turns rather than resolving
+	# five cascades on the same frame.
+	player.start_delay = float(index) * ClipPlayer.STAGGER
 	# Centred rather than stretched: the recording keeps its aspect and its framing.
 	player.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	column.add_child(player)

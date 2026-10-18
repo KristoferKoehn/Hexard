@@ -19,12 +19,20 @@ const CLIP_SIZE := Vector2(380, 214)
 const ZOOM := 1.6
 ## How long the finished state sits before the demonstration restarts.
 const HOLD := 2.0
+## Offsets between clips' loops, set by the section. Larger than one animation, so the
+## demonstrations genuinely take turns.
+const STAGGER := 1.15
 
 var clip_id := ""
+## Seconds to wait before this clip's first play. The section offsets each clip so their
+## resolutions never land on the same frame: five boards rigging, resolving and animating
+## together is a stutter, and it also reads as chaos rather than five lessons.
+var start_delay := 0.0
 
 var _sub: SubViewport
 var _view: BoardViewScript
 var _hold := 0.0
+var _delay := 0.0
 
 
 func _ready() -> void:
@@ -46,13 +54,24 @@ func _ready() -> void:
 	# Demonstrations are worth watching: same animation, taken slower.
 	_view.playback_scale = 1.7
 	_sub.add_child(_view)
-	_restart()
+	_delay = maxf(start_delay, 0.0)
+	# Nothing to show until the delay expires, so do not pay for a render target.
+	_sub.render_target_update_mode = SubViewport.UPDATE_DISABLED
 
 
 func _process(delta: float) -> void:
 	if _view == null or not is_visible_in_tree():
 		return
+	if _delay > 0.0:
+		_delay -= delta
+		if _delay > 0.0:
+			return
+		_restart()
+		return
 	if _view.is_settled():
+		# Idle between demonstrations: stop re-rendering this viewport entirely. Four of
+		# five clips are idle at any moment, so this is most of the section's cost.
+		_sub.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		_hold += delta
 		if _hold >= HOLD:
 			_restart()
@@ -61,6 +80,7 @@ func _process(delta: float) -> void:
 
 
 func _restart() -> void:
+	_sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	var game := Library.make_game(clip_id)
 	_view.set_game(game)
 	# The board is rigged in place after the view took its copy, so it has to re-read.
