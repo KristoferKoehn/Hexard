@@ -340,8 +340,21 @@ func select_vertex(index: int) -> void:
 func snap_cursor_to(viewport_point: Vector2) -> void:
 	if game == null or board_view == null:
 		return
-	cursor_vertex = board_view.vertex_at(board_view.to_local(viewport_point))
+	cursor_vertex = _vertex_under_pointer(viewport_point)
 	_refresh_cursor()
+
+
+## The vertex nearest the pointer, keeping the current one when it is just as close.
+## A tile's centre is equidistant from its six vertices, so plain nearest-vertex has
+## to pick one arbitrarily and the highlight jumps to a corner the player never
+## pointed at. Half a pixel is enough: nearer edges still win.
+func _vertex_under_pointer(viewport_point: Vector2) -> int:
+	var local := board_view.to_local(viewport_point)
+	var nearest := board_view.vertex_at(local)
+	if cursor_vertex >= 0 and cursor_vertex < HexGrid.vertices().size():
+		if board_view.vertex_distance(cursor_vertex, local) <= board_view.vertex_distance(nearest, local) + 0.5:
+			return cursor_vertex
+	return nearest
 
 
 ## Keeps the view in sync, including whether a spin at the cursor can clear.
@@ -542,18 +555,19 @@ func _mouse_moved(viewport_point: Vector2) -> void:
 	var cell := board_view.cell_at(board_view.to_local(viewport_point))
 	var special := _special_at(cell)
 	board_view.hover_cell = special
+	# Track the vertex under the pointer even while a special is selected, so a later
+	# deselect or click starts from the vertex the player is actually looking at.
+	cursor_vertex = _vertex_under_pointer(viewport_point)
 	if special != HexGrid.NO_CELL:
 		# Target a special on ENTER only. Re-targeting on every motion would undo a
 		# keyboard deselect as soon as the pointer jittered by a pixel.
 		if special != _hovered_special:
 			_hovered_special = special
 			cursor_special = special
-			_refresh_cursor()
-		return
-	if _hovered_special != HexGrid.NO_CELL:
+	else:
 		_hovered_special = HexGrid.NO_CELL
 		cursor_special = HexGrid.NO_CELL
-	snap_cursor_to(viewport_point)
+	_refresh_cursor()
 
 
 func _mouse_clicked(viewport_point: Vector2, button_index: int) -> void:

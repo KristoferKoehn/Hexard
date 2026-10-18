@@ -140,6 +140,13 @@ func cell_center(cell: Vector2i) -> Vector2:
 	return HexGrid.to_pixel(cell, cell_size) + _origin
 
 
+## Distance from a board-local point to one vertex's centroid. Nearest-vertex
+## has no way to break a tie, and six vertices are equidistant from a tile centre,
+## which is exactly where a click on a piece lands.
+func vertex_distance(vertex_index: int, local_point: Vector2) -> float:
+	return HexGrid.vertex_centroid(vertex_index, cell_size).distance_to(local_point - _origin)
+
+
 func vertex_at(local_point: Vector2) -> int:
 	return HexGrid.nearest_vertex(local_point - _origin, cell_size)
 

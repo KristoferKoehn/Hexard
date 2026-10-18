@@ -439,6 +439,7 @@ func _check_special_snap() -> void:
 	_main.call("_mouse_moved", view.position + view.call("cell_center", cell) + Vector2(1, 0))
 	_check(_main.get("cursor_special") == HexGrid.NO_CELL, "jitter inside the piece does not re-select")
 
+	var shown_vertex: int = _main.get("cursor_vertex")
 	var commands_before: int = game.commands().size()
 	_main.call("_mouse_clicked", view.position + view.call("cell_center", cell), MOUSE_BUTTON_LEFT)
 	var last: Array = game.commands()
@@ -446,6 +447,8 @@ func _check_special_snap() -> void:
 	if last.size() > commands_before:
 		_check(String(last[last.size() - 1][0]) == "rotate",
 			"and it was a trio rotation, not a piece turn (got %s)" % String(last[last.size() - 1][0]))
+		_check(int(last[last.size() - 1][1]) == shown_vertex,
+			"on the vertex the cursor was showing (%d vs %d)" % [int(last[last.size() - 1][1]), shown_vertex])
 
 	# Leave nothing special behind for later stages.
 	game.board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
