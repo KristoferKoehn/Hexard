@@ -29,6 +29,8 @@ func _ready() -> void:
 
 func open() -> void:
 	visible = true
+	for player: ClipPlayer in _players:
+		player.set_active(true)
 
 
 ## Colour patterns can change while the section is open, and the clips draw gems too.
@@ -41,6 +43,10 @@ func apply_settings(value: Settings) -> void:
 
 func close() -> void:
 	visible = false
+	# Five live SubViewports drawing behind the game is the whole reason gameplay slowed
+	# down when this section was added.
+	for player: ClipPlayer in _players:
+		player.set_active(false)
 
 
 func _build() -> void:

@@ -80,6 +80,7 @@ func _process(_delta: float) -> bool:
 			_check_free_mode_cheat()
 			_check_pause_menu()
 			_check_menu_flow()
+			_check_tutorial_clips_idle()
 			_report()
 			return true
 	return false
@@ -734,3 +735,31 @@ func _check_menu_flow() -> void:
 	(hud as Node).emit_signal("settings_pressed")
 	_check(_main.call("screen_name") == "settings", "and settings")
 	_main.call("_close_settings")
+
+
+## Clips must not render while the section is closed. A SubViewport with UPDATE_ALWAYS keeps
+## drawing behind a hidden CanvasLayer, so five of them quietly cost the game frames.
+func _check_tutorial_clips_idle() -> void:
+	_main.call("_on_menu_pressed")
+	var view: Node = _main.get("tutorial_view")
+	_check(view != null, "the tutorial section exists")
+	if view == null:
+		return
+	_main.call("_open_tutorial")
+	_check(_main.call("screen_name") == "tutorial", "the section opens")
+	var players: Array = view.get("_players")
+	_check(players.size() == TutorialLibrary.ids().size(), "one clip per topic")
+	var active := 0
+	for player in players:
+		var sub: SubViewport = player.get("_sub")
+		if sub != null and sub.render_target_update_mode != SubViewport.UPDATE_DISABLED:
+			active += 1
+	_check(active > 0, "clips render while the section is open")
+
+	_main.call("_close_tutorial")
+	var idle := 0
+	for player in players:
+		var sub: SubViewport = player.get("_sub")
+		if sub != null and sub.render_target_update_mode == SubViewport.UPDATE_DISABLED:
+			idle += 1
+	_check(idle == players.size(), "every clip stops rendering once it closes (%d of %d)" % [idle, players.size()])

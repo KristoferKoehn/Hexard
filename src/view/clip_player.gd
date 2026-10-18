@@ -42,6 +42,12 @@ var _delay := 0.0
 # Game, re-rigging 85 cells and re-running the resolver on every loop was the frame spike
 # each clip produced when it cleared.
 var zoom := ZOOM
+## Clips are built on first activation and shut down on deactivation. Building five boards
+## and searching five completing moves ran at startup, and a live SubViewport keeps drawing
+## with UPDATE_ALWAYS even while its CanvasLayer is hidden - which is what made the game
+## itself slower once the tutorial existed.
+var _active := false
+var _built := false
 var _game: Game
 var _snapshot := {}
 var _result: MoveResult
@@ -69,21 +75,11 @@ func _ready() -> void:
 	_sub.add_child(_view)
 	# Show the board before its turn rather than an empty panel: build it now, render the
 	# pre-move state, and start the animation when the delay expires.
-	zoom = ZOOM * Library.zoom_for(clip_id)
-	_game = Library.make_game(clip_id)
-	_snapshot = _pieces(_game)
-	_result = Library.play(_game, clip_id)
-	_restore()
-	_view.set_game(_game)
-	_view.sync_from_game()
-	_select_subject(_result)
-	# Framed before the first frame is shown: without this the viewport displays the
-	# un-cropped region until the clip's turn comes round, which is what put every panel's
-	# board in the bottom right corner on entry.
-	_apply_zoom()
-	_delay = maxf(start_delay, 0.0)
-	# Nothing to show until the delay expires, so do not pay for a render target.
+
+	# Nothing is built and nothing renders until the section is opened.
 	_sub.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	set_process(false)
+	_view.set_process(false)
 
 
 ## Re-read the juice settings: the board draws the colour patterns.
@@ -204,3 +200,38 @@ func _select_subject(result: MoveResult = null) -> void:
 		return
 	_view.cursor_cells = result.rotation_cells.duplicate()
 	_view.cursor_vertex = _vertex_for(result.rotation_cells)
+
+
+## Opened or closed with the section. Deactivating stops the render target and both
+## _process callbacks, so a hidden clip costs nothing at all.
+func set_active(active: bool) -> void:
+	if _active == active:
+		return
+	_active = active
+	if _sub != null:
+		_sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS if active else SubViewport.UPDATE_DISABLED
+	set_process(active)
+	if _view != null:
+		_view.set_process(active)
+	if active:
+		_build_once()
+
+
+## The game, its snapshot and the demonstration are made on first open rather than at
+## startup, and reused from then on.
+func _build_once() -> void:
+	if _built:
+		_delay = maxf(start_delay, 0.0) * 0.0
+		_restart()
+		return
+	_built = true
+	zoom = ZOOM * Library.zoom_for(clip_id)
+	_game = Library.make_game(clip_id)
+	_snapshot = _pieces(_game)
+	_result = Library.play(_game, clip_id)
+	_restore()
+	_view.set_game(_game)
+	_view.sync_from_game()
+	_select_subject(_result)
+	_apply_zoom()
+	_delay = maxf(start_delay, 0.0)
