@@ -18,6 +18,24 @@ specials, all three modes, the presentation, the meta screens and the tutorial.
 | M4 · art, audio, tutorial, animations, meta | ✅ neon UI, procedurally synthesised audio with per-clear cues, menu with live records, settings (audio / juice / rebinds), profile stats, leaderboard, achievements (20), ten-clip tutorial, in-engine replays |
 | M5 · balance, accessibility, exports | ✅ soak-tuned bombs, OKLCH palette with colour-blind glyphs, Windows and web export presets |
 
+## Building
+
+Export templates must match the pinned engine (`4.7.2-stable`). Put the pack's contents in
+`%APPDATA%/Godot/export_templates/4.7.2.stable/`; without it every preset fails, and Godot
+does not fall back to another version's templates.
+
+```
+tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path . \
+    --export-release "Windows Desktop" build/hexard.exe
+tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path . \
+    --export-release "Web" build/web/index.html
+```
+
+`build/web` has to exist first - the exporter will not create the output directory.
+
+Both presets use `export_filter="all_resources"` with `exclude_filter="tests/*, docs/*, tools/*"`,
+so test scripts and research notes stay out of the build.
+
 ## Documentation
 
 - 📄 **[Game design document](docs/design.md)** — vision, rules spec, board geometry, pieces, modes, scoring, UX, architecture, milestones, deviations from the original.

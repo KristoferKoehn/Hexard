@@ -1,4 +1,4 @@
-﻿<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <!-- A neon hex tile with a gem face: the game's own shape, so the build reads as
        intentional rather than shipping the engine default. -->
   <rect width="128" height="128" rx="22" fill="#0b101c"/>
