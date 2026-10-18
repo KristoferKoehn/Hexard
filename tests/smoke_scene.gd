@@ -423,6 +423,30 @@ func _check_special_snap() -> void:
 	_check(game.turns == turns_before + 1, "a rotate after deselecting is a trio move")
 	_check(_main.get("cursor_special") == HexGrid.NO_CELL, "and the trio stays in charge")
 
+	# The reported case: pointer left hovering the flower, deselect with the keyboard,
+	# then click. The click must be an ordinary trio spin, matching the outline - it
+	# used to turn the piece because the click path looked at the board, not at the
+	# selection.
+	game.board.set_piece(cell, Pieces.starflower())
+	view.call("sync_from_game")
+	_main.call("move_cursor", Vector2.LEFT)
+	_main.call("select_vertex", vertex)
+	_main.call("_mouse_moved", view.position + view.call("cell_center", cell))
+	_check(_main.get("cursor_special") == cell, "hovering the flower targets it")
+	_main.call("_play_key", KEY_F)
+	_check(_main.get("cursor_special") == HexGrid.NO_CELL, "F deselects while the pointer stays")
+	# Pointer jitter inside the same cell must not silently re-select it.
+	_main.call("_mouse_moved", view.position + view.call("cell_center", cell) + Vector2(1, 0))
+	_check(_main.get("cursor_special") == HexGrid.NO_CELL, "jitter inside the piece does not re-select")
+
+	var commands_before: int = game.commands().size()
+	_main.call("_mouse_clicked", view.position + view.call("cell_center", cell), MOUSE_BUTTON_LEFT)
+	var last: Array = game.commands()
+	_check(last.size() > commands_before, "the click made a move")
+	if last.size() > commands_before:
+		_check(String(last[last.size() - 1][0]) == "rotate",
+			"and it was a trio rotation, not a piece turn (got %s)" % String(last[last.size() - 1][0]))
+
 	# Leave nothing special behind for later stages.
 	game.board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
 	game.board.set_piece(other, Pieces.gem(Pieces.GemColor.BLUE))

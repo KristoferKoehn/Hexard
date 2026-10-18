@@ -20,6 +20,8 @@ var game: Game
 var cursor_vertex := 0
 ## When the cursor has snapped onto a starflower or pearl, this is its cell.
 var cursor_special := HexGrid.NO_CELL
+## The special the pointer is currently inside, so hover targets on entry only.
+var _hovered_special := HexGrid.NO_CELL
 var screen: Screen = Screen.MENU
 var selected_mode: int = RulesetScript.Mode.MARATHON
 var selected_difficulty := "normal"
@@ -541,12 +543,16 @@ func _mouse_moved(viewport_point: Vector2) -> void:
 	var special := _special_at(cell)
 	board_view.hover_cell = special
 	if special != HexGrid.NO_CELL:
-		# Hovering a special targets it, so moving flower -> pearl retargets the
-		# outline rather than leaving the previous special selected.
-		cursor_special = special
-		_refresh_cursor()
+		# Target a special on ENTER only. Re-targeting on every motion would undo a
+		# keyboard deselect as soon as the pointer jittered by a pixel.
+		if special != _hovered_special:
+			_hovered_special = special
+			cursor_special = special
+			_refresh_cursor()
 		return
-	cursor_special = HexGrid.NO_CELL
+	if _hovered_special != HexGrid.NO_CELL:
+		_hovered_special = HexGrid.NO_CELL
+		cursor_special = HexGrid.NO_CELL
 	snap_cursor_to(viewport_point)
 
 
@@ -556,10 +562,9 @@ func _mouse_clicked(viewport_point: Vector2, button_index: int) -> void:
 	if not board_view.is_settled():
 		return
 	var direction := GameScript.CLOCKWISE if button_index == MOUSE_BUTTON_LEFT else GameScript.COUNTER_CLOCKWISE
-	var cell := board_view.cell_at(board_view.to_local(viewport_point))
-	if _special_at(cell) != HexGrid.NO_CELL:
-		play_piece_move(cell, direction)
-		return
+	# A click does exactly what the rotate keys do: move the cursor to the click, then
+	# let the selection decide. It used to turn whatever special sat under the pointer,
+	# so a click could rotate a piece the outline showed as deselected.
 	snap_cursor_to(viewport_point)
 	play_move(direction)
 
