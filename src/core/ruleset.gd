@@ -35,7 +35,11 @@ const DEFAULT_COMBO_THRESHOLDS := [50, 60, 70, 80, 90, 100]
 ## arrive at level 2, bombs at level 3; bombs get more frequent and shorter-fused
 ## as the level climbs. Chances are per refilled cell.
 const DEFAULT_BONUS_STAR_CHANCE := [0.0, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
-const DEFAULT_BOMB_CHANCE := [0.0, 0.0, 0.05, 0.05, 0.06, 0.06, 0.06]
+## Ten percent rarer than the first pass, because the soak showed bombs ending 24 of 26
+## marathon runs: a mode with one dominant failure mode is a design smell, and this is
+## the smallest lever on it. Fuse lengths are unchanged, so a bomb that arrives is still
+## as dangerous - it just arrives less often.
+const DEFAULT_BOMB_CHANCE := [0.0, 0.0, 0.045, 0.045, 0.054, 0.054, 0.054]
 const DEFAULT_BOMB_COUNTER := [0, 0, 9, 8, 7, 6, 5]
 
 # --- Timed mode (docs/design.md §6.2) ---------------------------------------
