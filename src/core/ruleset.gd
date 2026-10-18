@@ -40,7 +40,10 @@ const DEFAULT_BONUS_STAR_CHANCE := [0.0, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
 ## the smallest lever on it. Fuse lengths are unchanged, so a bomb that arrives is still
 ## as dangerous - it just arrives less often.
 const DEFAULT_BOMB_CHANCE := [0.0, 0.0, 0.045, 0.045, 0.054, 0.054, 0.054]
-const DEFAULT_BOMB_COUNTER := [0, 0, 9, 8, 7, 6, 5]
+## Fuses lengthened by four moves. Frequency is the wrong lever for "every run ends in an
+## explosion": a rarer bomb still explodes if you cannot defuse it, whereas a longer fuse
+## gives you four more chances to. Defusing is the skill the mode should test.
+const DEFAULT_BOMB_COUNTER := [0, 0, 13, 12, 11, 10, 9]
 
 # --- Timed mode (docs/design.md §6.2) ---------------------------------------
 const TIMED_CAP := 120.0
