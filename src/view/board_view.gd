@@ -421,11 +421,23 @@ func _draw_piece(centre: Vector2, piece: int, radius: float, alpha: float) -> vo
 			draw_circle(centre, radius * 0.34, Color(0.06, 0.08, 0.11, alpha))
 			_draw_centered_text(str(Pieces.counter_of(piece)), centre, 19, Color(1.0, 0.82, 0.4, alpha))
 		_:
-			draw_colored_polygon(corners, base)
-			draw_polyline(_closed(corners), base.darkened(0.45), 2.0)
+			# One light, from the top left: a cast shadow underneath, a darker rim, the
+			# face inset inside it, a specular patch up-left and an inner shadow
+			# down-right. The shadow is what makes a fall read as height rather than
+			# the gem simply being redrawn lower.
 			draw_colored_polygon(
-				_corners(centre - Vector2(0.0, radius * 0.24), radius * 0.5),
-				Color(1, 1, 1, 0.28 * alpha)
+				_corners(centre + Vector2(radius * 0.09, radius * 0.13), radius * 0.97),
+				Color(0, 0, 0, 0.32 * alpha)
+			)
+			draw_colored_polygon(corners, base.darkened(0.34))
+			draw_colored_polygon(_corners(centre - Vector2(radius * 0.03, radius * 0.04), radius * 0.86), base)
+			draw_colored_polygon(
+				_corners(centre - Vector2(radius * 0.13, radius * 0.27), radius * 0.44),
+				Color(1, 1, 1, 0.30 * alpha)
+			)
+			draw_colored_polygon(
+				_corners(centre + Vector2(radius * 0.17, radius * 0.31), radius * 0.28),
+				Color(0, 0, 0, 0.18 * alpha)
 			)
 			if _patterns_allowed():
 				GemGlyphs.draw(self, centre, radius, int(Pieces.color_of(piece)), base)

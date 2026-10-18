@@ -13,7 +13,7 @@ extends RefCounted
 
 const Pieces := preload("res://src/core/piece.gd")
 
-enum Kind { NONE, DOT, BARS, DOT_GRID, SLASH, TRIANGLE, SQUARE, CHEVRON }
+enum Kind { NONE, DOT, BARS, DOT_GRID, SLASH, TRIANGLE, CROSS, CHEVRON }
 
 ## Deliberately faint: the mark is a fallback channel, not a label. Strong enough to
 ## separate hues, quiet enough that the gem still reads as a jewel.
@@ -37,7 +37,7 @@ static func kind_for(color: int) -> int:
 		Pieces.GemColor.CYAN:
 			return Kind.TRIANGLE
 		Pieces.GemColor.BLUE:
-			return Kind.SQUARE
+			return Kind.CROSS
 		Pieces.GemColor.VIOLET:
 			return Kind.CHEVRON
 		_:
@@ -78,7 +78,7 @@ static func draw(canvas: CanvasItem, centre: Vector2, radius: float, color: int,
 			for step in [-1, 0, 1]:
 				var y := at.y + float(step) * radius * 0.26
 				canvas.draw_line(
-					Vector2(at.x - width, y), Vector2(at.x + width, y), mark, radius * 0.11
+					Vector2(at.x - width, y), Vector2(at.x + width, y), mark, radius * 0.15
 				)
 		Kind.DOT_GRID:
 			for dx in [-1, 1]:
@@ -91,7 +91,7 @@ static func draw(canvas: CanvasItem, centre: Vector2, radius: float, color: int,
 			canvas.draw_line(
 				Vector2(at.x - radius * 0.32, at.y + radius * 0.32),
 				Vector2(at.x + radius * 0.32, at.y - radius * 0.32),
-				mark, radius * 0.13
+				mark, radius * 0.16
 			)
 		Kind.TRIANGLE:
 			canvas.draw_colored_polygon(PackedVector2Array([
@@ -99,15 +99,20 @@ static func draw(canvas: CanvasItem, centre: Vector2, radius: float, color: int,
 				Vector2(at.x - radius * 0.32, at.y + radius * 0.24),
 				Vector2(at.x + radius * 0.32, at.y + radius * 0.24),
 			]), mark)
-		Kind.SQUARE:
-			var half := radius * 0.28
-			canvas.draw_rect(Rect2(at - Vector2(half, half), Vector2(half, half) * 2.0), mark, false, radius * 0.11)
+		Kind.CROSS:
+			# A filled cross rather than a hollow square: at gem size thin outlines
+			# disappeared against their own gem, and all seven marks should carry the
+			# same weight.
+			var arm := radius * 0.30
+			var thickness := radius * 0.15
+			canvas.draw_line(Vector2(at.x - arm, at.y), Vector2(at.x + arm, at.y), mark, thickness)
+			canvas.draw_line(Vector2(at.x, at.y - arm), Vector2(at.x, at.y + arm), mark, thickness)
 		Kind.CHEVRON:
 			canvas.draw_line(
 				Vector2(at.x - radius * 0.30, at.y - radius * 0.20),
-				Vector2(at.x, at.y + radius * 0.12), mark, radius * 0.12
+				Vector2(at.x, at.y + radius * 0.12), mark, radius * 0.16
 			)
 			canvas.draw_line(
 				Vector2(at.x, at.y + radius * 0.12),
-				Vector2(at.x + radius * 0.30, at.y - radius * 0.20), mark, radius * 0.12
+				Vector2(at.x + radius * 0.30, at.y - radius * 0.20), mark, radius * 0.16
 			)
