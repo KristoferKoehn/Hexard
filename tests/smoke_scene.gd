@@ -695,8 +695,7 @@ func _check_menu_flow() -> void:
 	_check(mode_buttons.size() == 3, "there are three mode buttons")
 	for mode: int in mode_buttons:
 		var button := mode_buttons[mode] as Button
-		_check(button.text.begins_with(Hud.MODE_LABELS[mode]), "mode button %d is titled" % mode)
-		_check(button.text.contains("\n"), "and carries its best score underneath")
+		_check(button.text == Hud.MODE_LABELS[mode], "mode button %d is titled, single line" % mode)
 
 	_main.call("_handle_key", KEY_2)
 	_check(bool(hud.call("is_difficulty_open")), "picking a mode opens its difficulty step")

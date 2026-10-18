@@ -218,9 +218,9 @@ func _build_menu() -> void:
 	mode_row.add_theme_constant_override("separation", 10)
 	column.add_child(mode_row)
 	for mode: int in [RulesetScript.Mode.MARATHON, RulesetScript.Mode.TIMED, RulesetScript.Mode.SURVIVAL]:
-		# Titled at build time as well as on refresh: a button that relies on a later
-		# refresh is a button that can be painted blank.
-		var button := _menu_button("%s\n—" % MODE_LABELS[mode], Vector2(210, 60), 20)
+		# One line only: a mode button is a door, and its best score lives on the
+		# leaderboard rather than doubling the height of the menu.
+		var button := _menu_button(MODE_LABELS[mode], Vector2(210, 48), 20)
 		button.pressed.connect(_on_mode_pressed.bind(mode))
 		mode_row.add_child(button)
 		_mode_buttons[mode] = button
@@ -392,6 +392,10 @@ func set_profile(value: ProfileService) -> void:
 func _refresh_menu_records() -> void:
 	if _menu_records == null:
 		return
+	# Titles are cheap to reassert, and a button that relies on build-time text alone is
+	# a button that can be painted blank.
+	for mode: int in _mode_buttons:
+		(_mode_buttons[mode] as Button).text = MODE_LABELS.get(mode, "")
 	if _profile == null:
 		_menu_records.text = ""
 		return
@@ -405,11 +409,6 @@ func _refresh_menu_records() -> void:
 			int(totals.get("best_level", 0)), int(totals.get("cleared", 0)),
 			int(totals.get("bombs_defused", 0)),
 		]
-	# Each mode button carries its own best at the difficulty the player used last.
-	var difficulty := _menu_config.difficulty if _menu_config != null else "normal"
-	for mode: int in _mode_buttons:
-		var button := _mode_buttons[mode] as Button
-		button.text = "%s\n%s" % [MODE_LABELS.get(mode, ""), _best_text(mode, difficulty)]
 
 
 ## The best score for a table, or a dash when it has never been played.
