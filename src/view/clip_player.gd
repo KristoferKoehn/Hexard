@@ -183,19 +183,21 @@ func _restore() -> void:
 		_game.board.set_piece(cell, int(_snapshot[cell]))
 
 
-## What the outline should be on. The flower clips select the flower itself - the point of
-## the demonstration is that piece - while clears and star clusters outline the trio being
-## turned, because that trio is the subject.
+## What the outline should be on. This is stated rather than derived: the clip replays a
+## cached result, so its board is pre-move and asking the board what a flower would swap
+## returns nothing. Flower clips outline the ring they form; the others outline the trio
+## being turned, which is the shape the rotation actually moves.
 func _select_subject(result: MoveResult = null) -> void:
 	if _view == null:
 		return
-	var flower_subject := clip_id in ["flower", "turn", "pearl"]
-	if flower_subject:
-		_view.cursor_special = Library.focus_cell(clip_id)
-		_view.cursor_vertex = _vertex_for(
-			result.rotation_cells if result != null else []
-		)
-		return
+	_view.cursor_legal = true
 	_view.cursor_special = HexGridScript.NO_CELL
+	if clip_id in ["flower", "turn", "pearl"]:
+		# The six neighbours of the centre: the ring that blooms, is turned, or becomes a
+		# pearl.
+		_view.cursor_cells = HexGridScript.neighbours(Library.focus_cell(clip_id))
+		_view.cursor_vertex = _vertex_for(HexGridScript.neighbours(Library.focus_cell(clip_id)))
+		return
 	if result != null:
+		_view.cursor_cells = result.rotation_cells.duplicate()
 		_view.cursor_vertex = _vertex_for(result.rotation_cells)

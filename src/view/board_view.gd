@@ -96,6 +96,10 @@ var _backdrop: ImageTexture = null
 var playback_scale := 1.0
 ## Optional board-space region to restrict drawing to. Empty draws the whole board.
 var cull_rect := Rect2()
+## Cells to outline instead of asking the board. Empty means the normal rule: the trio
+## under the cursor, or a selected special's own swap set. The tutorial's clips set this,
+## because they replay a cached result and their board is back at its pre-move state.
+var cursor_cells: Array[Vector2i] = []
 var settings: Settings
 var _announced_step := -1
 var _shake_strength := 0.0
@@ -642,7 +646,9 @@ func _draw_cursor() -> void:
 	_cursor_painter.origin = _origin
 
 	var swapped: Array[Vector2i] = []
-	if cursor_special != HexGrid.NO_CELL and game != null:
+	if not cursor_cells.is_empty():
+		swapped = cursor_cells
+	elif cursor_special != HexGrid.NO_CELL and game != null:
 		swapped = game.swapped_cells(cursor_special)
 	else:
 		var vertices := HexGrid.vertices()
