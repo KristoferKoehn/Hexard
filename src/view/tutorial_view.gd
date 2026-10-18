@@ -28,6 +28,8 @@ func _ready() -> void:
 
 
 func open() -> void:
+	if _players.is_empty():
+		_rebuild()
 	visible = true
 	for player: ClipPlayer in _players:
 		player.set_active(true)
@@ -43,10 +45,25 @@ func apply_settings(value: Settings) -> void:
 
 func close() -> void:
 	visible = false
-	# Five live SubViewports drawing behind the game is the whole reason gameplay slowed
-	# down when this section was added.
 	for player: ClipPlayer in _players:
 		player.set_active(false)
+		player.queue_free()
+	# Emptied rather than idled: the section leaves nothing behind in the tree, which is the
+	# only thing that provably stops it costing frames. Rebuilt on the next open.
+	_players.clear()
+
+
+## Rebuilds the panel from scratch. The clips are freed on close, so the section is
+## cheap when hidden and reconstructed when opened.
+func _rebuild() -> void:
+	if _root != null:
+		remove_child(_root)
+		_root.queue_free()
+	_root = Control.new()
+	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.mouse_filter = Control.MOUSE_FILTER_PASS
+	add_child(_root)
+	_build()
 
 
 func _build() -> void:

@@ -96,39 +96,28 @@ static func slot_cell(id: String) -> Vector2i:
 			return Grid.cyclic_order(Grid.neighbours(CENTRE))[0]
 
 
+## The demonstration move per clip, found once by searching the rig and then written down:
+## the rig is a fixture, so searching it at runtime was ~950ms of blocked frames on the
+## first visit for an answer that never changes.
+const DEMO_MOVES := {
+	"clear": {"vertex": 38, "direction": 1},
+	"stars": {"vertex": 37, "direction": 1},
+	"flower": {"vertex": 35, "direction": 1},
+	"pearl": {"vertex": 35, "direction": 1},
+}
+
+
 ## The one move worth watching: the rotation that carries the missing piece into its slot.
-## Found once per clip and cached, because it is a property of the rig rather than of the
-## board it runs on.
 static func play(game: Game, id: String) -> MoveResult:
 	if id == "turn":
 		return game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
-	if not _moves.has(id):
-		_moves[id] = _find_completing_move(id)
-	var move: Dictionary = _moves.get(id, {})
-	if not move.is_empty():
+	if DEMO_MOVES.has(id):
+		var move: Dictionary = DEMO_MOVES[id]
 		return game.rotate(int(move["vertex"]), int(move["direction"]))
 	var rotations := game.find_legal_rotations()
 	if rotations.is_empty():
 		return game.rotate(0, GameScript.CLOCKWISE)
 	return game.rotate(int(rotations[0]["vertex"]), int(rotations[0]["direction"]))
-
-
-## Only trios that contain the missing slot can complete it, so this is twelve candidates
-## rather than the whole board.
-static func _find_completing_move(id: String) -> Dictionary:
-	var slot := slot_cell(id)
-	var vertices := Grid.vertices()
-	for vertex_index in vertices.size():
-		if not (vertices[vertex_index] as Array).has(slot):
-			continue
-		for direction in [GameScript.CLOCKWISE, GameScript.COUNTER_CLOCKWISE]:
-			# A fresh game per candidate: rotate() resolves and mutates, and there is no
-			# cheap undo for score, bombs or run state.
-			var probe := make_game(id)
-			var result := probe.rotate(vertex_index, direction)
-			if result.committed and _goal_met(id, result):
-				return {"vertex": vertex_index, "direction": direction}
-	return {}
 
 
 ## Did this move produce the thing the clip is about? Pure, so the tests can use it.
@@ -237,9 +226,6 @@ static func _rig_turn(game: Game) -> void:
 	var ring := Grid.cyclic_order(Grid.neighbours(CENTRE))
 	for index in ring.size():
 		game.board.set_piece(ring[index], Pieces.gem(index + 1))
-
-
-static var _moves := {}
 
 
 static func _paint_background(game: Game) -> void:
