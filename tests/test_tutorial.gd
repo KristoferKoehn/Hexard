@@ -181,7 +181,7 @@ func test_each_clip_demonstrates_what_it_claims() -> void:
 	var Library := preload("res://src/core/tutorial_library.gd")
 	var expected := {
 		"clear": "cleared", "stars": "bonus_star_cluster",
-		"flower": "starflower", "pearl": "pearl", "turn": "turn",
+		"flower": "starflower", "pearl": "pearl", "turn": "turn", "bombs": "defused",
 	}
 	for id: String in Library.ids():
 		var game = Library.make_game(id)
@@ -210,3 +210,5 @@ func test_each_clip_demonstrates_what_it_claims() -> void:
 				assert_true(pearl, "%s: makes a pearl" % id)
 			"turn":
 				assert_eq(result.piece_cell, Vector2i(4, 4), "%s: turns the starflower" % id)
+			"defused":
+				assert_gt(result.bombs_defused, 0, "%s: defuses the bomb" % id)

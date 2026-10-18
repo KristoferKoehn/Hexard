@@ -43,6 +43,11 @@ const CLIPS := [
 		"title": "Black pearls",
 		"text": "Six starflowers ringing a centre make a black pearl.",
 	},
+	{
+		"id": "bombs",
+		"title": "Bombs",
+		"text": "A bomb clears with its own colour, and its fuse ticks down every move. Clear it before it reaches zero.",
+	},
 ]
 
 
@@ -82,6 +87,8 @@ static func make_game(id: String) -> Game:
 			_rig_turn(game)
 		"pearl":
 			_rig_ring(game, Pieces.GemColor.RED, Pieces.starflower())
+		"bombs":
+			_rig_bombs(game)
 	return game
 
 
@@ -99,6 +106,8 @@ static func slot_cell(id: String) -> Vector2i:
 ## The demonstration move per clip, found once by searching the rig and then written down:
 ## the rig is a fixture, so searching it at runtime was ~950ms of blocked frames on the
 ## first visit for an answer that never changes.
+const BOMB_CELL := Vector2i(4, 4)
+
 const DEMO_MOVES := {
 	"clear": {"vertex": 38, "direction": 1},
 	"stars": {"vertex": 37, "direction": 1},
@@ -111,6 +120,10 @@ const DEMO_MOVES := {
 static func play(game: Game, id: String) -> MoveResult:
 	if id == "turn":
 		return game.rotate_piece(CENTRE, GameScript.CLOCKWISE)
+	if id == "bombs":
+		# The bomb's own triangle is already monochrome, so turning that trio demonstrates
+		# the defuse without needing a completing move at all.
+		return game.rotate(_vertex_near(BOMB_CELL), GameScript.CLOCKWISE)
 	if DEMO_MOVES.has(id):
 		var move: Dictionary = DEMO_MOVES[id]
 		return game.rotate(int(move["vertex"]), int(move["direction"]))
@@ -134,6 +147,8 @@ static func _goal_met(id: String, result: MoveResult) -> bool:
 			return _has_promotion(result, "starflower")
 		"pearl":
 			return _has_promotion(result, "pearl")
+		"bombs":
+			return result.bombs_defused > 0
 	return false
 
 
@@ -219,6 +234,15 @@ static func _place_arriving_piece(game: Game, slot: Vector2i, avoid: Array, piec
 				continue
 			game.board.set_piece(cell, piece)
 			return
+
+
+## A bomb sitting in a monochrome triangle of its own colour: any rotation of that trio
+## leaves it monochrome, so the first move of the clip clears the group and defuses the bomb.
+static func _rig_bombs(game: Game) -> void:
+	var trio: Array = Grid.vertices()[_vertex_near(BOMB_CELL)]
+	game.board.set_piece(trio[0], Pieces.bomb(Pieces.GemColor.BLUE, 3))
+	for index in [1, 2]:
+		game.board.set_piece(trio[index], Pieces.gem(Pieces.GemColor.BLUE))
 
 
 static func _rig_turn(game: Game) -> void:

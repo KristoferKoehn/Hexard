@@ -471,9 +471,15 @@ func _draw_piece(centre: Vector2, piece: int, radius: float, alpha: float) -> vo
 			GemPainter.draw(self, centre, radius, base, int(Pieces.color_of(piece)),
 				alpha, _patterns_allowed())
 			if Pieces.is_bonus_star(piece):
-				var star := _star_points(centre, radius * 0.62, radius * 0.26, 6)
-				draw_colored_polygon(star, Color(1.0, 0.95, 0.77, alpha))
-				draw_polyline(_closed(star), Color(0.54, 0.43, 0.12, alpha), 1.0)
+				# A gold rim and a corner sparkle rather than a star across the face: the big
+				# pale star covered the glyph and read as a sticker on a bevelled gem.
+				draw_arc(centre, radius * 0.77, 0.0, TAU, 28,
+					Color(1.0, 0.86, 0.36, 0.95 * alpha), radius * 0.10)
+				draw_colored_polygon(
+					_star_points(centre + Vector2(radius * 0.45, -radius * 0.43),
+						radius * 0.30, radius * 0.11, 4),
+					Color(1.0, 0.96, 0.82, alpha)
+				)
 
 
 ## Transient visuals for whichever step is playing.
