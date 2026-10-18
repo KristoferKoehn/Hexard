@@ -54,6 +54,10 @@ var muted := false
 var screen_shake := true
 var flashes := true
 var reduced_motion := false
+## Per-hue marks on the gems (docs/design.md §8). On by default: this is the
+## difference between playable and unplayable for a colour-blind player, not
+## decoration, so it must not be buried.
+var colour_patterns := true
 
 var bindings: Dictionary = {}
 
@@ -166,6 +170,7 @@ func to_dictionary() -> Dictionary:
 		"screen_shake": screen_shake,
 		"flashes": flashes,
 		"reduced_motion": reduced_motion,
+		"colour_patterns": colour_patterns,
 		"bindings": bound,
 	}
 
@@ -187,6 +192,7 @@ func apply_dictionary(data: Dictionary) -> void:
 	screen_shake = bool(data.get("screen_shake", screen_shake))
 	flashes = bool(data.get("flashes", flashes))
 	reduced_motion = bool(data.get("reduced_motion", reduced_motion))
+	colour_patterns = bool(data.get("colour_patterns", colour_patterns))
 	var bound: Variant = data.get("bindings", null)
 	if typeof(bound) == TYPE_DICTIONARY:
 		for action: String in DEFAULT_BINDINGS:

@@ -12,14 +12,17 @@ extends Node2D
 const HexGrid := preload("res://src/core/hex_grid.gd")
 const Pieces := preload("res://src/core/piece.gd")
 
+## Designed in OKLCH: lightness is a deliberate ladder (0.50 blue -> 0.91 yellow)
+## so the seven hues stay apart in greyscale, which is what carries the palette
+## through red-green colour blindness. Hue alone cannot.
 const GEM_COLORS := {
-	Pieces.GemColor.RED: Color("e8453c"),
-	Pieces.GemColor.ORANGE: Color("f28c28"),
-	Pieces.GemColor.YELLOW: Color("f2c53d"),
-	Pieces.GemColor.GREEN: Color("45b74a"),
-	Pieces.GemColor.CYAN: Color("31c1cf"),
-	Pieces.GemColor.BLUE: Color("3a6fd8"),
-	Pieces.GemColor.VIOLET: Color("9b5de5"),
+	Pieces.GemColor.BLUE: Color("2f58c8"),    # oklch 0.50 0.18 265
+	Pieces.GemColor.RED: Color("d73337"),     # oklch 0.58 0.20  25
+	Pieces.GemColor.VIOLET: Color("ad67dc"),  # oklch 0.64 0.18 310
+	Pieces.GemColor.GREEN: Color("43b966"),   # oklch 0.70 0.16 150
+	Pieces.GemColor.ORANGE: Color("fc9a10"),  # oklch 0.77 0.17  65
+	Pieces.GemColor.CYAN: Color("34dde5"),    # oklch 0.82 0.13 200
+	Pieces.GemColor.YELLOW: Color("fae353"),  # oklch 0.91 0.16 100
 }
 
 ## Emitted when a clear step lands, carrying what that step was worth. The HUD
@@ -428,6 +431,8 @@ func _draw_piece(centre: Vector2, piece: int, radius: float, alpha: float) -> vo
 				_corners(centre - Vector2(0.0, radius * 0.24), radius * 0.5),
 				Color(1, 1, 1, 0.28 * alpha)
 			)
+			if _patterns_allowed():
+				GemGlyphs.draw(self, centre, radius, int(Pieces.color_of(piece)), base)
 			if Pieces.is_bonus_star(piece):
 				var star := _star_points(centre, radius * 0.62, radius * 0.26, 6)
 				draw_colored_polygon(star, Color(1.0, 0.95, 0.77, alpha))
@@ -586,6 +591,11 @@ func _motion() -> float:
 
 func _shake_allowed() -> bool:
 	return settings == null or settings.shake_enabled()
+
+
+## Colour patterns: the accessibility marks, on unless switched off.
+func _patterns_allowed() -> bool:
+	return settings == null or settings.colour_patterns
 
 
 func _flashes_allowed() -> bool:

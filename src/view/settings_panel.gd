@@ -60,6 +60,7 @@ func _build() -> void:
 	column.add_child(_toggle_row("Screen shake", "screen_shake"))
 	column.add_child(_toggle_row("Flashes", "flashes"))
 	column.add_child(_toggle_row("Reduced motion", "reduced_motion"))
+	column.add_child(_toggle_row("Colour patterns", "colour_patterns"))
 
 	column.add_child(_heading("controls  ·  click a key to rebind", 16, NeonStyle.DIM))
 	var grid := GridContainer.new()
@@ -163,6 +164,8 @@ func _on_toggle(setting: String) -> void:
 			settings.flashes = not settings.flashes
 		"reduced_motion":
 			settings.reduced_motion = not settings.reduced_motion
+		"colour_patterns":
+			settings.colour_patterns = not settings.colour_patterns
 	_after_change()
 
 func _on_binding_pressed(action: String) -> void:
@@ -222,6 +225,8 @@ func _refresh() -> void:
 				on_state = settings.flashes
 			"reduced_motion":
 				on_state = settings.reduced_motion
+			"colour_patterns":
+				on_state = settings.colour_patterns
 		# Reduced motion overrides the others, so say so instead of lying.
 		var overridden := setting != "reduced_motion" and settings.reduced_motion
 		var button := _toggle_buttons[setting] as Button
