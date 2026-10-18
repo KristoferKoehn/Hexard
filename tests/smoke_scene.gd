@@ -621,3 +621,30 @@ func _check_pause_menu() -> void:
 	_check(_main.call("screen_name") == "paused", "and closing it returns to the pause menu")
 	(panel as Node).emit_signal("resume_pressed")
 	_check(_main.call("screen_name") == "playing", "resume returns to the game")
+
+	# Reported: pause -> main menu left the pause screen up, with the menu behind it.
+	var hud: Node = _main.get("hud")
+	_main.call("_handle_key", KEY_ESCAPE)
+	(panel as Node).emit_signal("menu_pressed")
+	_check(_main.call("screen_name") == "menu", "the pause menu can reach the main menu")
+	_check(not panel.visible, "and the pause screen comes down")
+	_check(hud.visible, "with the menu actually shown")
+
+	# Reported: pause -> settings -> pause -> main menu left the pause screen up over
+	# nothing, because the settings screen had hidden the HUD and nothing restored it.
+	_main.call("start_run", RunConfig.of(RulesetScript.Mode.MARATHON, "normal"), 1001)
+	_main.call("_handle_key", KEY_ESCAPE)
+	(panel as Node).emit_signal("settings_pressed")
+	_main.call("_close_settings")
+	_check(_main.call("screen_name") == "paused", "back from settings to the pause menu")
+	_check(hud.visible, "with the board and HUD restored behind it")
+	(panel as Node).emit_signal("menu_pressed")
+	_check(_main.call("screen_name") == "menu", "and the menu is reachable from there too")
+	_check(not panel.visible and hud.visible, "pause down, menu up")
+
+	# Restart from the pause menu is the same class of bug.
+	_main.call("start_run", RunConfig.of(RulesetScript.Mode.MARATHON, "normal"), 1002)
+	_main.call("_handle_key", KEY_ESCAPE)
+	(panel as Node).emit_signal("restart_pressed")
+	_check(_main.call("screen_name") == "playing", "restart from the pause menu starts a run")
+	_check(not panel.visible, "without leaving the pause screen over it")

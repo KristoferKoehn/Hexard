@@ -117,6 +117,7 @@ func _process(delta: float) -> void:
 
 ## Starts a run. A negative seed picks a fresh random one.
 func start_run(config: RunConfig, run_seed: int = -1) -> void:
+	_close_overlays()
 	selected = config
 	tutorial = null
 	var seed_value := run_seed if run_seed >= 0 else randi()
@@ -189,6 +190,7 @@ func _enter_playing() -> void:
 
 
 func _enter_result() -> void:
+	_close_overlays()
 	screen = Screen.RESULT
 	board_view.hint_vertex = -1
 	var summary := game.summary()
@@ -248,7 +250,18 @@ func _on_restart_pressed() -> void:
 	start_run(selected)
 
 
+## Closes every overlay. Screen transitions used to hide only the panel they knew
+## about, so the pause menu survived a jump to the main menu - and the HUD, hidden by
+## the settings screen, stayed hidden behind it.
+func _close_overlays() -> void:
+	for panel: Node in [pause_panel, settings_panel, leaderboard_panel, achievements_panel]:
+		if panel != null:
+			panel.call("close")
+
+
 func _on_menu_pressed() -> void:
+	_close_overlays()
+	hud.visible = true
 	screen = Screen.MENU
 	game = null
 	tutorial = null
@@ -653,6 +666,7 @@ func _open_pause() -> void:
 func _resume() -> void:
 	if pause_panel != null:
 		pause_panel.close()
+	hud.visible = true
 	screen = Screen.PLAYING
 	if game != null:
 		hud.update_from_game(HudModel.from_game(game, _displayed_score))
@@ -675,6 +689,7 @@ func _close_settings() -> void:
 	# Back to wherever settings was opened from: the menu, or the pause screen over a
 	# run in progress - which must not be silently abandoned by visiting settings.
 	if _settings_return == Screen.PAUSED and game != null and game.state == GameScript.State.PLAYING:
+		hud.visible = true
 		screen = Screen.PAUSED
 		if pause_panel != null:
 			pause_panel.open()
