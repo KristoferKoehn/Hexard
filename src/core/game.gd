@@ -50,15 +50,15 @@ var bombs_defused := 0
 var finish_reason := ""
 var victory := false
 
-var _round_cleared := 0
-var _rng_refill
+var round_cleared := 0
+var rng_refill
 var _commands: Array = []
 
 func _init(run_seed: int = 1, rules: Variant = null) -> void:
 	seed_value = run_seed
 	ruleset = rules if rules != null else RulesetScript.new()
 	board = BoardScript.new()
-	_rng_refill = RngScript.new(run_seed).child("refill")
+	rng_refill = RngScript.new(run_seed).child("refill")
 	if ruleset.mode == RulesetScript.Mode.TIMED:
 		max_clock = ruleset.timed_start_seconds()
 		clock = max_clock
@@ -117,12 +117,12 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE) -> MoveResult:
 		# gravity re-settles anything the rotation lifted and any match the fall
 		# creates is cleared (this is what makes Survival-style gaps safe).
 		_record(vertex_index, direction)
-		ResolverScript.resolve(board, ruleset, _rng_refill, result, level, ruleset.refills_board)
+		ResolverScript.resolve(board, ruleset, rng_refill, result, level, ruleset.refills_board)
 		_finish_move(result)
 		return result
 
 	_record(vertex_index, direction)
-	ResolverScript.resolve(board, ruleset, _rng_refill, result, level, ruleset.refills_board)
+	ResolverScript.resolve(board, ruleset, rng_refill, result, level, ruleset.refills_board)
 	_finish_move(result)
 	return result
 
@@ -159,7 +159,7 @@ func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE) -> MoveResult:
 	result.rotation_cells.assign(cells)
 	result.direction = direction
 	_record_piece(cell, direction)
-	ResolverScript.resolve(board, ruleset, _rng_refill, result, level, ruleset.refills_board)
+	ResolverScript.resolve(board, ruleset, rng_refill, result, level, ruleset.refills_board)
 	_finish_move(result)
 	return result
 
@@ -187,29 +187,24 @@ static func replay(run_seed: int, command_log: Array, rules: Variant) -> Game:
 func swapped_cells(cell: Vector2i) -> Array[Vector2i]:
 	return TurnRules.swapped_cells(board, cell)
 
-
 func is_legal_rotation(vertex_index: int, direction: int) -> bool:
 	return TurnRules.is_legal_rotation(board, vertex_index, direction)
-
 
 func has_legal_spin(vertex_index: int) -> bool:
 	return TurnRules.has_legal_spin(board, vertex_index)
 
-
 func find_legal_rotations() -> Array:
 	return TurnRules.find_legal_rotations(board)
 
-
 func has_any_legal_rotation() -> bool:
 	return TurnRules.has_any_legal_rotation(board)
-
 
 func fill_board() -> void:
 	board.clear_locks()
 	var palette: Array = colors()
 	for cell: Vector2i in Grid.all_cells():
 		var candidates: Array = palette.duplicate()
-		_rng_refill.shuffle(candidates)
+		rng_refill.shuffle(candidates)
 		var placed := false
 		for color: int in candidates:
 			board.set_piece(cell, Pieces.make(Pieces.Kind.GEM, color))
@@ -223,7 +218,7 @@ func fill_board() -> void:
 
 	if MatchFinderScript.has_any_match(board):
 		var settle := MoveResultScript.new()
-		ResolverScript.resolve(board, ruleset, _rng_refill, settle, level, true)
+		ResolverScript.resolve(board, ruleset, rng_refill, settle, level, true)
 
 # --- internals --------------------------------------------------------------
 
@@ -261,13 +256,13 @@ func _award(result: MoveResult) -> void:
 func _finish_move(result: MoveResult) -> void:
 	_award(result)
 	if ruleset.mode == RulesetScript.Mode.SURVIVAL:
-		_round_cleared += result.cleared_count
+		round_cleared += result.cleared_count
 	bombs_defused += result.bombs_defused
 	_reward_clock(result)
 
 	if result.finished:
 		# The resolver ended the run itself (a pearl finish).
-		_finish(result.finish_kind, true)
+		finish_run(result.finish_kind, true)
 		result.game_over = false
 		settle(result)
 		return
@@ -295,99 +290,22 @@ func _reward_clock(result: MoveResult) -> void:
 	else:
 		clock = minf(clock, max_clock)
 
-## Every bomb loses one move. Reaching zero detonates it and ends the run.
-## A bomb going off ends the run and levels the board (nothing scores).
+## Fuses tick once per committed move; BombRules decides what happens and reports
+## whether one went off. Ending the run stays here.
 func _tick_bombs(result: MoveResult) -> void:
-	var exploders: Array[Vector2i] = []
-	for cell: Vector2i in Grid.all_cells():
-		var piece: int = board.get_piece(cell)
-		if not Pieces.is_bomb(piece):
-			continue
-		var remaining := Pieces.counter_of(piece) - 1
-		if remaining <= 0:
-			exploders.append(cell)
-			board.set_piece(cell, Pieces.with_counter(piece, 0))
-			continue
-		board.set_piece(cell, Pieces.with_counter(piece, remaining))
-		result.bombs_ticked.append({"cell": cell, "counter": remaining})
-
-	if exploders.is_empty():
-		return
-
-	# A dying bomb takes the whole board with it. `exploded_cells` starts with the
-	# bomb itself, so the view can use element 0 as the blast origin.
-	var shattered: Array[Vector2i] = exploders.duplicate()
-	for cell: Vector2i in Grid.all_cells():
-		if not shattered.has(cell):
-			shattered.append(cell)
-	for cell: Vector2i in shattered:
-		board.remove_piece(cell)
-
-	result.bomb_exploded = true
-	result.game_over = true
-	result.finished = true
-	result.finish_kind = "bomb_exploded"
-	result.exploded_cells.assign(shattered)
-	_finish("bomb_exploded", false)
-
-## After every move: is the board still playable? (docs/design.md §5.3, §6.3)
+	if BombRules.tick(board, result):
+		finish_run("bomb_exploded", false)
 func settle(result: MoveResult) -> void:
 	if state != State.FINISHED and not result.finished:
 		if ruleset.mode == RulesetScript.Mode.SURVIVAL:
-			_settle_survival(result)
+			SurvivalDirector.settle(self, result)
 		elif not MatchFinderScript.has_any_match(board) and not has_any_legal_rotation():
 			result.dead_board = true
 			_shuffle_board()
 			result.shuffled = true
 			shuffle_count += 1
 	result.new_level = level
-
-## Survival never reshuffles: when nothing can be cleared the round is over —
-## the leftovers freeze, the gaps refill, and the next round begins.
-func _settle_survival(result: MoveResult) -> void:
-	if board.filled_count() == 0:
-		_end_survival("board_cleared", true, result)
-		return
-	if has_any_legal_rotation():
-		return
-	_close_round(result)
-
-## Ends the current Survival round: pay the round bonus, freeze what is left,
-## refill, and check the two survival endings.
-func _close_round(result: MoveResult) -> void:
-	var bonus := _round_cleared * RulesetScript.SURVIVAL_ROUND_BONUS_PER_GEM
-	score += bonus
-	result.score += bonus
-	result.round_bonus = bonus
-	_round_cleared = 0
-	round += 1
-	rounds_cleared += 1
-	result.round_ended = true
-	result.round_reached = round
-
-	board.lock_all_remaining()
-	if board.empty_cells().is_empty():
-		# Everything on the board froze: there is nowhere left to play.
-		_end_survival("all_locked", false, result)
-		return
-
-	ResolverScript.refill_board(board, _rng_refill, result, level, ruleset)
-	# Fresh pieces can land straight into a match; settle them so the new round
-	# starts stable (this is the only refill outside a resolve loop).
-	ResolverScript.resolve(board, ruleset, _rng_refill, result, level, ruleset.refills_board)
-
-	if rounds_cleared >= RulesetScript.SURVIVAL_ROUNDS_TO_WIN:
-		_end_survival("rounds_survived", true, result)
-
-## Marks the run finished from inside a move's bookkeeping.
-func _end_survival(reason: String, did_win: bool, result: MoveResult) -> void:
-	_finish(reason, did_win)
-	result.finished = true
-	result.finish_kind = reason
-
-# --- run lifecycle ----------------------------------------------------------
-
-func _finish(reason: String, did_win: bool) -> void:
+func finish_run(reason: String, did_win: bool) -> void:
 	if state == State.FINISHED:
 		return
 	state = State.FINISHED
@@ -404,7 +322,7 @@ func tick(delta: float) -> void:
 	elapsed += delta
 	clock = maxf(clock - delta, 0.0)
 	if clock <= 0.0:
-		_finish("time_out", false)
+		finish_run("time_out", false)
 
 func mode_name() -> String:
 	match ruleset.mode:
@@ -448,7 +366,7 @@ func _shuffle_board() -> void:
 		pieces.append(board.get_piece(cell))
 
 	for attempt in 12:
-		_rng_refill.shuffle(pieces)
+		rng_refill.shuffle(pieces)
 		for cell: Vector2i in cells:
 			board.remove_piece(cell)
 		for index in occupied.size():
