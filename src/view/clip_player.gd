@@ -11,11 +11,14 @@ extends Control
 
 const BoardViewScript := preload("res://src/view/board_view.gd")
 const Library := preload("res://src/core/tutorial_library.gd")
+const HexGridScript := preload("res://src/core/hex_grid.gd")
 
 const CLIP_SIZE := Vector2(380, 214)
-const ZOOM := 2.0
+## Twenty percent less than the first pass: at 2.0 the formation filled the frame and
+## the surrounding board - which is what gives the action its context - was cropped out.
+const ZOOM := 1.6
 ## How long the finished state sits before the demonstration restarts.
-const HOLD := 1.3
+const HOLD := 2.0
 
 var clip_id := ""
 
@@ -40,6 +43,8 @@ func _ready() -> void:
 	container.add_child(_sub)
 
 	_view = BoardViewScript.new()
+	# Demonstrations are worth watching: same animation, taken slower.
+	_view.playback_scale = 1.7
 	_sub.add_child(_view)
 	_restart()
 
@@ -61,6 +66,11 @@ func _restart() -> void:
 	# The board is rigged in place after the view took its copy, so it has to re-read.
 	_view.sync_from_game()
 	var result := Library.play(game, clip_id)
+	# Put the cursor on the trio being turned, so the board draws its swap outline around
+	# exactly the cells the demonstration moves. Without it the clip has no outline at all:
+	# nothing is selected, so nothing is highlighted.
+	_view.cursor_vertex = _vertex_for(result.rotation_cells)
+	_view.cursor_legal = true
 	_view.show_result(result)
 	_hold = 0.0
 	_apply_zoom()
@@ -77,3 +87,20 @@ func _apply_zoom() -> void:
 		Vector2(ZOOM, 0.0), Vector2(0.0, ZOOM),
 		CLIP_SIZE * 0.5 - centre * ZOOM
 	)
+
+
+## The vertex whose trio is exactly `cells`, so the outline lands on the move.
+func _vertex_for(cells: Array) -> int:
+	if cells.is_empty():
+		return 0
+	var vertices := HexGridScript.vertices()
+	for index in vertices.size():
+		var trio: Array = vertices[index]
+		var all_present := true
+		for cell: Vector2i in cells:
+			if not trio.has(cell):
+				all_present = false
+				break
+		if all_present:
+			return index
+	return 0

@@ -91,6 +91,9 @@ var _playing := false
 var _plate: StyleBoxFlat = null
 var _backdrop: ImageTexture = null
 ## Juice settings; null means "full juice" (tests and the tutorial).
+## Multiplies every animation duration. 1.0 is the game; the tutorial's clips use
+## above 1.0 so a demonstration can be followed rather than glimpsed.
+var playback_scale := 1.0
 var settings: Settings
 var _announced_step := -1
 var _shake_strength := 0.0
@@ -601,7 +604,7 @@ func _draw_shatter(step: Dictionary, t: float) -> void:
 
 ## Juice knobs come from Settings; null means full juice (tests, tutorial).
 func _motion() -> float:
-	return settings.motion_scale() if settings != null else 1.0
+	return (settings.motion_scale() if settings != null else 1.0) * playback_scale
 
 
 func _shake_allowed() -> bool:

@@ -65,38 +65,45 @@ func _build() -> void:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	outer.add_child(scroll)
 
-	var rows := VBoxContainer.new()
-	rows.add_theme_constant_override("separation", 12)
-	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(rows)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 14)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(grid)
 
 	for entry: Dictionary in TutorialLibrary.CLIPS:
-		rows.add_child(_row(entry))
+		grid.add_child(_card(entry))
 
 
-## One demonstration: the recording on the left, the words underneath it.
-func _row(entry: Dictionary) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 16)
+## One topic, one card: title, the recording centred inside it, and the sentence
+## underneath. The card's own rim is what separates topics now that they share a screen.
+func _card(entry: Dictionary) -> Control:
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", NeonStyle.panel_box(18))
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 6)
-	row.add_child(column)
+	column.add_theme_constant_override("separation", 8)
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	card.add_child(column)
+
+	var heading := NeonStyle.label(str(entry["title"]), 21, NeonStyle.TEXT)
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(heading)
 
 	var player := ClipPlayer.new()
 	player.clip_id = str(entry["id"])
+	# Centred rather than stretched: the recording keeps its aspect and its framing.
+	player.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	column.add_child(player)
 
-	var text := NeonStyle.label(str(entry["text"]), 15, NeonStyle.DIM)
+	var text := NeonStyle.label(str(entry["text"]), 14, NeonStyle.DIM)
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	text.custom_minimum_size = Vector2(ClipPlayer.CLIP_SIZE.x, 0)
 	column.add_child(text)
-
-	var heading := NeonStyle.label(str(entry["title"]), 22, NeonStyle.TEXT)
-	heading.custom_minimum_size = Vector2(360, 0)
-	heading.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	row.add_child(heading)
-	return row
+	return card
 
 
 func _input(event: InputEvent) -> void:
