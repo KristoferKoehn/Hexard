@@ -76,7 +76,7 @@ func _ready() -> void:
 	_restore()
 	_view.set_game(_game)
 	_view.sync_from_game()
-	_select_subject()
+	_select_subject(_result)
 	# Framed before the first frame is shown: without this the viewport displays the
 	# un-cropped region until the clip's turn comes round, which is what put every panel's
 	# board in the bottom right corner on entry.
@@ -183,21 +183,24 @@ func _restore() -> void:
 		_game.board.set_piece(cell, int(_snapshot[cell]))
 
 
-## What the outline should be on. This is stated rather than derived: the clip replays a
-## cached result, so its board is pre-move and asking the board what a flower would swap
-## returns nothing. Flower clips outline the ring they form; the others outline the trio
-## being turned, which is the shape the rotation actually moves.
+## What the outline should be on. Stated rather than derived: the clip replays a cached
+## result, so its board is pre-move and asking the board what a piece would swap returns
+## nothing.
+##
+## Only "turning a starflower" is about a piece, so it selects the starflower and outlines
+## its ring. Every other clip is about a rotation, so the subject is the trio at that
+## vertex - the ordinary cluster selection.
 func _select_subject(result: MoveResult = null) -> void:
 	if _view == null:
 		return
 	_view.cursor_legal = true
-	_view.cursor_special = HexGridScript.NO_CELL
-	if clip_id in ["flower", "turn", "pearl"]:
-		# The six neighbours of the centre: the ring that blooms, is turned, or becomes a
-		# pearl.
-		_view.cursor_cells = HexGridScript.neighbours(Library.focus_cell(clip_id))
-		_view.cursor_vertex = _vertex_for(HexGridScript.neighbours(Library.focus_cell(clip_id)))
+	if clip_id == "turn":
+		_view.cursor_special = CENTRE
+		_view.cursor_cells = HexGridScript.neighbours(CENTRE)
+		_view.cursor_vertex = _vertex_for(HexGridScript.neighbours(CENTRE))
 		return
-	if result != null:
-		_view.cursor_cells = result.rotation_cells.duplicate()
-		_view.cursor_vertex = _vertex_for(result.rotation_cells)
+	_view.cursor_special = HexGridScript.NO_CELL
+	if result == null:
+		return
+	_view.cursor_cells = result.rotation_cells.duplicate()
+	_view.cursor_vertex = _vertex_for(result.rotation_cells)
