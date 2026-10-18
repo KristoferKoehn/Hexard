@@ -190,130 +190,23 @@ func finish_now() -> void:
 			_stop(false)
 
 
-## Replays a move: spin, then per cascade depth clear â†’ fall â†’ drop.
+## Replays a move: ask MoveTimeline what to play, then own the playback.
 func show_result(result: MoveResult) -> void:
-	# A new result while the previous one is still playing: finish it first so
-	# nothing is dropped mid-flight, then play this one from that state.
+	# A new result while the previous one is still playing: finish it first so nothing
+	# is dropped mid-flight, then play this one from that state.
 	if _playing:
 		finish_now()
-	_steps.clear()
+	_steps = MoveTimeline.plan(result, _motion())
 	_step_index = 0
 	_step_time = 0.0
 	_announced_step = -1
-
-	# A spin the rules refused: show the turn it asked for, then undo it.
-	if not result.committed:
-		if result.rotation_cells.size() > 0:
-			_steps.append({
-				"kind": "bounce", "cells": result.rotation_cells.duplicate(),
-				"dir": result.direction, "duration": BOUNCE_TIME * _motion(),
-			})
-			_playing = true
-			_settling = false
-			queue_redraw()
-		return
-
-	if result.rotation_cells.size() > 0:
-		_steps.append({
-			"kind": "spin", "cells": result.rotation_cells.duplicate(),
-			"dir": result.direction, "duration": SPIN_TIME * _motion(),
-		})
-
-	for depth: int in _depths(result):
-		# The centre of a flower becomes the flower BEFORE the ring is destroyed:
-		# same step, but the bloom plays first so the player sees the conversion
-		# land while the gems it grew from are still on the board.
-		var promotes := _entries_at_depth(result.promotions, depth)
-		if not promotes.is_empty():
-			_steps.append({
-				"kind": "bloom", "promotions": promotes,
-				"duration": PROMOTE_TIME * _motion(),
-			})
-		var cleared := _cells_at_depth(result, depth)
-		if not cleared.is_empty():
-			_steps.append({
-				"kind": "clear", "cells": cleared, "duration": CLEAR_TIME * _motion(),
-				"score": _score_at_depth(result, depth), "depth": depth,
-				"groups": _groups_at_depth(result, depth),
-			})
-		var falls := _entries_at_depth(result.gravity_moves, depth)
-		if not falls.is_empty():
-			_steps.append({"kind": "fall", "moves": falls, "duration": FALL_TIME * _motion()})
-		var drops := _entries_at_depth(result.spawns, depth)
-		if not drops.is_empty():
-			_steps.append({"kind": "drop", "spawns": drops, "duration": DROP_TIME * _motion()})
-		_steps.append({"kind": "wait", "duration": STEP_GAP * _motion()})
-
-	# Promotions are already queued with their cascade step above.
-
-	# A dying bomb takes the board with it: flash, shockwave, debris.
-	if result.bomb_exploded and result.exploded_cells.size() > 0:
-		var origin: Vector2i = result.exploded_cells[0]
-		_steps.append({"kind": "blast", "cell": origin, "duration": BLAST_TIME * _motion()})
-		_steps.append({
-			"kind": "shatter", "cells": result.exploded_cells.duplicate(),
-			"centre": origin, "duration": SHATTER_TIME * _motion(),
-		})
-		if _shake_allowed():
-			_shake_strength = 1.0
-			_shake_clock = 0.0
-
 	_playing = not _steps.is_empty()
-	_settling = _playing
+	# A refused spin bounces but changes nothing, so it must not count as unsettled.
+	_settling = MoveTimeline.settles(_steps)
+	if result.bomb_exploded and _shake_allowed():
+		_shake_strength = 1.0
+		_shake_clock = 0.0
 	queue_redraw()
-
-
-## Cascade depths present in this move, in order (1, 2, …).
-func _depths(result: MoveResult) -> Array[int]:
-	var seen := {}
-	for group in result.clear_groups:
-		seen[int(group.cascade_depth)] = true
-	for promotion: Dictionary in result.promotions:
-		seen[int(promotion.get("depth", 1))] = true
-	if seen.is_empty():
-		seen[1] = true
-	var depths: Array[int] = []
-	for depth: int in seen:
-		depths.append(depth)
-	depths.sort()
-	return depths
-
-
-func _cells_at_depth(result: MoveResult, depth: int) -> Array[Vector2i]:
-	var out: Array[Vector2i] = []
-	for group in result.clear_groups:
-		if int(group.cascade_depth) != depth:
-			continue
-		for cell: Vector2i in group.cells:
-			out.append(cell)
-	return out
-
-
-## What one cascade step is worth: the sum of the groups that cleared in it.
-func _groups_at_depth(result: MoveResult, depth: int) -> Array:
-	var out: Array = []
-	for group in result.clear_groups:
-		if int(group.cascade_depth) == depth:
-			out.append(group)
-	return out
-
-
-func _score_at_depth(result: MoveResult, depth: int) -> int:
-	var total := 0
-	for group in result.clear_groups:
-		if int(group.cascade_depth) == depth:
-			total += int(group.score)
-	return total
-
-
-func _entries_at_depth(entries: Array, depth: int) -> Array:
-	var out: Array = []
-	for entry: Dictionary in entries:
-		if int(entry.get("depth", 0)) == depth:
-			out.append(entry)
-	return out
-
-
 func _process(delta: float) -> void:
 	if _playing and _step_index != _announced_step:
 		_announced_step = _step_index
