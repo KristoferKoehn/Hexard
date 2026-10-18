@@ -44,6 +44,7 @@ var toast: AchievementToast
 
 
 func _ready() -> void:
+	hud.set_profile(profile)
 	hud.mode_chosen.connect(_on_mode_chosen)
 	hud.difficulty_chosen.connect(_on_difficulty_chosen)
 	hud.start_pressed.connect(_on_start_pressed)

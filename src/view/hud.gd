@@ -46,6 +46,10 @@ var _banner: Label
 var _menu: Control
 var _menu_blurb: Label
 var _free_mode_unlocked := false
+var _profile: ProfileService
+var _menu_config: RunConfig
+var _menu_records: Label
+var _flourish: MenuFlourish
 var _result: Control
 var _result_title: Label
 var _result_body: Label
@@ -56,6 +60,8 @@ var _difficulty_buttons: Dictionary = {}
 
 func _ready() -> void:
 	_build_status()
+	_flourish = MenuFlourish.new()
+	add_child(_flourish)
 	_build_menu()
 	_build_result()
 	# Every button we built gets the neon treatment in one place, so new buttons
@@ -223,6 +229,9 @@ func _build_menu() -> void:
 		difficulty_row.add_child(button)
 		_difficulty_buttons[difficulty] = button
 
+	_menu_records = _title("", 15)
+	column.add_child(_menu_records)
+
 	var start := Button.new()
 	start.text = "Start  (Enter)"
 	start.custom_minimum_size = Vector2(220, 44)
@@ -277,6 +286,9 @@ func _on_difficulty_button(difficulty: String) -> void:
 
 
 func show_menu(config: RunConfig) -> void:
+	_menu_config = config
+	_flourish.visible = true
+	_refresh_menu_records()
 	_menu.visible = true
 	_result.visible = false
 	_set_status_visible(false)
@@ -288,6 +300,8 @@ func show_menu(config: RunConfig) -> void:
 
 
 func highlight_menu(config: RunConfig) -> void:
+	_menu_config = config
+	_refresh_menu_records()
 	if _mode_buttons.has(config.mode):
 		(_mode_buttons[config.mode] as Button).button_pressed = true
 	if _difficulty_buttons.has(config.difficulty):
@@ -296,6 +310,8 @@ func highlight_menu(config: RunConfig) -> void:
 
 
 func show_playing() -> void:
+	if _flourish != null:
+		_flourish.visible = false
 	_menu.visible = false
 	_result.visible = false
 	_set_status_visible(true)
@@ -303,6 +319,39 @@ func show_playing() -> void:
 
 ## The T hint advertises a mode that is supposed to be a secret, so it follows the
 ## unlock rather than always being printed.
+## The menu reports on the profile, so it needs it. One instance is kept alive by Main
+## for the whole session, so no refresh plumbing is needed when it changes.
+func set_profile(value: ProfileService) -> void:
+	_profile = value
+	_refresh_menu_records()
+
+
+## Best score, best level, run count and achievements for the table the menu is about to
+## launch. A menu showing only labels says nothing about your own history with the game.
+func _refresh_menu_records() -> void:
+	if _menu_records == null:
+		return
+	if _profile == null or _menu_config == null:
+		_menu_records.text = ""
+		return
+	var best: Dictionary = _profile.best_for(_menu_config.mode_name(), _menu_config.difficulty)
+	var totals: Dictionary = _profile.totals
+	var line := "best %s at level %d   ·   %d runs   ·   %d of %d achievements" % [
+		_thousands(int(best.get("score", 0))), int(best.get("level", 0)),
+		int(totals.get("games", 0)), _profile.achievement_count(), Achievements.count(),
+	]
+	_menu_records.text = line
+
+
+static func _thousands(value: int) -> String:
+	var text := str(absi(value))
+	var out := ""
+	while text.length() > 3:
+		out = "," + text.substr(text.length() - 3) + out
+		text = text.substr(0, text.length() - 3)
+	return ("-" if value < 0 else "") + text + out
+
+
 func set_free_mode_unlocked(unlocked: bool) -> void:
 	_free_mode_unlocked = unlocked
 	_refresh_controls()
@@ -368,6 +417,8 @@ func _build_result() -> void:
 
 
 func show_result(summary: RunSummary, unlocked: Array[String] = []) -> void:
+	if _flourish != null:
+		_flourish.visible = false
 	_menu.visible = false
 	_result.visible = true
 	_set_status_visible(false)
