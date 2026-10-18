@@ -379,7 +379,7 @@ func _check_special_snap() -> void:
 	_main.call("select_vertex", vertex)
 	_check(_main.get("cursor_special") == HexGrid.NO_CELL,
 		"a vertex touching a flower is still a normal trio position")
-	_check(view.call("game") != null, "the view has the board")
+	_check(view.get("game") != null, "the view has the board")
 
 	_main.call("_play_key", KEY_SPACE)
 	_check(_main.get("cursor_special") == cell, "Space selects the flower")
@@ -403,7 +403,28 @@ func _check_special_snap() -> void:
 	_main.call("_mouse_moved", view.position + view.call("cell_center", other))
 	_check(_main.get("cursor_special") == other, "hovering a pearl retargets the outline")
 
+	# F toggles the same selection the outline and the rotate path both read, so the
+	# picture and the behaviour cannot disagree. Clear the previous selection first:
+	# the block above deliberately left a pearl targeted.
+	game.board.set_piece(cell, Pieces.starflower())
+	view.call("sync_from_game")
+	_main.call("move_cursor", Vector2.LEFT)   # stepping away clears the target
+	_main.call("select_vertex", vertex)
+	_check(_main.get("cursor_special") == HexGrid.NO_CELL, "stepping away clears the selection")
+	_main.call("_play_key", KEY_F)
+	_check(_main.get("cursor_special") == cell, "F selects the flower")
+	_main.call("_play_key", KEY_F)
+	_check(_main.get("cursor_special") == HexGrid.NO_CELL, "F deselects it again")
+
+	# With nothing selected, a rotate is an ordinary three-tile move again.
+	game.ruleset.rotation_mode = RulesetScript.RotationMode.FREE
+	var turns_before: int = game.turns
+	_main.call("_play_key", KEY_X)
+	_check(game.turns == turns_before + 1, "a rotate after deselecting is a trio move")
+	_check(_main.get("cursor_special") == HexGrid.NO_CELL, "and the trio stays in charge")
+
 	# Leave nothing special behind for later stages.
 	game.board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
 	game.board.set_piece(other, Pieces.gem(Pieces.GemColor.BLUE))
+	view.call("sync_from_game")
 	_main.call("_refresh_cursor")

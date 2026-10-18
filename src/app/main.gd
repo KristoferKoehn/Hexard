@@ -246,14 +246,13 @@ func play_move(direction: int) -> void:
 
 
 ## Turns the starflower or pearl under the cursor, if there is one.
-func use_special(direction: int = GameScript.CLOCKWISE) -> void:
+## Retained for callers that still ask for it: selecting a special is the step
+## that matters now, and a rotate turns whatever is selected.
+func use_special(_direction: int = GameScript.CLOCKWISE) -> void:
 	if game == null or screen != Screen.PLAYING:
 		return
-	for cell: Vector2i in HexGrid.vertices()[cursor_vertex]:
-		if _special_at(cell) != HexGrid.NO_CELL:
-			play_piece_move(cell, direction)
-			return
-	hud.set_message("no starflower or pearl under the cursor")
+	if cursor_special == HexGrid.NO_CELL:
+		_toggle_special_target()
 
 
 ## The cell itself if it holds a piece that can be turned on its own.
@@ -522,7 +521,7 @@ func _play_key(code: int) -> void:
 		KEY_X, KEY_E:
 			play_move(GameScript.CLOCKWISE)
 		KEY_F:
-			use_special(GameScript.CLOCKWISE)
+			_toggle_special_target()
 		KEY_SPACE:
 			_toggle_special_target()
 		KEY_H:

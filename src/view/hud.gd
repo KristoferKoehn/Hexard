@@ -113,7 +113,7 @@ func _build_status() -> void:
 	_banner.visible = false
 	_message = _make_label(Vector2(18, 632), MESSAGE_FONT_SIZE, NEON_AMBER)
 	_controls = _make_label(Vector2(18, 684), 15, NEON_DIM)
-	_controls.text = "arrows/WASD  move    ·    Z/X or click  rotate    ·    F  starflower    ·    H  hint    ·    R  new board    ·    T  rotation mode    ·    esc  quit"
+	_controls.text = "arrows/WASD  move    ·    Z/X or click  rotate    ·    F/Space  select special    ·    H  hint    ·    R  new board    ·    T  rotation mode    ·    esc  quit"
 
 
 func _make_rich(position: Vector2, font_size: int) -> RichTextLabel:
