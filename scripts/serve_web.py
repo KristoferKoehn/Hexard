@@ -47,8 +47,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         self.send_header("Cross-Origin-Resource-Policy", "cross-origin")
-        # A fresh build should never be served from cache while iterating.
-        self.send_header("Cache-Control", "no-store")
+        # Only the shell and the worker must always be fresh. The wasm and pck are cached by
+        # the service worker (and are versioned by its CACHE_VERSION), so marking them no-store
+        # would stop the caching this build exists to get.
+        if self.path.endswith((".html", ".service.worker.js", ".manifest.json")):
+            self.send_header("Cache-Control", "no-cache")
+        else:
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
         super().end_headers()
 
     def log_message(self, fmt: str, *args) -> None:

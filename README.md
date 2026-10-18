@@ -59,6 +59,22 @@ that is itself cross-origin isolated refuses the game's subresources - Chrome re
 "each embedded iframe must also specify this policy" plus a block of failed requests - and the
 wrong wasm MIME type defeats streaming instantiation.
 
+### Caching
+
+The web preset builds a **service worker** (`progressive_web_app/enabled`), so the wasm and pck
+are cached after the first load and repeat visits start almost immediately. The worker also sets
+`ensure_cross_origin_isolation_headers`, which makes it inject COOP/COEP itself - that is what
+lets the game load inside a cross-origin isolated (COEP) page on a host that cannot set headers.
+
+Two consequences worth knowing:
+
+- the worker's `CACHE_VERSION` changes with each export, so a rebuild invalidates the old cache;
+  a stale build usually means the worker's own `index.service.worker.js` was served from cache
+- service workers need HTTPS or `localhost`, and cannot register from a sandboxed iframe
+
+`scripts/serve_web.py` therefore marks only `index.html`, the worker and the manifest as
+`no-cache`, and treats the wasm/pck as immutable, which is what a real host should do too.
+
 For real hosting: itch.io serves Godot web exports with the right headers, which makes it the
 low-friction option. Static hosts that cannot set response headers (GitHub Pages) will work for
 a plain page but not when embedded in a COEP page.
