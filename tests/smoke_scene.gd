@@ -66,7 +66,7 @@ func _process(_delta: float) -> bool:
 			_main.call("start_tutorial")
 		15:
 			_check_tutorial_started()
-			_main.call("start_run", RulesetScript.Mode.MARATHON, "normal", 4321)
+			_main.call("start_run", RunConfig.of(RulesetScript.Mode.MARATHON, "normal"), 4321)
 		16:
 			_check(_main.call("screen_name") == "playing", "a new run goes straight back to play")
 			_check_special_snap()
@@ -115,7 +115,7 @@ func _check_tutorial_started() -> void:
 # --- mode flow --------------------------------------------------------------
 
 func _start_timed_run() -> void:
-	_main.call("start_run", RulesetScript.Mode.TIMED, "normal", 777)
+	_main.call("start_run", RunConfig.of(RulesetScript.Mode.TIMED, "normal"), 777)
 	var game: GameScript = _main.get("game")
 	_check(game != null, "a Timed run was created")
 	if game == null:
@@ -152,7 +152,7 @@ func _smoke() -> void:
 	_check(_main.call("screen_name") == "menu", "the app opens on the mode menu")
 
 	# Start a run, then exercise the board through the controller.
-	_main.call("start_run", RulesetScript.Mode.MARATHON, "normal", 12345)
+	_main.call("start_run", RunConfig.of(RulesetScript.Mode.MARATHON, "normal"), 12345)
 	_check(_main.call("screen_name") == "playing", "starting a run switches to play")
 
 	var game: GameScript = _main.get("game")

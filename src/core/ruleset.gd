@@ -114,10 +114,10 @@ static func gems_only() -> Ruleset:
 
 
 ## A configured run: mode plus difficulty, the two knobs a player picks.
-static func for_run(run_mode: Mode, run_difficulty: String = "normal") -> Ruleset:
+static func for_run(config: RunConfig) -> Ruleset:
 	var ruleset := Ruleset.new()
-	ruleset.mode = run_mode
-	ruleset.difficulty = run_difficulty
+	ruleset.mode = config.mode
+	ruleset.difficulty = config.difficulty
 	return ruleset
 
 

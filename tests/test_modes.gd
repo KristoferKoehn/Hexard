@@ -13,7 +13,7 @@ const GameScript := preload("res://src/core/game.gd")
 
 
 func _mode(run_mode: int, difficulty: String = "normal") -> RefCounted:
-	return RulesetScript.for_run(run_mode, difficulty)
+	return RulesetScript.for_run(RunConfig.of(run_mode, difficulty))
 
 
 func _first_legal_move(game) -> Dictionary:
@@ -56,9 +56,9 @@ func test_difficulty_scales_bombs_and_clock() -> void:
 	assert_gt(easy.bomb_counter_at(5), normal.bomb_counter_at(5), "easy fuses are longer")
 	assert_lt(hard.bomb_counter_at(5), normal.bomb_counter_at(5), "hard fuses are shorter")
 
-	var timed_normal := RulesetScript.for_run(RulesetScript.Mode.TIMED, "normal")
-	var timed_easy := RulesetScript.for_run(RulesetScript.Mode.TIMED, "easy")
-	var timed_hard := RulesetScript.for_run(RulesetScript.Mode.TIMED, "hard")
+	var timed_normal := RulesetScript.for_run(RunConfig.of(RulesetScript.Mode.TIMED, "normal"))
+	var timed_easy := RulesetScript.for_run(RunConfig.of(RulesetScript.Mode.TIMED, "easy"))
+	var timed_hard := RulesetScript.for_run(RunConfig.of(RulesetScript.Mode.TIMED, "hard"))
 	assert_eq(timed_normal.timed_start_seconds(), 50.0, "Normal starts at 50s")
 	assert_gt(timed_easy.timed_start_seconds(), 50.0, "Easy starts with more")
 	assert_lt(timed_hard.timed_start_seconds(), 50.0, "Hard starts with less")
@@ -231,7 +231,7 @@ func test_survival_flower_unlocks_the_board_and_sweeps_a_colour() -> void:
 
 	var result := MoveResultScript.new()
 	ResolverScript.resolve(
-		board, RulesetScript.for_run(RulesetScript.Mode.SURVIVAL), RngScript.new(1), result, 1, false
+		board, RulesetScript.for_run(RunConfig.of(RulesetScript.Mode.SURVIVAL)), RngScript.new(1), result, 1, false
 	)
 	assert_true(_has_formation(result, "flower"), "the flower fired")
 	assert_true(_has_formation(result, "flower_sweep"), "and swept its colour")

@@ -274,23 +274,23 @@ func _on_difficulty_button(difficulty: String) -> void:
 	difficulty_chosen.emit(difficulty)
 
 
-func show_menu(mode: int, difficulty: String) -> void:
+func show_menu(config: RunConfig) -> void:
 	_menu.visible = true
 	_result.visible = false
 	_set_status_visible(false)
-	if _mode_buttons.has(mode):
-		(_mode_buttons[mode] as Button).button_pressed = true
-	if _difficulty_buttons.has(difficulty):
-		(_difficulty_buttons[difficulty] as Button).button_pressed = true
-	_menu_blurb.text = MODE_BLURBS.get(mode, "")
+	if _mode_buttons.has(config.mode):
+		(_mode_buttons[config.mode] as Button).button_pressed = true
+	if _difficulty_buttons.has(config.difficulty):
+		(_difficulty_buttons[config.difficulty] as Button).button_pressed = true
+	_menu_blurb.text = MODE_BLURBS.get(config.mode, "")
 
 
-func highlight_menu(mode: int, difficulty: String) -> void:
-	if _mode_buttons.has(mode):
-		(_mode_buttons[mode] as Button).button_pressed = true
-	if _difficulty_buttons.has(difficulty):
-		(_difficulty_buttons[difficulty] as Button).button_pressed = true
-	_menu_blurb.text = MODE_BLURBS.get(mode, "")
+func highlight_menu(config: RunConfig) -> void:
+	if _mode_buttons.has(config.mode):
+		(_mode_buttons[config.mode] as Button).button_pressed = true
+	if _difficulty_buttons.has(config.difficulty):
+		(_difficulty_buttons[config.difficulty] as Button).button_pressed = true
+	_menu_blurb.text = MODE_BLURBS.get(config.mode, "")
 
 
 func show_playing() -> void:

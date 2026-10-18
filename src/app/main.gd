@@ -23,8 +23,7 @@ var cursor_special := HexGrid.NO_CELL
 ## The special the pointer is currently inside, so hover targets on entry only.
 var _hovered_special := HexGrid.NO_CELL
 var screen: Screen = Screen.MENU
-var selected_mode: int = RulesetScript.Mode.MARATHON
-var selected_difficulty := "normal"
+var selected: RunConfig = RunConfig.of(RulesetScript.Mode.MARATHON, "normal")
 var tutorial: Tutorial = null
 ## Set when the run ended mid-animation (a bomb going off), so the summary panel
 ## waits for the shockwave instead of cutting it off.
@@ -45,7 +44,7 @@ func _ready() -> void:
 	hud.tutorial_pressed.connect(_on_tutorial_pressed)
 	hud.restart_pressed.connect(_on_restart_pressed)
 	hud.menu_pressed.connect(_on_menu_pressed)
-	hud.show_menu(selected_mode, selected_difficulty)
+	hud.show_menu(selected)
 	# A cleared group landing in the animation rolls the score up step by step.
 	board_view.clear_scored.connect(_on_clear_scored)
 
@@ -89,16 +88,15 @@ func _process(delta: float) -> void:
 # --- run lifecycle ----------------------------------------------------------
 
 ## Starts a run. A negative seed picks a fresh random one.
-func start_run(run_mode: int, difficulty: String, run_seed: int = -1) -> void:
-	selected_mode = run_mode
-	selected_difficulty = difficulty
+func start_run(config: RunConfig, run_seed: int = -1) -> void:
+	selected = config
 	tutorial = null
 	var seed_value := run_seed if run_seed >= 0 else randi()
-	game = GameScript.new(seed_value, RulesetScript.for_run(run_mode, difficulty))
+	game = GameScript.new(seed_value, RulesetScript.for_run(config))
 	_enter_playing()
 	hud.set_message(
 		"%s · %s — seed %d%s"
-		% [game.mode_name(), difficulty, seed_value, "  ·  the clock is running" if run_mode == RulesetScript.Mode.TIMED else ""]
+		% [game.mode_name(), config.difficulty, seed_value, "  ·  the clock is running" if config.mode == RulesetScript.Mode.TIMED else ""]
 	)
 
 
@@ -137,10 +135,10 @@ func _on_tutorial_pressed() -> void:
 ## Restarts the current mode with a new seed (the R key).
 func new_game(seed_value: int) -> void:
 	if game == null:
-		start_run(selected_mode, selected_difficulty, seed_value)
+		start_run(selected, seed_value)
 		return
 	tutorial = null
-	var ruleset := RulesetScript.for_run(int(game.ruleset.mode), game.ruleset.difficulty)
+	var ruleset := RulesetScript.for_run(RunConfig.from_ruleset(game.ruleset))
 	ruleset.rotation_mode = int(game.ruleset.rotation_mode)
 	game = GameScript.new(seed_value, ruleset)
 	_enter_playing()
@@ -185,21 +183,21 @@ func screen_name() -> String:
 
 
 func _on_mode_chosen(mode: int) -> void:
-	selected_mode = mode
-	hud.highlight_menu(selected_mode, selected_difficulty)
+	selected = RunConfig.of(mode, selected.difficulty)
+	hud.highlight_menu(selected)
 
 
 func _on_difficulty_chosen(difficulty: String) -> void:
-	selected_difficulty = difficulty
-	hud.highlight_menu(selected_mode, selected_difficulty)
+	selected = RunConfig.of(selected.mode, difficulty)
+	hud.highlight_menu(selected)
 
 
 func _on_start_pressed() -> void:
-	start_run(selected_mode, selected_difficulty)
+	start_run(selected)
 
 
 func _on_restart_pressed() -> void:
-	start_run(selected_mode, selected_difficulty)
+	start_run(selected)
 
 
 func _on_menu_pressed() -> void:
@@ -208,7 +206,7 @@ func _on_menu_pressed() -> void:
 	tutorial = null
 	board_view.set_game(null)
 	hud.set_banner("")
-	hud.show_menu(selected_mode, selected_difficulty)
+	hud.show_menu(selected)
 
 
 ## A cascade step landed: roll the displayed score forward by what it was worth.
@@ -480,23 +478,19 @@ func _handle_key(code: int) -> void:
 
 
 func _menu_key(code: int) -> void:
-	var modes := [RulesetScript.Mode.MARATHON, RulesetScript.Mode.TIMED, RulesetScript.Mode.SURVIVAL]
 	match code:
 		KEY_LEFT, KEY_A, KEY_RIGHT, KEY_D:
 			var step := -1 if code == KEY_LEFT or code == KEY_A else 1
-			var next := modes.find(selected_mode) + step
-			selected_mode = modes[posmod(next, modes.size())]
-			hud.highlight_menu(selected_mode, selected_difficulty)
+			selected = selected.next_mode(step)
+			hud.highlight_menu(selected)
 		KEY_UP, KEY_W, KEY_DOWN, KEY_S:
-			var difficulties := ["easy", "normal", "hard"]
 			var step := -1 if code == KEY_UP or code == KEY_W else 1
-			var next := difficulties.find(selected_difficulty) + step
-			selected_difficulty = difficulties[posmod(next, difficulties.size())]
-			hud.highlight_menu(selected_mode, selected_difficulty)
+			selected = selected.next_difficulty(step)
+			hud.highlight_menu(selected)
 		KEY_S:
 			_open_settings()
 		KEY_ENTER, KEY_SPACE, KEY_KP_ENTER:
-			start_run(selected_mode, selected_difficulty)
+			start_run(selected)
 		KEY_ESCAPE:
 			get_tree().quit()
 
@@ -504,7 +498,7 @@ func _menu_key(code: int) -> void:
 func _result_key(code: int) -> void:
 	match code:
 		KEY_R:
-			start_run(selected_mode, selected_difficulty)
+			start_run(selected)
 		KEY_M:
 			_on_menu_pressed()
 		KEY_ESCAPE:
@@ -599,7 +593,7 @@ func _close_settings() -> void:
 	settings.save_to()
 	hud.visible = true
 	screen = Screen.MENU
-	hud.show_menu(selected_mode, selected_difficulty)
+	hud.show_menu(selected)
 
 
 func _on_settings_changed() -> void:
