@@ -150,5 +150,20 @@ static func titles_for(ids: Array) -> Array[String]:
 	return out
 
 
+## Every achievement with its earned flag, for the list screen. Kept here rather
+## than in the panel so the panel stays a renderer and this stays testable.
+static func all_with_state(earned: Dictionary) -> Array:
+	var out: Array = []
+	for entry: Dictionary in LIST:
+		var id := str(entry["id"])
+		out.append({
+			"id": id,
+			"title": str(entry["title"]),
+			"hint": str(entry["hint"]),
+			"earned": earned.has(id),
+		})
+	return out
+
+
 static func count() -> int:
 	return LIST.size()

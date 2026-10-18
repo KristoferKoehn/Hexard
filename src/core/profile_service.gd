@@ -155,6 +155,11 @@ func unlock(id: String) -> bool:
 	return true
 
 
+## Wipes the achievement record. The caller saves; this only clears.
+func reset_achievements() -> void:
+	achievements.clear()
+
+
 func achievement_count() -> int:
 	return achievements.size()
 

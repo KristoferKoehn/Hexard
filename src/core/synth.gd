@@ -37,6 +37,10 @@ const CUES := {
 	# Two or more colours cleared by one spin: a brighter, longer chime so a
 	# multi-colour turn is audibly distinct from the ordinary hiss.
 	"multi":      {"wave": Wave.SINE, "freq": 1568.0, "dur": 0.55, "amp": 0.42, "slide": 0.0},
+	# An achievement: a rising triangle, brighter and longer than the UI blip and
+	# distinct from the multi chime, which is static in pitch. The upward slide is
+	# what makes it read as a reward rather than a click.
+	"achievement": {"wave": Wave.TRIANGLE, "freq": 880.0, "dur": 0.45, "amp": 0.32, "slide": 700.0},
 }
 
 ## Cascades climb in pitch so a chain sounds like it is going somewhere: one

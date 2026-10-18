@@ -7,6 +7,7 @@ extends CanvasLayer
 
 signal closed
 signal changed
+signal achievements_pressed
 
 const SettingsScript := preload("res://src/core/settings.gd")
 const ProfileScript := preload("res://src/core/profile_service.gd")
@@ -109,6 +110,9 @@ func _build() -> void:
 	var actions := HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 10)
 	column.add_child(actions)
+	var achievements := _button("Achievements", Vector2(170, 36))
+	achievements.pressed.connect(func() -> void: achievements_pressed.emit())
+	actions.add_child(achievements)
 	var reset := _button("Reset controls", Vector2(180, 36))
 	reset.pressed.connect(_on_reset_controls)
 	actions.add_child(reset)
@@ -204,6 +208,12 @@ func _on_reset_controls() -> void:
 	if settings != null:
 		settings.reset_bindings()
 		after_change_only()
+
+## Re-reads everything from the settings and profile objects. Used after something
+## else changes them, such as wiping the achievement record.
+func refresh() -> void:
+	_refresh()
+
 
 func after_change_only() -> void:
 	_armed_action = ""

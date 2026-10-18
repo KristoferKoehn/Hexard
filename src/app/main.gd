@@ -35,6 +35,8 @@ var settings: Settings
 var profile: ProfileService
 var audio: AudioService
 var settings_panel: SettingsPanel
+var achievements_panel: AchievementsPanel
+var toast: AchievementToast
 
 
 func _ready() -> void:
@@ -60,6 +62,14 @@ func _ready() -> void:
 	add_child(settings_panel)
 	settings_panel.closed.connect(_close_settings)
 	settings_panel.changed.connect(_on_settings_changed)
+	settings_panel.achievements_pressed.connect(_open_achievements)
+	achievements_panel = AchievementsPanel.new()
+	achievements_panel.profile = profile
+	add_child(achievements_panel)
+	achievements_panel.closed.connect(_close_achievements)
+	achievements_panel.reset_pressed.connect(_on_achievements_reset)
+	toast = AchievementToast.new()
+	add_child(toast)
 	hud.settings_pressed.connect(_open_settings)
 	board_view.step_began.connect(audio.on_step)
 	_apply_juice()
@@ -174,6 +184,14 @@ func _enter_result() -> void:
 			profile.unlock(id)
 		profile.save_to()
 		unlocked = Achievements.titles_for(earned)
+		if not unlocked.is_empty():
+			# One cue for the batch however many unlocked, then one toast each in turn.
+			audio.play_cue("achievement")
+			if toast != null:
+				for title: String in unlocked:
+					toast.show_text("★  Achievement  ·  " + title)
+			if achievements_panel != null:
+				achievements_panel.refresh()
 	if settings_panel != null:
 		settings_panel.profile = profile
 	hud.show_result(summary, unlocked)
@@ -604,6 +622,31 @@ func _close_settings() -> void:
 	hud.visible = true
 	screen = Screen.MENU
 	hud.show_menu(selected)
+
+
+func _open_achievements() -> void:
+	if achievements_panel == null:
+		return
+	achievements_panel.profile = profile
+	achievements_panel.open()
+
+
+## The achievements panel sits above the settings screen, so closing it returns to
+## the menu that opened it rather than to the game.
+func _close_achievements() -> void:
+	if achievements_panel != null:
+		achievements_panel.close()
+
+
+func _on_achievements_reset() -> void:
+	if profile == null:
+		return
+	profile.reset_achievements()
+	profile.save_to()
+	if achievements_panel != null:
+		achievements_panel.refresh()
+	if settings_panel != null:
+		settings_panel.refresh()
 
 
 func _on_settings_changed() -> void:

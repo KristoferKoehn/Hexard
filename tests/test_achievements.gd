@@ -106,3 +106,41 @@ func test_titles_are_human_and_unknown_ids_do_not_leak() -> void:
 	assert_eq(titles[0], Achievements.title_of("bloom"), "ids map to their titles")
 	assert_eq(Achievements.title_of("not_a_real_achievement"), "not_a_real_achievement",
 		"an unknown id falls back to itself rather than crashing")
+
+
+func test_the_list_reports_earned_state() -> void:
+	var rows := Achievements.all_with_state({"bloom": true})
+	assert_eq(rows.size(), Achievements.count(), "every achievement gets a row")
+	var bloom_earned := false
+	var pearl_earned := true
+	for row: Dictionary in rows:
+		if str(row["id"]) == "bloom":
+			bloom_earned = bool(row["earned"])
+		if str(row["id"]) == "pearl":
+			pearl_earned = bool(row["earned"])
+		assert_ne(str(row["title"]), "", "each row carries a title")
+		assert_ne(str(row["hint"]), "", "and a hint")
+	assert_true(bloom_earned, "an earned achievement is marked earned")
+	assert_false(pearl_earned, "and the rest are not")
+
+
+func test_the_record_can_be_wiped_and_stays_wiped() -> void:
+	var profile := ProfileScript.new()
+	profile.unlock("bloom")
+	profile.unlock("pearl")
+	profile.reset_achievements()
+	assert_eq(profile.achievement_count(), 0, "the record is clear")
+	var reloaded := ProfileScript.new()
+	reloaded.apply_dictionary(profile.to_dictionary())
+	assert_eq(reloaded.achievement_count(), 0, "and stays clear across a save")
+
+
+func test_the_achievement_cue_exists_and_is_audible() -> void:
+	assert_true(Synth.CUES.has("achievement"), "there is an achievement cue")
+	var voice := Synth.voice_for("achievement")
+	assert_false(voice.is_empty(), "and it has a voice")
+	assert_gt(float(voice["dur"]), 0.2, "long enough to be noticed")
+	var energy := 0.0
+	for index in 400:
+		energy += absf(Synth.sample(voice, 22050.0))
+	assert_gt(energy, 0.0, "it renders sound rather than silence")

@@ -75,6 +75,7 @@ func _process(_delta: float) -> bool:
 		18:
 			_check_bomb_explosion_defers_the_summary()
 			_check_settings_layout()
+			_check_achievements_panel()
 			_report()
 			return true
 	return false
@@ -498,3 +499,28 @@ func _find_button(root: Node, prefix: String) -> Button:
 		if found != null:
 			return found
 	return null
+
+
+## The achievements list: reachable from settings, complete, and leaveable. The reset
+## button is deliberately tiny and arms before acting, so both are asserted.
+func _check_achievements_panel() -> void:
+	_main.call("_open_settings")
+	(_main.get("settings_panel") as Node).emit_signal("achievements_pressed")
+	var panel: Node = _main.get("achievements_panel")
+	_check(panel != null and panel.visible, "the achievements list opens from settings")
+	if panel == null:
+		return
+	var scroll := _find_of_class(panel, "ScrollContainer") as ScrollContainer
+	_check(scroll != null, "the list scrolls")
+	var rows: Node = scroll.get_child(0) if scroll != null else null
+	var listed := rows.get_child_count() if rows != null else -1
+	_check(listed == Achievements.count(),
+		"every achievement is listed (%d of %d rows)" % [listed, Achievements.count()])
+	var reset := _find_button(panel, "Reset")
+	_check(reset != null, "there is a reset button")
+	if reset != null:
+		_check(reset.size.x <= 90.0, "and it is small (%.0fpx wide)" % reset.size.x)
+		reset.emit_signal("pressed")
+		_check(reset.text == "Sure?", "one press arms it rather than wiping the record")
+	panel.emit_signal("closed")
+	_check(not panel.visible, "and it closes again")
