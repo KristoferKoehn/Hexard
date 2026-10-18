@@ -195,9 +195,9 @@ func _select_subject(result: MoveResult = null) -> void:
 		return
 	_view.cursor_legal = true
 	if clip_id == "turn":
-		_view.cursor_special = CENTRE
-		_view.cursor_cells = HexGridScript.neighbours(CENTRE)
-		_view.cursor_vertex = _vertex_for(HexGridScript.neighbours(CENTRE))
+		_view.cursor_special = Library.CENTRE
+		_view.cursor_cells = HexGridScript.neighbours(Library.CENTRE)
+		_view.cursor_vertex = _vertex_for(HexGridScript.neighbours(Library.CENTRE))
 		return
 	_view.cursor_special = HexGridScript.NO_CELL
 	if result == null:
