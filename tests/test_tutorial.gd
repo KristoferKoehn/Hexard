@@ -152,3 +152,24 @@ func test_advancing_clears_the_retry_flag() -> void:
 	assert_true(tutorial.evaluate(advance), "the real spin advances")
 	assert_false(tutorial.retried, "clearing the flag")
 	assert_eq(tutorial.attempts, 0, "and the attempt count")
+
+
+func test_one_board_lives_through_every_step() -> void:
+	# Reported: the tutorial "just snaps to different boards". Each step used to repaint
+	# the whole background; now it restores only its own patch and places the next
+	# lesson elsewhere, so the board the player has been playing stays put.
+	var tutorial := TutorialScript.new()
+	var palette: Array = Pieces.BASE_COLORS
+	var background := func(cell: Vector2i) -> int:
+		return Pieces.gem(palette[(2 * cell.x + cell.y) % palette.size()])
+
+	assert_true(tutorial.evaluate(_any_spin(tutorial)), "step 1 completes")
+	# The trio region is background again, not the rig it was.
+	assert_eq(tutorial.game.board.get_piece(Vector2i(4, 4)), background.call(Vector2i(4, 4)),
+		"the previous lesson is painted back")
+	assert_eq(tutorial.game.board.get_piece(Vector2i(3, 3)), background.call(Vector2i(3, 3)),
+		"including its stranger")
+	# And the new lesson is somewhere else, on the same board.
+	assert_eq(tutorial.goal_id(), "stars", "on the stars lesson")
+	assert_eq(tutorial.game.board.tile_count(), 85, "the board is still full")
+	assert_eq(tutorial.game.board.invariant_violations().size(), 0, "and still settled")

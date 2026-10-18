@@ -25,6 +25,10 @@ var complete := false
 ## kind of stuck: the rig is put back on a miss and the banner says so.
 var attempts := 0
 var retried := false
+## Cells the current step rigged. The board is painted once and lives through every
+## step: a step only restores its own patch before placing the next lesson, so the
+## tutorial never snaps to an unrelated board between lessons.
+var _rigged: Array[Vector2i] = []
 ## Where the player should look: the controller moves the cursor here.
 var suggested_vertex := 0
 
@@ -65,6 +69,8 @@ func _init(run_seed: int = SEED) -> void:
 	# Forgiving rotation: in a tutorial every spin should do something.
 	ruleset.rotation_mode = RulesetScript.RotationMode.FREE
 	game = GameScript.new(run_seed, ruleset)
+	# Painted once. Each step patches one region and puts it back afterwards.
+	_paint_background()
 	_setup_step()
 
 
@@ -161,7 +167,7 @@ func _current() -> Dictionary:
 
 
 func _setup_step() -> void:
-	_paint_background()
+	_restore_rig()
 	match str(_current()["id"]):
 		"clear":
 			_setup_clear()
@@ -175,13 +181,27 @@ func _setup_step() -> void:
 			_setup_pearl_ring()
 
 
+## Sets a cell and remembers it, so the next step can put the background back there
+## instead of repainting the whole board.
+func _rig(cell: Vector2i, piece: int) -> void:
+	game.board.set_piece(cell, piece)
+	_rigged.append(cell)
+
+
+func _restore_rig() -> void:
+	var palette: Array = Pieces.BASE_COLORS
+	for cell: Vector2i in _rigged:
+		game.board.set_piece(cell, Pieces.gem(palette[(2 * cell.x + cell.y) % palette.size()]))
+	_rigged.clear()
+
+
 ## A triple with a stranger in it: spinning the vertex beside it brings a
 ## matching gem in, so the very first spin always clears something.
 func _setup_clear() -> void:
-	game.board.set_piece(Vector2i(4, 4), Pieces.gem(Pieces.GemColor.RED))
-	game.board.set_piece(Vector2i(4, 5), Pieces.gem(Pieces.GemColor.RED))
-	game.board.set_piece(Vector2i(3, 4), Pieces.gem(Pieces.GemColor.BLUE))
-	game.board.set_piece(Vector2i(3, 3), Pieces.gem(Pieces.GemColor.RED))
+	_rig(Vector2i(4, 4), Pieces.gem(Pieces.GemColor.RED))
+	_rig(Vector2i(4, 5), Pieces.gem(Pieces.GemColor.RED))
+	_rig(Vector2i(3, 4), Pieces.gem(Pieces.GemColor.BLUE))
+	_rig(Vector2i(3, 3), Pieces.gem(Pieces.GemColor.RED))
 	suggested_vertex = _vertex_near(Vector2i(4, 4))
 
 
@@ -199,32 +219,32 @@ func _setup_bonus_stars() -> void:
 	var triangle := [Vector2i(4, 7), Vector2i(4, 8), Vector2i(5, 7)]
 	var colors := [Pieces.GemColor.RED, Pieces.GemColor.GREEN, Pieces.GemColor.BLUE]
 	for index in triangle.size():
-		game.board.set_piece(triangle[index], Pieces.bonus_star(colors[index]))
+		_rig(triangle[index], Pieces.bonus_star(colors[index]))
 	suggested_vertex = _vertex_near(triangle[0])
 
 
 func _setup_flower() -> void:
 	# Six red gems already ringing a blue centre: any spin lets it bloom.
-	game.board.set_piece(CENTRE, Pieces.gem(Pieces.GemColor.BLUE))
+	_rig(CENTRE, Pieces.gem(Pieces.GemColor.BLUE))
 	for cell: Vector2i in Grid.neighbours(CENTRE):
-		game.board.set_piece(cell, Pieces.gem(Pieces.GemColor.RED))
+		_rig(cell, Pieces.gem(Pieces.GemColor.RED))
 	suggested_vertex = _vertex_near(CENTRE)
 
 
 func _setup_starflower() -> void:
 	# A starflower whose neighbours are six different colours, so turning it is
 	# the only thing that happens.
-	game.board.set_piece(CENTRE, Pieces.starflower())
+	_rig(CENTRE, Pieces.starflower())
 	var ring := Grid.cyclic_order(Grid.neighbours(CENTRE))
 	for index in ring.size():
-		game.board.set_piece(ring[index], Pieces.gem(index + 1))
+		_rig(ring[index], Pieces.gem(index + 1))
 	suggested_vertex = _vertex_near(CENTRE)
 
 
 func _setup_pearl_ring() -> void:
-	game.board.set_piece(CENTRE, Pieces.gem(Pieces.GemColor.YELLOW))
+	_rig(CENTRE, Pieces.gem(Pieces.GemColor.YELLOW))
 	for cell: Vector2i in Grid.neighbours(CENTRE):
-		game.board.set_piece(cell, Pieces.starflower())
+		_rig(cell, Pieces.starflower())
 	suggested_vertex = _vertex_near(CENTRE)
 
 
