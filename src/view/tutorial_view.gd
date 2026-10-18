@@ -11,7 +11,10 @@ extends CanvasLayer
 
 signal closed
 
+var settings: Settings
+
 var _root: Control
+var _players: Array[ClipPlayer] = []
 
 
 func _ready() -> void:
@@ -26,6 +29,14 @@ func _ready() -> void:
 
 func open() -> void:
 	visible = true
+
+
+## Colour patterns can change while the section is open, and the clips draw gems too.
+func apply_settings(value: Settings) -> void:
+	settings = value
+	for player: ClipPlayer in _players:
+		player.settings = value
+		player.call("apply_settings", value)
 
 
 func close() -> void:
@@ -96,6 +107,8 @@ func _card(entry: Dictionary, index: int = 0) -> Control:
 
 	var player := ClipPlayer.new()
 	player.clip_id = str(entry["id"])
+	player.settings = settings
+	_players.append(player)
 	# Spread the first plays across the loop so the clips take turns rather than resolving
 	# five cascades on the same frame.
 	player.start_delay = float(index) * ClipPlayer.STAGGER

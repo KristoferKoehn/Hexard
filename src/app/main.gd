@@ -90,6 +90,7 @@ func _ready() -> void:
 	pause_panel.restart_pressed.connect(_on_restart_pressed)
 	pause_panel.menu_pressed.connect(_on_menu_pressed)
 	tutorial_view = TutorialView.new()
+	tutorial_view.settings = settings
 	add_child(tutorial_view)
 	tutorial_view.closed.connect(_close_tutorial)
 	toast = AchievementToast.new()
@@ -834,5 +835,7 @@ func _apply_juice() -> void:
 		return
 	board_view.settings = settings
 	hud.set_glyphs_enabled(settings.colour_patterns)
+	if tutorial_view != null:
+		tutorial_view.apply_settings(settings)
 	if audio != null:
 		audio.settings = settings

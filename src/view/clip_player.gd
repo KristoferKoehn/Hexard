@@ -19,11 +19,16 @@ const CLIP_SIZE := Vector2(380, 214)
 const ZOOM := 1.44
 ## How long the finished state sits before the demonstration restarts.
 const HOLD := 2.0
+## Extra quiet after the board settles. The last animation step commits its pieces on the
+## frame it ends, so restarting immediately after is right on top of the final frame.
+const TAIL := 0.2
 ## Offsets between clips' loops, set by the section. Larger than one animation, so the
 ## demonstrations genuinely take turns.
 const STAGGER := 1.15
 
 var clip_id := ""
+## Passed to the board so the clips obey the colour-pattern setting like the game does.
+var settings: Settings
 ## Seconds to wait before this clip's first play. The section offsets each clip so their
 ## resolutions never land on the same frame: five boards rigging, resolving and animating
 ## together is a stutter, and it also reads as chaos rather than five lessons.
@@ -57,12 +62,30 @@ func _ready() -> void:
 	container.add_child(_sub)
 
 	_view = BoardViewScript.new()
+	_view.settings = settings
 	# Demonstrations are worth watching: same animation, taken slower.
 	_view.playback_scale = 1.7
 	_sub.add_child(_view)
+	# Show the board before its turn rather than an empty panel: build it now, render the
+	# pre-move state, and start the animation when the delay expires.
+	_game = Library.make_game(clip_id)
+	_snapshot = _pieces(_game)
+	_result = Library.play(_game, clip_id)
+	_restore()
+	_view.set_game(_game)
+	_view.sync_from_game()
+	_view.cull_rect = Rect2()
 	_delay = maxf(start_delay, 0.0)
 	# Nothing to show until the delay expires, so do not pay for a render target.
 	_sub.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
+
+## Re-read the juice settings: the board draws the colour patterns.
+func apply_settings(value: Settings) -> void:
+	settings = value
+	if _view != null:
+		_view.settings = value
+		_view.queue_redraw()
 
 
 func _process(delta: float) -> void:
@@ -75,24 +98,21 @@ func _process(delta: float) -> void:
 		_restart()
 		return
 	if _view.is_settled():
-		# Idle between demonstrations: stop re-rendering this viewport entirely. Four of
-		# five clips are idle at any moment, so this is most of the section's cost.
-		_sub.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		_hold += delta
-		if _hold >= HOLD:
-			_restart()
+		if _hold < HOLD + TAIL:
+			# Keep drawing through the tail so the finished frame stays visible; only then
+			# stop paying for this render target.
+			if _hold > HOLD:
+				_sub.render_target_update_mode = SubViewport.UPDATE_DISABLED
+			return
+		_restart()
 		return
 	_hold = 0.0
 
 
 func _restart() -> void:
 	_sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	if _game == null:
-		_game = Library.make_game(clip_id)
-		_snapshot = _pieces(_game)
-		_result = Library.play(_game, clip_id)
-	else:
-		_restore()
+	_restore()
 	_view.set_game(_game)
 	# The board is rigged in place after the view took its copy, so it has to re-read.
 	_view.sync_from_game()
@@ -100,7 +120,13 @@ func _restart() -> void:
 	# Put the cursor on the trio being turned, so the board draws its swap outline around
 	# exactly the cells the demonstration moves. Without it the clip has no outline at all:
 	# nothing is selected, so nothing is highlighted.
-	_view.cursor_vertex = _vertex_for(result.rotation_cells)
+	# A starflower turn has no trio: select the piece itself so the board outlines its six
+	# neighbours. Otherwise outline the trio being turned.
+	if result.piece_cell != Vector2i(-1, -1):
+		_view.cursor_special = result.piece_cell
+	else:
+		_view.cursor_special = HexGridScript.NO_CELL
+		_view.cursor_vertex = _vertex_for(result.rotation_cells)
 	_view.cursor_legal = true
 	_view.show_result(result)
 	_hold = 0.0
