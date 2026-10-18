@@ -489,7 +489,7 @@ func test_a_pearl_rotates_three_of_its_six_neighbours() -> void:
 	_background(game.board)
 	game.board.set_piece(CENTRE, Pieces.pearl())
 
-	var turning: Array = game._pearl_y_cells(CENTRE)
+	var turning: Array = TurnRules.pearl_y_cells(CENTRE)
 	assert_eq(turning.size(), 3, "a pearl turns three neighbours")
 	var ring := _ring(CENTRE)
 	var unturned := {}

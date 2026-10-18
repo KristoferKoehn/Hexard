@@ -54,7 +54,6 @@ var _round_cleared := 0
 var _rng_refill
 var _commands: Array = []
 
-
 func _init(run_seed: int = 1, rules: Variant = null) -> void:
 	seed_value = run_seed
 	ruleset = rules if rules != null else RulesetScript.new()
@@ -65,28 +64,22 @@ func _init(run_seed: int = 1, rules: Variant = null) -> void:
 		clock = max_clock
 	fill_board()
 
-
 # --- queries ----------------------------------------------------------------
 
 func combos_remaining() -> int:
 	return maxi(ruleset.combos_to_advance(level) - combos_in_level, 0)
 
-
 func colors() -> Array:
 	return ruleset.colors_for_level(level)
-
 
 func signature() -> String:
 	return board.signature()
 
-
 func commands() -> Array:
 	return _commands.duplicate(true)
 
-
 func tile_count() -> int:
 	return board.filled_count()
-
 
 # --- moves ------------------------------------------------------------------
 
@@ -110,11 +103,11 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE) -> MoveResult:
 	result.rotation_cells.assign(cells)
 	result.direction = direction
 
-	_cycle(cells, direction)
-	if not _rotation_makes_something(vertex_index, direction, cells, true):
+	TurnRules.cycle(board, cells, direction)
+	if not TurnRules.makes_something(board, vertex_index, direction, cells, true):
 		if ruleset.rotation_mode == RulesetScript.RotationMode.STRICT:
 			# Reference behaviour: a spin that clears nothing is not a move.
-			_cycle(cells, -direction)
+			TurnRules.cycle(board, cells, -direction)
 			var rejected := _reject(result, "the spin clears nothing (strict mode reverts)")
 			# Still check the dead-board rule: if no spin at all can clear, the
 			# player is stuck and the board must be reshuffled.
@@ -132,26 +125,6 @@ func rotate(vertex_index: int, direction: int = CLOCKWISE) -> MoveResult:
 	ResolverScript.resolve(board, ruleset, _rng_refill, result, level, ruleset.refills_board)
 	_finish_move(result)
 	return result
-
-
-## Rotates a special piece in place (docs/design.md §3.4):
-##   starflower -> cycles all six neighbours one step
-##   black pearl -> cycles three of six neighbours in a Y / inverted-Y
-## These rotations always persist, match or not, in both rotation modes.
-## Exactly which cells a turn at `cell` would cycle: six for a starflower ring,
-## the three of a pearl's Y, and none for anything that cannot turn on its own.
-## The view outlines this set, so the cursor can never disagree with the rules.
-func swapped_cells(cell: Vector2i) -> Array[Vector2i]:
-	var out: Array[Vector2i] = []
-	if not Grid.has_cell(cell):
-		return out
-	var piece: int = board.get_piece(cell)
-	if Pieces.is_starflower(piece):
-		return Grid.cyclic_order(Grid.neighbours(cell))
-	if Pieces.is_pearl(piece):
-		return _pearl_y_cells(cell)
-	return out
-
 
 func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE) -> MoveResult:
 	var result := MoveResultScript.new()
@@ -172,7 +145,7 @@ func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE) -> MoveResult:
 		if cells.size() != 6:
 			return _reject(result, "a starflower needs six neighbours to turn")
 	elif Pieces.is_pearl(piece):
-		cells = _pearl_y_cells(cell)
+		cells = TurnRules.pearl_y_cells(cell)
 		if cells.size() != 3:
 			return _reject(result, "a pearl needs three neighbours in a Y to turn")
 	else:
@@ -181,7 +154,7 @@ func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE) -> MoveResult:
 		if board.is_locked(neighbour):
 			return _reject_settling(result, "a frozen neighbour cannot be turned")
 
-	_cycle(cells, direction)
+	TurnRules.cycle(board, cells, direction)
 	result.piece_cell = cell
 	result.rotation_cells.assign(cells)
 	result.direction = direction
@@ -189,19 +162,6 @@ func rotate_piece(cell: Vector2i, direction: int = CLOCKWISE) -> MoveResult:
 	ResolverScript.resolve(board, ruleset, _rng_refill, result, level, ruleset.refills_board)
 	_finish_move(result)
 	return result
-
-
-## Three of a pearl's six neighbours, alternating around it. Which three depends
-## on the column parity, which gives the reference's Y and inverted-Y shapes.
-func _pearl_y_cells(cell: Vector2i) -> Array[Vector2i]:
-	var ordered := Grid.cyclic_order(Grid.neighbours(cell))
-	var cells: Array[Vector2i] = []
-	var parity := cell.x % 2
-	for index in ordered.size():
-		if index % 2 == parity:
-			cells.append(ordered[index])
-	return cells
-
 
 ## Replays a logged command list on a fresh game with the same seed.
 ##
@@ -218,50 +178,32 @@ static func replay(run_seed: int, command_log: Array, rules: Variant) -> Game:
 				game.rotate(int(command[1]), int(command[2]))
 	return game
 
+## Fills every cell with a gem, avoiding immediate matches. Used for a new run
+## and for the dead-board shuffle.
+# --- turn rules -------------------------------------------------------------
+# Thin delegates: the rules live in TurnRules, so the view and the tests can ask the
+# same questions the move path asks without holding a Game.
 
-## Would spinning this vertex one step in this direction clear anything?
-## Cheap (two rotations and a local match test), so the view can ask per frame.
+func swapped_cells(cell: Vector2i) -> Array[Vector2i]:
+	return TurnRules.swapped_cells(board, cell)
+
+
 func is_legal_rotation(vertex_index: int, direction: int) -> bool:
-	var vertices := Grid.vertices()
-	if vertex_index < 0 or vertex_index >= vertices.size():
-		return false
-	if direction != CLOCKWISE and direction != COUNTER_CLOCKWISE:
-		return false
-	return _rotation_makes_something(vertex_index, direction, vertices[vertex_index])
+	return TurnRules.is_legal_rotation(board, vertex_index, direction)
 
 
-## True when either direction clears here — what the cursor highlight shows.
 func has_legal_spin(vertex_index: int) -> bool:
-	return is_legal_rotation(vertex_index, CLOCKWISE) \
-		or is_legal_rotation(vertex_index, COUNTER_CLOCKWISE)
+	return TurnRules.has_legal_spin(board, vertex_index)
 
 
-## Every rotation that would do something right now. Doubles as the hint source
-## and the dead-board test, and follows the same rule as a real spin: clears or
-## forms count, so a board with only a flower-completing spin is not dead.
 func find_legal_rotations() -> Array:
-	var out: Array = []
-	var vertices := Grid.vertices()
-	for vertex_index in vertices.size():
-		for direction in [CLOCKWISE, COUNTER_CLOCKWISE]:
-			if _rotation_makes_something(vertex_index, direction, vertices[vertex_index]):
-				out.append({"vertex": vertex_index, "direction": direction})
-	return out
+	return TurnRules.find_legal_rotations(board)
 
 
 func has_any_legal_rotation() -> bool:
-	var vertices := Grid.vertices()
-	for vertex_index in vertices.size():
-		for direction in [CLOCKWISE, COUNTER_CLOCKWISE]:
-			if _rotation_makes_something(vertex_index, direction, vertices[vertex_index]):
-				return true
-	return false
+	return TurnRules.has_any_legal_rotation(board)
 
 
-# --- board setup ------------------------------------------------------------
-
-## Fills every cell with a gem, avoiding immediate matches. Used for a new run
-## and for the dead-board shuffle.
 func fill_board() -> void:
 	board.clear_locks()
 	var palette: Array = colors()
@@ -283,80 +225,26 @@ func fill_board() -> void:
 		var settle := MoveResultScript.new()
 		ResolverScript.resolve(board, ruleset, _rng_refill, settle, level, true)
 
-
 # --- internals --------------------------------------------------------------
-
-## Cycles the pieces around a vertex. +1 moves each piece to the next cell in
-## cyclic order (clockwise on screen); -1 is the exact inverse.
-func _cycle(cells: Array, direction: int) -> void:
-	var count := cells.size()
-	var pieces: Array[int] = []
-	for cell: Vector2i in cells:
-		pieces.append(board.get_piece(cell))
-	for index in count:
-		board.set_piece(cells[index], pieces[posmod(index - direction, count)])
-
-
-## A spin is worth accepting when it makes anything at all: a colour match, or a
-## formation — a flower blooming, or a pearl ring closing. That second clause is
-## what lets the last spin into a flower land even in STRICT mode, where a spin
-## that clears nothing is otherwise not a move.
-##
-## `already_cycled` means the caller has already applied the rotation (the real
-## move path), so this must not cycle again.
-func _rotation_makes_something(
-	vertex_index: int, direction: int, cells: Array, already_cycled: bool = false
-) -> bool:
-	if not already_cycled:
-		_cycle(cells, direction)
-	var matched := MatchFinderScript.matches_near_vertex(board, vertex_index)
-	if not matched:
-		matched = _formation_near(cells)
-	if not already_cycled:
-		_cycle(cells, -direction)
-	return matched
-
-
-## Is any flower or pearl ring sitting on or beside these cells right now?
-## Only the trio and its neighbours can have just finished one, so this stays
-## cheap enough to run from the cursor highlight every frame.
-func _formation_near(cells: Array) -> bool:
-	for cell: Vector2i in cells:
-		if _is_formation_centre(cell):
-			return true
-		for neighbour: Vector2i in Grid.neighbours(cell):
-			if _is_formation_centre(neighbour):
-				return true
-	return false
-
-
-func _is_formation_centre(cell: Vector2i) -> bool:
-	return MatchFinderScript.is_flower(board, cell) \
-		or MatchFinderScript.is_pearl_creation_ring(board, cell)
-
 
 func _record(vertex_index: int, direction: int) -> void:
 	_commands.append(["rotate", vertex_index, direction])
 	turns += 1
 
-
 func _record_piece(cell: Vector2i, direction: int) -> void:
 	_commands.append(["piece", cell.x, cell.y, direction])
 	turns += 1
-
 
 func _reject(result: MoveResult, reason: String) -> MoveResult:
 	result.committed = false
 	result.rejected_reason = reason
 	return result
 
-
 ## A rejection that still lets the board close its round: a Survival board where
 ## everything is frozen must not be able to soft-lock the player.
 func _reject_settling(result: MoveResult, reason: String) -> MoveResult:
 	settle(_reject(result, reason))
 	return result
-
 
 func _award(result: MoveResult) -> void:
 	score += result.score
@@ -367,7 +255,6 @@ func _award(result: MoveResult) -> void:
 		level += 1
 		result.level_up = true
 	result.new_level = level
-
 
 ## Shared tail of every committed move: bank the score, pay out mode-specific
 ## rewards, age the bombs, and check whether the board is still playable.
@@ -388,7 +275,6 @@ func _finish_move(result: MoveResult) -> void:
 	_tick_bombs(result)
 	settle(result)
 
-
 ## Timed mode: clears buy seconds back; a starflower refills and raises the cap
 ## (docs/design.md §6.2).
 func _reward_clock(result: MoveResult) -> void:
@@ -408,7 +294,6 @@ func _reward_clock(result: MoveResult) -> void:
 		clock = max_clock
 	else:
 		clock = minf(clock, max_clock)
-
 
 ## Every bomb loses one move. Reaching zero detonates it and ends the run.
 ## A bomb going off ends the run and levels the board (nothing scores).
@@ -445,7 +330,6 @@ func _tick_bombs(result: MoveResult) -> void:
 	result.exploded_cells.assign(shattered)
 	_finish("bomb_exploded", false)
 
-
 ## After every move: is the board still playable? (docs/design.md §5.3, §6.3)
 func settle(result: MoveResult) -> void:
 	if state != State.FINISHED and not result.finished:
@@ -458,7 +342,6 @@ func settle(result: MoveResult) -> void:
 			shuffle_count += 1
 	result.new_level = level
 
-
 ## Survival never reshuffles: when nothing can be cleared the round is over —
 ## the leftovers freeze, the gaps refill, and the next round begins.
 func _settle_survival(result: MoveResult) -> void:
@@ -468,7 +351,6 @@ func _settle_survival(result: MoveResult) -> void:
 	if has_any_legal_rotation():
 		return
 	_close_round(result)
-
 
 ## Ends the current Survival round: pay the round bonus, freeze what is left,
 ## refill, and check the two survival endings.
@@ -497,13 +379,11 @@ func _close_round(result: MoveResult) -> void:
 	if rounds_cleared >= RulesetScript.SURVIVAL_ROUNDS_TO_WIN:
 		_end_survival("rounds_survived", true, result)
 
-
 ## Marks the run finished from inside a move's bookkeeping.
 func _end_survival(reason: String, did_win: bool, result: MoveResult) -> void:
 	_finish(reason, did_win)
 	result.finished = true
 	result.finish_kind = reason
-
 
 # --- run lifecycle ----------------------------------------------------------
 
@@ -514,10 +394,8 @@ func _finish(reason: String, did_win: bool) -> void:
 	finish_reason = reason
 	victory = did_win
 
-
 func did_win() -> bool:
 	return victory
-
 
 ## Advances real time. Only Timed mode cares; the view calls this each frame.
 func tick(delta: float) -> void:
@@ -528,7 +406,6 @@ func tick(delta: float) -> void:
 	if clock <= 0.0:
 		_finish("time_out", false)
 
-
 func mode_name() -> String:
 	match ruleset.mode:
 		RulesetScript.Mode.TIMED:
@@ -537,7 +414,6 @@ func mode_name() -> String:
 			return "Survival"
 		_:
 			return "Marathon"
-
 
 func summary() -> Dictionary:
 	return {
@@ -552,7 +428,6 @@ func summary() -> Dictionary:
 		"won": victory,
 		"elapsed": elapsed,
 	}
-
 
 ## Redistributes the existing gems; if no arrangement is playable (or the board
 ## is empty), regenerates a fresh one.
