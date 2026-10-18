@@ -23,7 +23,7 @@ var _armed_action := ""
 
 func _ready() -> void:
 	layer = 2
-	_root = CenterContainer.new()
+	_root = Control.new()
 	(_root as Control).set_anchors_preset(Control.PRESET_FULL_RECT)
 	(_root as Control).mouse_filter = Control.MOUSE_FILTER_PASS
 	add_child(_root)
@@ -43,14 +43,43 @@ func close() -> void:
 
 func _build() -> void:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", NeonStyle.panel_box(46))
+	panel.add_theme_stylebox_override("panel", NeonStyle.panel_box(30))
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.offset_left = 56
+	panel.offset_top = 22
+	panel.offset_right = -56
+	panel.offset_bottom = -22
 	_root.add_child(panel)
+
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 12)
+	panel.add_child(outer)
+
+	# The way out is pinned above the scroll: it must never be the thing that scrolls
+	# off screen, which is exactly what happened when the panel overflowed 720p.
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 16)
+	outer.add_child(header)
+	var title := _heading("SETTINGS", 34, NeonStyle.ACCENT)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+	var back := _button("Back  (Esc)", Vector2(150, 36))
+	back.pressed.connect(func() -> void: closed.emit())
+	header.add_child(back)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	# Rebind capture moves focus between rows, so keep the focused row in view.
+	scroll.follow_focus = true
+	outer.add_child(scroll)
 
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 10)
-	panel.add_child(column)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(column)
 
-	column.add_child(_heading("SETTINGS", 40, NeonStyle.ACCENT))
 	column.add_child(_heading("audio", 16, NeonStyle.DIM))
 	column.add_child(_volume_row("Master", "master_volume"))
 	column.add_child(_volume_row("Effects", "sfx_volume"))
@@ -83,13 +112,11 @@ func _build() -> void:
 	var reset := _button("Reset controls", Vector2(180, 36))
 	reset.pressed.connect(_on_reset_controls)
 	actions.add_child(reset)
-	var back := _button("Back  (Esc)", Vector2(160, 36))
-	back.pressed.connect(func() -> void: closed.emit())
-	actions.add_child(back)
 
 	_records = _text("", 15, NeonStyle.DIM)
 	_records.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_records.custom_minimum_size = Vector2(560, 0)
+	_records.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_child(_records)
 
 func _heading(text: String, size: int, color: Color) -> Label:

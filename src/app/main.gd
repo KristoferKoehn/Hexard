@@ -178,6 +178,8 @@ func screen_name() -> String:
 			return "menu"
 		Screen.RESULT:
 			return "result"
+		Screen.SETTINGS:
+			return "settings"
 		_:
 			return "playing"
 

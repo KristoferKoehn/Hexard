@@ -74,6 +74,7 @@ func _process(_delta: float) -> bool:
 			_start_bomb_explosion()
 		18:
 			_check_bomb_explosion_defers_the_summary()
+			_check_settings_layout()
 			_report()
 			return true
 	return false
@@ -455,3 +456,45 @@ func _check_special_snap() -> void:
 	game.board.set_piece(other, Pieces.gem(Pieces.GemColor.BLUE))
 	view.call("sync_from_game")
 	_main.call("_refresh_cursor")
+
+
+## The settings screen is taller than 720p, so its body has to scroll and the way out
+## has to be pinned outside the scrolled area. Both failed once: a CenterContainer
+## sized the panel to its content and centred it, which clipped the Back button off
+## screen entirely - the player could not leave.
+func _check_settings_layout() -> void:
+	_main.call("_open_settings")
+	_check(_main.call("screen_name") == "settings", "settings opens")
+	var panel: Node = _main.get("settings_panel")
+	_check(panel != null, "there is a settings panel")
+	if panel == null:
+		return
+	var scroll := _find_of_class(panel, "ScrollContainer") as ScrollContainer
+	_check(scroll != null, "the body scrolls rather than overflowing the screen")
+	var back := _find_button(panel, "Back")
+	_check(back != null, "there is a way back to the menu")
+	if back != null and scroll != null:
+		_check(not scroll.is_ancestor_of(back), "the way back is pinned, not scrolled away")
+		_check(back.is_visible_in_tree(), "so it is always on screen")
+	_main.call("_close_settings")
+	_check(_main.call("screen_name") == "menu", "and closing returns to the main menu")
+
+
+func _find_of_class(root: Node, type_name: String) -> Node:
+	for child in root.get_children():
+		if child.is_class(type_name):
+			return child
+		var found := _find_of_class(child, type_name)
+		if found != null:
+			return found
+	return null
+
+
+func _find_button(root: Node, prefix: String) -> Button:
+	for child in root.get_children():
+		if child is Button and (child as Button).text.begins_with(prefix):
+			return child
+		var found := _find_button(child, prefix)
+		if found != null:
+			return found
+	return null
