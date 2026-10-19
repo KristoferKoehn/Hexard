@@ -4,20 +4,6 @@ A hexagonal rotation match-3 puzzle game — a faithful-in-spirit rebuild of *He
 
 Rotate trios of gems around the points where three hexes meet. Match three or more to clear them, then use gravity cascades, bonus stars, starflowers and black pearls to bend the board toward the perfect finish: a ring of six black pearls.
 
-## Status
-
-**Feature complete for a 1.0 build** — every milestone below is done: the board, the
-specials, all three modes, the presentation, the meta screens and the tutorial.
-
-| Milestone | State |
-|---|---|
-| M0 · repo, design doc, pinned engine, geometry core | ✅ 85 cells, 135 vertices, 17×5 half-rows verified |
-| M1 · playable core (rotate → match → gravity → cascade → score) + dev-art scene | ✅ 75 tests, smoke test, 10,000-move soak |
-| M2 · specials (bonus stars, starflowers, black pearls, bombs) | ✅ 101 tests, soak plays specials |
-| M3 · modes (Marathon / Timed / Survival), difficulty, menu, result screen | ✅ 124 tests, soak plays all three modes |
-| M4 · art, audio, tutorial, animations, meta | ✅ neon UI, procedurally synthesised audio with per-clear cues, menu with live records, settings (audio / juice / rebinds), profile stats, leaderboard, achievements (20), ten-clip tutorial, in-engine replays |
-| M5 · balance, accessibility, exports | ✅ soak-tuned bombs, OKLCH palette with colour-blind glyphs, Windows and web export presets |
-
 ## Building
 
 Both presets reference the **matching 4.7.2 templates held in `tools/templates/`** (gitignored,
@@ -175,7 +161,3 @@ colour and a rotation that could leave a piece floating on a gappy board.
 | Rotation | Discrete 60° presses; a non-matching position persists (deliberate deviation, behind a `FREE`/`STRICT` ruleset flag) |
 | Architecture | Pure deterministic rules core (seeded RNG, replays, unit-testable) + a thin Godot view layer |
 | Out of scope | Hexic 2 Battle mode, Emerald/Ruby tiers, online multiplayer, free-to-play meta |
-
-## Legal
-
-Game mechanics are not protected, but *Hexic* and its artwork, music and trade dress are Microsoft IP. Hexard uses its own name, art and audio. Reference screenshots in `docs/research/` are research-only and git-ignored.
